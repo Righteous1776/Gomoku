@@ -111,12 +111,14 @@ final class GomokuNativeTrainingJournal {
 
         init(journal: GomokuNativeTrainingJournal) throws {
             self.journal = journal
+            var inspectedSequences = Set<[Int]>()
             let report = journal.inspect { record in
-                seen.insert(record.moves)
+                inspectedSequences.insert(record.moves)
             }
             guard report.invalid == 0, report.duplicates == 0 else {
                 throw GomokuNativeTrainingJournalError.corrupted
             }
+            seen = inspectedSequences
             initialValidCount = report.accepted
         }
 
