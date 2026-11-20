@@ -99,10 +99,50 @@ final class GomokuNativeTrainingJournal {
         return outcome == record.outcome
     }
 
-    @discardableResult
-    func append(_ game: NativeGomokuSelfPlayGame, seed: Int) throws -> URL {
-        guard game.completed, !game.plies.isEmpty,
-              game.plies.count <= 225 else {
+    /// One expensive full content inspection per batch, then O(1)-average
+    /// in-memory sequence deduplication for new games. The batch is bound to
+    /// one serial writer and should be created off the UI actor. An externally
+    /// changed or damaged archive requires a new audit before another batch.
+    final class BatchWriter {
+        private let journal: GomokuNativeTrainingJournal
+        private var seen: Set<[Int]> = []
+        private(set) var accepted: Int = 0
+        let initialValidCount: Int
+
+        init(journal: GomokuNativeTrainingJournal) throws {
+            self.journal = journal
+            let report = journal.inspect { record in
+                seen.insert(record.moves)
+            }
+            guard report.invalid == 0, report.duplicates == 0 else {
+                throw GomokuNativeTrainingJournalError.corrupted
+            }
+            initialValidCount = report.accepted
+        }
+
+        @discardableResult
+        func append(_ game: NativeGomokuSelfPlayGame, seed: Int) throws -> URL {
+            let moves = try GomokuNativeTrainingJournal.verifiedMoves(game)
+            guard !seen.contains(moves) else {
+                throw GomokuNativeTrainingJournalError.duplicate
+            }
+            let path = try journal.writeVerified(moves: moves, result: game.result, seed: seed)
+            seen.insert(moves)
+            accepted += 1
+            return path
+        }
+
+        var totalValidCount: Int { initialValidCount + accepted }
+    }
+
+    func makeBatchWriter() throws -> BatchWriter {
+        try BatchWriter(journal: self)
+    }
+
+    /// Every datum, including winner attribution, is checked before the
+    /// separate durable write. No outcome inferred from an untrusted label.
+    private static func verifiedMoves(_ game: NativeGomokuSelfPlayGame) throws -> [Int] {
+        guard game.completed, !game.plies.isEmpty, game.plies.count <= 225 else {
             throw GomokuNativeTrainingJournalError.invalidGame
         }
         var replay = GomokuState()
@@ -124,16 +164,16 @@ final class GomokuNativeTrainingJournal {
         guard verifiedOutcome != .unfinished, verifiedOutcome == game.result else {
             throw GomokuNativeTrainingJournalError.invalidGame
         }
-        var alreadyRecorded = false
-        inspect { record in
-            if record.moves == indices { alreadyRecorded = true }
-        }
-        guard !alreadyRecorded else { throw GomokuNativeTrainingJournalError.duplicate }
+        return indices
+    }
+
+    private func writeVerified(
+        moves: [Int], result: AdaptiveBoardGameResult, seed: Int
+    ) throws -> URL {
         let id = UUID()
         let record = GomokuNativeTrainingRecord(
             version: GomokuNativeTrainingRecord.version, id: id,
-            createdAt: Date(), seed: seed, moves: indices,
-            outcome: game.result
+            createdAt: Date(), seed: seed, moves: moves, outcome: result
         )
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true
@@ -145,5 +185,16 @@ final class GomokuNativeTrainingJournal {
         #endif
         try JSONEncoder().encode(record).write(to: path, options: options)
         return path
+    }
+
+    @discardableResult
+    func append(_ game: NativeGomokuSelfPlayGame, seed: Int) throws -> URL {
+        let indices = try Self.verifiedMoves(game)
+        var found = false
+        inspect { record in
+            if record.moves == indices { found = true }
+        }
+        guard !found else { throw GomokuNativeTrainingJournalError.duplicate }
+        return try writeVerified(moves: indices, result: game.result, seed: seed)
     }
 }
