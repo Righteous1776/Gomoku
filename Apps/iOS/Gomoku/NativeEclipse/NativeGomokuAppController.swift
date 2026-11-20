@@ -38,6 +38,8 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var trainingAttempted = 0
     @Published private(set) var trainingTarget = 0
     @Published private(set) var trainingRejected = 0
+    @Published private(set) var isExportingNativeTraining = false
+    @Published private(set) var nativeTrainingExportURL: URL?
     @Published var selfPlayLearningEnabled = UserDefaults.standard.object(forKey: "gomoku.eclipse.selfplay-feedback") as? Bool ?? true {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
@@ -625,6 +627,36 @@ final class NativeGomokuAppController: ObservableObject {
     private func finishLegacyImport(message: String) {
         legacyImportStatus = message
         isImportingLegacyLearning = false
+    }
+
+    /// Matching the original VeilLink self-play details affordance, without
+    /// confusing its verified native journal with legacy .vltrain packages.
+    /// Full replay validation and JSON streaming run outside MainActor.
+    func prepareNativeTrainingExport() {
+        guard !isExportingNativeTraining else { return }
+        isExportingNativeTraining = true
+        let journalDirectory = trainingJournal.directory
+        Task.detached(priority: .utility) { [weak self] in
+            do {
+                let url = try GomokuNativeTrainingJournal(
+                    directory: journalDirectory
+                ).exportVerifiedDetails()
+                await self?.completeNativeTrainingExport(url: url, error: nil)
+            } catch {
+                await self?.completeNativeTrainingExport(
+                    url: nil, error: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func completeNativeTrainingExport(url: URL?, error: String?) {
+        if let previous = nativeTrainingExportURL, previous != url {
+            try? FileManager.default.removeItem(at: previous)
+        }
+        nativeTrainingExportURL = url
+        isExportingNativeTraining = false
+        if let error { trainingWarning = error }
     }
 
     func exportRecentMatch() -> URL? {
