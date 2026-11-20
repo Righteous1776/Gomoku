@@ -13,9 +13,11 @@ The appearance enum is `VeilAppearanceSelection.instrumentAuto` in `VeilLink/Cor
 - Use native scrolling and smallest possible rendering invalidation while search runs. Ensure dynamic type, VoiceOver and safe-area behavior in both orientations supported by original game view.
 - Record source screenshot vs new screenshot comparisons for dark/light, iPhone/iPad and after state transitions. No invented mockup substitutes for 1:1 source parity.
 
-## Existing package limitation
+## Actual migration status (2026-11-21)
 
-`Apps/iOS/Gomoku/InstrumentHomeView.swift` and `BoardInstrumentView.swift` are independently coded **temporary shell** components, visually thematic but NOT exact original UI components. Work must transplant and bind original UI before claiming completed migration.
+`InstrumentHomeView.swift` has been refactored from the original `VeilLink/UI/GameLobbyView.swift` LocalAIGameView hierarchy: compact state/metrics card, ECLIPSE identity/stream, seven-tier + full-depth controls, original board, then a single collapsible training & advanced panel. Independent Gomoku intentionally omits the parent VeilLink tab bar, messenger and unrelated games. `VeilEclipseRuntimeInstruments.swift` was copied unchanged from the original code and moved behind an explicit disclosure to prevent constant redraw and keep the board near the fold. The board retains original wood/grid/star/stone layout and has restored original post-move impact; it retains a stronger standalone accessibility implementation.
+
+**This is SOURCE-ALIGNED, not 1:1 visual acceptance.** Xcode simulator screenshot capture and physical dark/light device comparisons have not executed on the current PR. Original `VeilLink` owner screenshots are the visual target, not independent app proof. Existing owner-provided photos were inspected but not stored in a public source directory. See `Docs/Operations/ECLIPSE_FULL_MIGRATION_ACCEPTANCE.md` for unresolved gates.
 
 ## Release UI check
 
