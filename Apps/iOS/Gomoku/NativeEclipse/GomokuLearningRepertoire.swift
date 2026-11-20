@@ -42,6 +42,8 @@ enum GomokuLearningRepertoire {
         let invalidNativeFiles: Int
         let duplicateNativeFiles: Int
         let validHumanGames: Int
+        let validLegacyGames: Int
+        let invalidLegacyFiles: Int
     }
 
     static func build(
@@ -49,7 +51,8 @@ enum GomokuLearningRepertoire {
         archiveDirectory: URL,
         currentMoves: [VeilGomokuMatchArchive.Move],
         humanStone: UInt8,
-        includeNativeSelfPlay: Bool = true
+        includeNativeSelfPlay: Bool = true,
+        importedLegacyDirectory: URL? = nil
     ) -> BuildReport {
         var humanStats: [String: [String: Stat]] = [:]
         var nativeStats: [String: [String: Stat]] = [:]
@@ -106,6 +109,38 @@ enum GomokuLearningRepertoire {
             offset = next
         }
 
+        // The imported legacy book is not a self-play counter. Its entries
+        // were individually replayed and stored in the standalone Gomoku
+        // namespace by GomokuLegacyLearningImporter.
+        let legacyFolder = importedLegacyDirectory
+            ?? archiveDirectory.deletingLastPathComponent()
+                .appendingPathComponent("ImportedLegacyLearningV1", isDirectory: true)
+        let legacyVerification = GomokuNativeTrainingJournal(directory: legacyFolder).inspect { record in
+            humanGames += 1
+            var game = GomokuState()
+            for index in record.moves {
+                let position = AdaptiveBoardPosition.gomoku(game)
+                let byAI = game.currentPlayer == .guest
+                var options = humanStats[position] ?? [:]
+                var stat = options[String(index)] ?? Stat()
+                stat.add(record.outcome, byAI: byAI)
+                options[String(index)] = stat
+                humanStats[position] = options
+                _ = game.apply(index: index, actor: game.currentPlayer)
+            }
+            guard humanStone == 1, record.moves.count > currentMoves.count,
+                  Array(record.moves.prefix(currentMoves.count)) == currentMoves.map(\.index),
+                  currentMoves.count.isMultiple(of: 2) == false else { return }
+            let choice = String(record.moves[currentMoves.count])
+            roots[choice, default: 0] += record.outcome == .aiWon ? 420
+                : record.outcome == .humanWon ? -620 : -60
+            if record.moves.count > currentMoves.count + 1 {
+                let reply = String(record.moves[currentMoves.count + 1])
+                replies[choice, default: [:]][reply, default: 0] +=
+                    record.outcome == .humanWon ? 4 : 1
+            }
+        }
+
         let journal = GomokuNativeTrainingJournal(directory: journalDirectory)
         let verification = journal.inspect { record in
             guard includeNativeSelfPlay else { return }
@@ -157,7 +192,9 @@ enum GomokuLearningRepertoire {
             validNativeGames: verification.accepted,
             invalidNativeFiles: verification.invalid,
             duplicateNativeFiles: verification.duplicates,
-            validHumanGames: humanGames
+            validHumanGames: humanGames,
+            validLegacyGames: legacyVerification.accepted,
+            invalidLegacyFiles: legacyVerification.invalid
         )
     }
 }
