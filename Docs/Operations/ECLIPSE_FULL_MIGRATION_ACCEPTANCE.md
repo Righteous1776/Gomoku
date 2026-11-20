@@ -2,7 +2,7 @@
 
 > P0 migration review ledger. **PR #13 stays Draft.** No main merge, no IPA release, no write to VeilLink.
 >
-> Last reviewed PR head: `ab1a3a05a03da3baf0f941f240f8d7696fec273f` (continue updating for subsequent commits).
+> Last reviewed PR head: `9e6b6f5444ae3e42935c0f1e0d25e9b254ab0b21` (UI + native verified export; document commit follows) (continue updating for subsequent commits).
 > Original immutable reference: `Righteous1776/VeilLink@0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32`.
 
 ## Rules
@@ -29,6 +29,8 @@
 | Developer formation lab and signed lesson library | `DeveloperFormationLibrary.swift`, `BoardDeveloperLearningLabView.swift`, `DeveloperLearningLabGate.swift` | `GomokuDeveloperAuthorization.swift`, `GomokuDeveloperLessonLibrary.swift`, `DeveloperLearningLabView.swift` | Device-owner authorization, HMAC/Keychain lessons, alternating teaching moves, prefix influence and private import permit; `0830054`, `f26123c`, `e7e5a10` | `GomokuDeveloperFormationTests` committed; physical biometric/Keychain acceptance pending | WIRED (subset) |
 | Personal coach learning profile | `AdaptiveBoardLearning.swift` `PersonalBoardCoachProfile` | `GomokuCoachProfile.swift`, `GomokuCoachView.swift` | Async verify -> completed matches, native/legacy evidence, opening, repeated losses -> UI sheet; commits `0183dd0`, `dc77540`, `d63ad02` | `GomokuCoachProfileTests` committed; CI pending | WIRED |
 | Search trace, last move, fallback notices | `VeilEclipseSearchTraceStore`, `VeilGomokuUnifiedSearch.Trace` | `VeilEclipseMeasuredMetricsStore.swift`, `InstrumentHomeView.swift` | Original onExploredLine and onSearchTrace callbacks; measured depth/node milestones feed original upper console and read-only analysis sheet; session token invalidation; `8ce361f`, `d3ae209` | `VeilEclipseMeasuredMetricsTests` committed; no accepted UI/performance screenshots | WIRED |
+| Instrument-grade game hierarchy / native night+day | `VeilLink/UI/GameLobbyView.swift` `LocalAIGameView` lines 412–924, original board from `VeilLink/UI/MiniGameViews.swift` | `InstrumentHomeView.swift`, `BoardInstrumentView.swift` | Compact status, ECLIPSE identity, original seven-tier/full-depth controls, board ahead of expandable training, genuine imported VeilLink runtime component, original event-bound stone pulse; `1b1520b`, `49abbba`, `d22ddba` | `InstrumentUITests` foldout and dark/light screenshot attachments authored (`e39fd6e`); simulator images NOT produced, physical dark/light visual comparison pending | WIRED, NOT ACCEPTED |
+| Original per-ply self-play export | `LocalAIGameController.exportNativeSelfPlayDetails()` | `GomokuNativeTrainingJournal.exportVerifiedDetails()`, `NativeGomokuAppController.prepareNativeTrainingExport()` | Async off-UI inspection; streamed `gomoku.native.selfplay-details.v1` records, no hard cap, aborts on invalid/duplicate original archive, ShareLink only after success; `1bcc89f`, `0ec3cc8`, `01f44f5` | `GomokuTrainingIntegrityTests` export/malformed-archive checks authored (`9e6b6f5`); iOS runner failed before steps | WIRED, NOT TESTED |
 | Peer-to-peer BLE + authenticated E2EE match | Original VeilLink BLE/Pairing code | Original resources archived | Not integrated | No two-iPhone evidence | STAGED / BLOCKED on physical device for final acceptance |
 | Standalone icon / signing / device install | VeilLink visual language | `project.yml`, app resources | Independent bundle id present, brand icon/signing work outstanding | Simulator not a substitute for device install | STAGED |
 
@@ -68,6 +70,22 @@ On commits after `3fb78f6`, the C++/Python and Inbox jobs sometimes report failu
 - **Required iOS permission text:** `32e9ff9`: developer device-owner authentication disclosure.
 - Actions at source commit `081a6d9`: iOS `44781964169` **queued**; C++/Python `44781964445` and Inbox `44781964207` **failure with unavailable executed-step evidence**. Do not attribute these jobs to application test failures or report TESTED. Previous green CI does not validate the above commits.
 - Still no two-physical-iPhone BLE/E2EE evidence, Swift 6 strict compile, signed IPA, icon acceptance, source/target gameplay parity or Owner authorization to merge.
+
+
+## UI screenshot-driven migration pass · 2026-11-21
+
+The Owner-supplied VeilLink night screenshots are the **source reference**: black/orange instrument navigation, ECLIPSE identity with compact VISUAL STREAM, single difficulty menu and deep-search toggle, 15×15 wood board, and one collapsed training panel with verified learning/formation/Bot-vs-Bot/coach/export. They are **not screenshots of the independent Gomoku build**.
+
+Changes staged in PR #13 only:
+
+- Replaced independent vertical button pile (NEW GAME / BLACK / separate pickers / three self-play buttons / coach / developer buttons / import / export / visualization / formation / theme) with a source-aligned card hierarchy and collapse. Full-screen messenger tab bar is excluded intentionally.
+- Restored the original `VeilEclipseRuntimeInstruments.swift` component byte-for-byte; accessible behind an explicit disclosure **inside** the learning panel to keep the actual board near the top and avoid continuous redraw when hidden.
+- Restored the original board's single on-move impact animation, gated by reduced-motion and scoped to the native game session; kept tap recognizer simultaneous with scrolling and a separate accessibility grid.
+- Training stats now bind to verified local journal/coach values; reference screenshot's “42 games / 2403 positions / 3110 self-play” are **never** hardcoded into Gomoku.
+- Added independent streamed JSON export of per-move validated native self-play; unlike VeilLink's former package contract, this export is **not** presented as a round-trip `.vltrain.json` import or full “训练包” parity.
+- New UI tests request screenshot attachments for day and night plus expanded learning. These attachments do not exist until simulator XCTest truly executes. Reduced Motion, iPad, keyboard, short-screen, dynamic type and low-power profiles remain unaccepted.
+
+Current runner check at `9e6b6f5`: iOS Actions `44785011256`, C++/Python `44785011290`, Inbox Lite `44785011337` all show **failure before any job steps / assigned runner evidence**. These are not verified compiler/test failures nor passing checks. Do not mark the UI TESTED or promote this PR.
 
 ## Owner decision and rollback
 
