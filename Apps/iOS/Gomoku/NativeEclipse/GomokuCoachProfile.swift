@@ -16,9 +16,14 @@ struct GomokuCoachProfile: Sendable {
     static func build(
         archiveDirectory: URL,
         trainingDirectory: URL,
-        developerFormationCount: Int
+        developerFormationCount: Int,
+        localEvidence: GomokuLocalMatchEvidence? = nil
     ) -> GomokuCoachProfile {
         let archive = VeilGomokuMatchArchive(directory: archiveDirectory)
+        let evidence = localEvidence ?? GomokuLocalMatchEvidence(
+            directory: archiveDirectory.deletingLastPathComponent()
+                .appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
+        )
         var openings: [Int: Int] = [:]
         var lostPrefixes: [String: Int] = [:]
         var completed = 0
@@ -27,6 +32,9 @@ struct GomokuCoachProfile: Sendable {
         var offset = 0
         while let page = try? archive.page(offset: offset, limit: 50) {
             for match in page.matches {
+                // A copied/imported JSON can replay legally but does not prove
+                // this device actually played it: exclude it from coach metrics.
+                guard evidence.isVerifiedLocal(match) else { continue }
                 guard match.status == .humanWon || match.status == .aiWon
                         || match.status == .draw else { continue }
                 completed += 1
@@ -48,7 +56,7 @@ struct GomokuCoachProfile: Sendable {
         let repertoire = GomokuLearningRepertoire.build(
             journalDirectory: trainingDirectory,
             archiveDirectory: archiveDirectory,
-            currentMoves: [], humanStone: 1
+            currentMoves: [], humanStone: 1, localEvidence: evidence
         )
         let remembered = repertoire.snapshot.preferences.count
         let level = min(10, max(1, 1 + completed / 3 + remembered / 180))
