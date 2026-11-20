@@ -87,6 +87,19 @@ struct InstrumentHomeView: View {
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("gomoku.eclipse.search-mode")
                 }
+                HStack(spacing: 12) {
+                    Button(engine.isNativeTraining ? "训练进行中" : "真实自对弈 1 局") {
+                        engine.beginNativeSelfPlay(games: 1)
+                    }
+                    .disabled(engine.isNativeTraining)
+                    .buttonStyle(InstrumentButtonStyle())
+                    Text("已保存训练：\(engine.trainedGames) 局")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if let warning = engine.trainingWarning ?? engine.archiveWarning {
+                    Text(warning).font(.caption2).foregroundStyle(.orange)
+                }
                 Text("ENGINE: Original Swift ECLIPSE GomokuBot (mandatory tactical gates). Native learning imports, exact instrumentAuto and release parity still require validation.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
