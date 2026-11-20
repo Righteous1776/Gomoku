@@ -169,45 +169,62 @@ struct InstrumentHomeView: View {
         }
     }
 
+    /// In regular widths the same compact VeilLink row is retained; larger
+    /// content sizes and narrow split-screen layouts fall back to two rows
+    /// instead of clipping the 6× tier or intercepting the board below.
     private var boardQuickControls: some View {
-        HStack(spacing: 12) {
-            Menu {
-                ForEach(BoardBotDifficulty.allCases) { difficulty in
-                    Button {
-                        engine.difficulty = difficulty
-                    } label: {
-                        if difficulty == engine.difficulty {
-                            Label(difficulty.title, systemImage: "checkmark")
-                        } else {
-                            Text(difficulty.title)
-                        }
-                    }
-                }
-            } label: {
-                Label(engine.difficulty.title, systemImage: "slider.horizontal.3")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(VeilTheme.goldBright)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                difficultyMenu
+                Spacer(minLength: 3)
+                deepSearchToggle
             }
-            .accessibilityIdentifier("gomoku.eclipse.seven-tiers")
-            Spacer(minLength: 3)
-            Toggle(isOn: Binding(
-                get: { engine.searchMode == .full },
-                set: { engine.searchMode = $0 ? .full : .economy }
-            )) {
-                Text("深度搜索")
-                    .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 10) {
+                difficultyMenu
+                deepSearchToggle
             }
-            .tint(VeilTheme.gold)
-            .fixedSize(horizontal: true, vertical: false)
-            .accessibilityIdentifier("gomoku.eclipse.search-mode")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(VeilTheme.elevated.opacity(0.82),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
+    }
+
+    private var difficultyMenu: some View {
+        Menu {
+            ForEach(BoardBotDifficulty.allCases) { difficulty in
+                Button {
+                    engine.difficulty = difficulty
+                } label: {
+                    if difficulty == engine.difficulty {
+                        Label(difficulty.title, systemImage: "checkmark")
+                    } else {
+                        Text(difficulty.title)
+                    }
+                }
+            }
+        } label: {
+            Label(engine.difficulty.title, systemImage: "slider.horizontal.3")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(VeilTheme.goldBright)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityIdentifier("gomoku.eclipse.seven-tiers")
+    }
+
+    private var deepSearchToggle: some View {
+        Toggle(isOn: Binding(
+            get: { engine.searchMode == .full },
+            set: { engine.searchMode = $0 ? .full : .economy }
+        )) {
+            Text("深度搜索").font(.caption.weight(.semibold))
+        }
+        .tint(VeilTheme.gold)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityIdentifier("gomoku.eclipse.search-mode")
     }
 
     private var board: some View {
