@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Standalone functional shell. Exact VeilLink instrument UI transplant is a P3 release gate.
 struct InstrumentHomeView: View {
-    @StateObject private var engine = EngineBridge()
+    @StateObject private var engine = NativeGomokuAppController()
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -70,7 +70,24 @@ struct InstrumentHomeView: View {
                     Button(engine.humanIsBlack ? "BLACK · FIRST" : "WHITE · SECOND") { engine.toggleSide() }
                         .buttonStyle(InstrumentButtonStyle())
                 }
-                Text("ENGINE: C++ experimental baseline. Source-fidelity ECLIPSE migration and strength validation are mandatory before release.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("ECLIPSE 难度", selection: $engine.difficulty) {
+                        ForEach(BoardBotDifficulty.allCases) { level in
+                            Text(level.title).tag(level)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("gomoku.eclipse.seven-tiers")
+
+                    Picker("搜索模式", selection: $engine.searchMode) {
+                        ForEach(BoardSearchMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityIdentifier("gomoku.eclipse.search-mode")
+                }
+                Text("ENGINE: Original Swift ECLIPSE GomokuBot (mandatory tactical gates). Native learning imports, exact instrumentAuto and release parity still require validation.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
             .padding(18)
