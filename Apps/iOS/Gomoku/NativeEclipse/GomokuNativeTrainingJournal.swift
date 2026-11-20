@@ -85,6 +85,72 @@ final class GomokuNativeTrainingJournal {
 
     func count() -> Int { inspect().accepted }
 
+    enum ExportError: LocalizedError {
+        case noSavedGames
+
+        var errorDescription: String? {
+            "尚无完整、已验证的原生自对弈棋局，未生成空白导出。"
+        }
+    }
+
+    /// Original VeilLink exposed a per-ply self-play export independently from
+    /// ordinary player match/learning packages. Export *only* replay-validated
+    /// native evidence in an explicit, standalone JSON schema. Stream records
+    /// directly to disk rather than accumulating potentially unlimited games
+    /// in an in-memory JSON array. This is not the legacy .vltrain import format.
+    func exportVerifiedDetails() throws -> URL {
+        let destination = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuNativeSelfPlay-" + UUID().uuidString + ".json")
+        var protection: Data.WritingOptions = [.atomic]
+        #if canImport(UIKit)
+        protection.insert(.completeFileProtectionUntilFirstUserAuthentication)
+        #endif
+        try Data().write(to: destination, options: protection)
+        let handle: FileHandle
+        do {
+            handle = try FileHandle(forWritingTo: destination)
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+
+        do {
+            try handle.write(contentsOf: Data(
+                #"{"schema":"gomoku.native.selfplay-details.v1","games":["#.utf8
+            ))
+            let encoder = JSONEncoder()
+            var wroteGame = false
+            var writeError: Error?
+            let report = inspect { record in
+                guard writeError == nil else { return }
+                do {
+                    if wroteGame {
+                        try handle.write(contentsOf: Data(",".utf8))
+                    }
+                    try handle.write(contentsOf: encoder.encode(record))
+                    wroteGame = true
+                } catch {
+                    writeError = error
+                }
+            }
+            if let writeError { throw writeError }
+            guard report.invalid == 0 && report.duplicates == 0 else {
+                throw GomokuNativeTrainingJournalError.corrupted
+            }
+            guard report.accepted > 0 else { throw ExportError.noSavedGames }
+            try handle.write(contentsOf: Data(
+                "],\"verifiedGames\":\(report.accepted)}".utf8
+            ))
+            try handle.close()
+            return destination
+        } catch {
+            try? handle.close()
+            try? FileManager.default.removeItem(at: destination)
+            throw error
+        }
+    }
+
+
     static func isValid(_ record: GomokuNativeTrainingRecord) -> Bool {
         guard record.version == GomokuNativeTrainingRecord.version,
               (5...225).contains(record.moves.count),
