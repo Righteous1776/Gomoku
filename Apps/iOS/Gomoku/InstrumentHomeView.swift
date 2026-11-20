@@ -1,8 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Standalone functional shell. Exact VeilLink instrument UI transplant is a P3 release gate.
 struct InstrumentHomeView: View {
     @StateObject private var engine = NativeGomokuAppController()
+    @State private var choosingMatch = false
+    @State private var matchExportURL: URL?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -97,6 +100,20 @@ struct InstrumentHomeView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                HStack(spacing: 12) {
+                    Button("导入棋谱 JSON") { choosingMatch = true }
+                        .buttonStyle(InstrumentButtonStyle())
+                    Button("准备导出最新棋谱") {
+                        matchExportURL = engine.exportRecentMatch()
+                    }
+                    .buttonStyle(InstrumentButtonStyle())
+                }
+                if let exportURL = matchExportURL {
+                    ShareLink(item: exportURL) {
+                        Label("分享最新棋谱", systemImage: "square.and.arrow.up")
+                    }
+                    .accessibilityIdentifier("gomoku.match.share")
+                }
                 if let warning = engine.trainingWarning ?? engine.archiveWarning {
                     Text(warning).font(.caption2).foregroundStyle(.orange)
                 }
@@ -108,6 +125,16 @@ struct InstrumentHomeView: View {
             .frame(maxWidth: .infinity)
         }
         .background(panel.ignoresSafeArea())
+        .fileImporter(isPresented: $choosingMatch,
+                      allowedContentTypes: [UTType.json]) { result in
+            switch result {
+            case .success(let url):
+                engine.importMatch(from: url)
+            case .failure:
+                // Cancellation must not modify any existing chess record.
+                break
+            }
+        }
     }
 
     private var statusText: String {
