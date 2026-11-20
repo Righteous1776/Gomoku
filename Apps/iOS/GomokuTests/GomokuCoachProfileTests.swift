@@ -32,6 +32,6 @@ final class GomokuCoachProfileTests: XCTestCase {
         XCTAssertEqual(profile.developerFormations, 0)
         XCTAssertGreaterThan(profile.rememberedPositions, 0)
         XCTAssertGreaterThanOrEqual(profile.level, 1)
-        XCTAssertTrue(profile.favoriteOpening.contains("中心"))
+        XCTAssertTrue(profile.favoriteOpening.contains("边侧"))
     }
 }
