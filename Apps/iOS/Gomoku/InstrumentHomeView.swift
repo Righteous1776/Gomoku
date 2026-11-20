@@ -449,6 +449,26 @@ struct InstrumentHomeView: View {
                 }
                 .disabled(engine.isBootstrappingSeed || engine.isInitialTrainingAuditRunning)
             }
+            Button {
+                engine.prepareNativeTrainingExport()
+            } label: {
+                Label(engine.isExportingNativeTraining
+                      ? "正在复验并导出训练记录"
+                      : "导出自对弈明细（逐手棋谱）",
+                      systemImage: "square.and.arrow.up")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(VeilPhysicalButtonStyle())
+            .disabled(engine.isExportingNativeTraining || engine.isNativeTraining
+                      || engine.isInitialTrainingAuditRunning || engine.trainedGames == 0)
+            .accessibilityIdentifier("gomoku.training.export.verified")
+            if let exported = engine.nativeTrainingExportURL {
+                ShareLink(item: exported) {
+                    Label("分享已验证的自对弈 JSON", systemImage: "square.and.arrow.up")
+                        .font(.caption.weight(.semibold))
+                }
+                .accessibilityIdentifier("gomoku.training.share.verified")
+            }
             if let warning = engine.trainingWarning {
                 Text(warning)
                     .font(.caption2)
