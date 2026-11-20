@@ -39,7 +39,7 @@ final class GomokuNativeTrainingJournal {
         }
     }
 
-    struct VerificationReport: Equatable {
+    struct VerificationReport: Equatable, Sendable {
         let accepted: Int
         let invalid: Int
         let duplicates: Int
