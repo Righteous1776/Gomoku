@@ -1,0 +1,33 @@
+name: Inbox Lite
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inbox:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate board and run regression tests
+        run: |
+          python3 Scripts/inbox.py check-board
+          python3 -m unittest discover -s Scripts/tests -v
+      - name: Load trusted policy from PR base
+        if: startsWith(github.head_ref, 'agent-drop/')
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .trusted-policy
+          persist-credentials: false
+      - name: Check isolated drop against trusted base
+        if: startsWith(github.head_ref, 'agent-drop/')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DROP_BRANCH: ${{ github.head_ref }}
+        run: python3 .trusted-policy/Scripts/inbox.py --repo . check-drop --base "$BASE_SHA" --head "$HEAD_SHA" --branch "$DROP_BRANCH"

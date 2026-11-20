@@ -1,9 +1,6 @@
-# Lane agent rules
+# 规则兼容入口
 
-1. Default: `INBOX_ONLY` for all workers except separately owner-authorized initial Work setup/integration.
-2. Allowed contribution path: `AGENT_INBOX/submissions/<agent-id>/<task-id>/`.
-3. Proposal content: `MANIFEST.md`, `PROPOSAL.md`, `PATCH.diff`, `TEST_PLAN.md`, `RISKS.md`; no secrets or binary weights.
-4. Agents shall never alter source preservation snapshots in `Legacy/Original`; create adapted code only through authorized integration branches and record corresponding source diff.
-5. Release/signing/main protected. Source-pinned extraction and AI parity tests are mandatory before promoting an engine change.
-6. If a change touches private data migration, BLE encryption/identity, application signing, or major model rules, require owner/governor review.
-7. Never modify upstream VeilLink except with independent explicit upstream authority satisfying its AGENTS.md policy.
+日常只读 ../AGENTS.md、00_READ_ME_FIRST.md 和 BOARD.json。
+新投递采用 TASK.json + REPORT.md + PATCH.diff；旧五/六文件历史保留，重新投递按新格式。
+默认 INBOX_ONLY、Owner → 集成负责人 → Agent、禁止自合并、VeilLink 只读。
+不重复维护宪法、编号记忆库或消息回执。当前协作规则优先于原工程包中的旧提案格式；产品验收门槛不变。

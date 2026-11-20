@@ -1,0 +1,88 @@
+{
+  "schema": "gomoku-inbox-v1",
+  "owner": "Righteous1776",
+  "governor": null,
+  "tasks": [
+    {
+      "task_id": "SOURCE",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Legacy/Original/",
+        "Provenance/",
+        "Migration/evidence/"
+      ],
+      "interfaces": [
+        "upstream-source"
+      ],
+      "depends_on": []
+    },
+    {
+      "task_id": "IOS",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Apps/iOS/"
+      ],
+      "interfaces": [
+        "swift-app"
+      ],
+      "depends_on": [
+        "SOURCE"
+      ]
+    },
+    {
+      "task_id": "CPP",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Engine/",
+        "Arena/"
+      ],
+      "interfaces": [
+        "c-abi"
+      ],
+      "depends_on": []
+    },
+    {
+      "task_id": "TRAINING",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Training/"
+      ],
+      "interfaces": [
+        "dataset-v1"
+      ],
+      "depends_on": []
+    },
+    {
+      "task_id": "IMPORT",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Migration/"
+      ],
+      "interfaces": [
+        "import-v1"
+      ],
+      "depends_on": [
+        "SOURCE"
+      ]
+    },
+    {
+      "task_id": "BLE",
+      "agent_id": "unassigned",
+      "state": "OPEN",
+      "scope": [
+        "Apps/iOS/"
+      ],
+      "interfaces": [
+        "game-session-v1"
+      ],
+      "depends_on": [
+        "IOS"
+      ]
+    }
+  ]
+}

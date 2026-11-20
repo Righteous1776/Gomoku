@@ -2,7 +2,21 @@ name: iOS simulator build (prototype; not release)
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "AGENT_INBOX/**"
+      - "AGENTS.md"
+      - "Docs/**"
+      - "README.md"
+      - "Scripts/inbox.py"
+      - "Scripts/tests/**"
   pull_request:
+    paths-ignore:
+      - "AGENT_INBOX/**"
+      - "AGENTS.md"
+      - "Docs/**"
+      - "README.md"
+      - "Scripts/inbox.py"
+      - "Scripts/tests/**"
   workflow_dispatch:
 permissions:
   contents: read
