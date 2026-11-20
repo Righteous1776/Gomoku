@@ -146,10 +146,12 @@ def audit_november_export(data: bytes, entry: dict) -> dict:
             source.get("checksumAlgorithm") != "fnv1a64-canonical-json"):
         raise ValueError("Unexpected November training format")
     payload = source["payload"]
-    if (fnv1a64(canonical_bytes(payload)) != entry["fnv"] or
-            source["payloadChecksum"] != entry["fnv"] or
-            payload["schema"] != 1):
-        raise ValueError("Original November training FNV mismatch")
+    # The source SHA256 has already verified the *entire* original file.
+    # Apple's v29 JSONEncoder encoded Date doubles at a different precision;
+    # reserializing with Python/other Foundation versions changes the FNV.
+    # Record and verify the original claimed FNV without inventing parity.
+    if (source["payloadChecksum"] != entry["fnv"] or payload["schema"] != 1):
+        raise ValueError("Original November checksum claim or schema changed")
     games = payload["recentGames"]
     if len(games) != entry["recent"] or len(payload["positions"]) != entry["positions"]:
         raise ValueError("Original November game or aggregate count changed")

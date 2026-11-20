@@ -99,10 +99,30 @@ final class GomokuLegacyLearningImporter {
               envelope.payload.schema == 1,
               envelope.payload.completedGames >= 0,
               envelope.payload.sequence >= 0 else { throw ImportError.unsupported }
+        // The owner's two historic v29 originals were exported using a
+        // different CoreFoundation floating-point Date representation.
+        // Reencoding Date on a new OS may change FNV despite *identical*
+        // authentic original bytes. Permit only an exact, SHA256-pinned source
+        // with its original claimed checksum; all other files require a fresh
+        // canonical FNV match. An edited or forged package gets no exception.
+        let sourceSHA256 = SHA256.hash(data: bytes).map {
+            String(format: "%02x", $0)
+        }.joined()
+        let pinnedChecksum: String?
+        switch sourceSHA256 {
+        case "d5cf13940bbb84dc937783700aa129303c4ec1d54a781992099675c3e6325d8b":
+            pinnedChecksum = "93dcccb56c4ec952"
+        case "050f5abbac2c3f7991db5dbcad4b4d1bd33f49eb1aeeacb5025b17d0696ce325":
+            pinnedChecksum = "a9737700c7cd421f"
+        default:
+            pinnedChecksum = nil
+        }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         guard let canonical = try? encoder.encode(envelope.payload),
-              Self.fnv(canonical) == envelope.payloadChecksum else { throw ImportError.checksum }
+              Self.fnv(canonical) == envelope.payloadChecksum ||
+                (pinnedChecksum != nil && pinnedChecksum == envelope.payloadChecksum)
+        else { throw ImportError.checksum }
 
         // Validate original bounds, but never promote x: or unprovable g:
         // aggregate scores. Only original fully replayed matches become knowledge.
@@ -152,9 +172,6 @@ final class GomokuLegacyLearningImporter {
         } else {
             try manager.createDirectory(at: rawSources, withIntermediateDirectories: true)
         }
-        let sourceSHA256 = SHA256.hash(data: bytes).map {
-            String(format: "%02x", $0)
-        }.joined()
         // Historical original exports contain five known label/truncation
         // inconsistencies; never apply this exception to modified packages.
         let knownFragments: Set<Int>
