@@ -10,9 +10,9 @@ struct AdaptiveBoardLearningSnapshot: Sendable {
         trainingLevel: 0
     )
 
-    fileprivate let preferences: [String: [String: Int]]
-    fileprivate let rootAdjustments: [String: Int]
-    fileprivate let predictedHumanReplies: [String: AdaptiveBoardPrediction]
+    let preferences: [String: [String: Int]]
+    let rootAdjustments: [String: Int]
+    let predictedHumanReplies: [String: AdaptiveBoardPrediction]
     /// Bounded compute reinforcement derived from retained local evidence. This
     /// is independent of the uncapped on-disk history and is safe on old devices.
     let trainingLevel: Int
