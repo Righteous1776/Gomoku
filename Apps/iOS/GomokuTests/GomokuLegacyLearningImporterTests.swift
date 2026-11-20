@@ -134,6 +134,54 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
     }
 
+    func testWhiteHumanAndBlackAINativeTrainingProvenance() throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuWhiteOwner-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        // AI is black and completes a legal horizontal five; owner is white.
+        let indices = [105, 0, 106, 1, 107, 2, 108, 3, 109]
+        let blackAI = Match(
+            game: "gomoku", result: .aiWon,
+            actions: indices.enumerated().map { idx, value in
+                (idx.isMultiple(of: 2) ? "a" : "h") + String(value)
+            }, finishedAt: now
+        )
+        let payload = Payload(schema: 1, completedGames: 1, sequence: 1,
+                              positions: [:], recentGames: [blackAI])
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let checksum = fnv(try encoder.encode(payload))
+        let pkg = Package(format: "veillink.board-learning.export.v1",
+                          createdAt: now, appVersion: "test",
+                          checksumAlgorithm: "fnv1a64-canonical-json",
+                          payloadChecksum: checksum, payload: payload)
+        let source = temp.appendingPathComponent("white.vltrain.json")
+        try encoder.encode(pkg).write(to: source, options: .atomic)
+        let destination = temp.appendingPathComponent("ImportedLegacyLearningV1")
+        let gate = GomokuDeveloperPermit()
+        let permit = gate.grant(until: Date().addingTimeInterval(600))
+        let report = try GomokuLegacyLearningImporter(directory: destination)
+            .importPackage(from: source, authorization: permit)
+        XCTAssertEqual(report.imported, 1)
+        XCTAssertEqual(report.quarantinedFragments, 0)
+        var ownerSide: UInt8?
+        _ = GomokuNativeTrainingJournal(directory: destination).inspect {
+            ownerSide = $0.humanStone
+            XCTAssertEqual($0.outcome, .humanWon, "Black is winner, AI was black")
+        }
+        XCTAssertEqual(ownerSide, 2, "Import preserves human-white provenance")
+        let repertoire = GomokuLearningRepertoire.build(
+            journalDirectory: temp.appendingPathComponent("NoNative"),
+            archiveDirectory: temp.appendingPathComponent("NoHuman"),
+            currentMoves: [], humanStone: 2,
+            importedLegacyDirectory: destination
+        )
+        XCTAssertEqual(repertoire.validLegacyGames, 1)
+        XCTAssertTrue(repertoire.snapshot.preferences.count > 0)
+    }
+
     func testOriginalRawPackageAndIncompleteHistorySurviveRepeatImports() throws {
         let temp = FileManager.default.temporaryDirectory
             .appendingPathComponent("GomokuLegacyRawRetention-" + UUID().uuidString)

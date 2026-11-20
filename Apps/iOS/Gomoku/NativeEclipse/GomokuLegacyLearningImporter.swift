@@ -61,6 +61,9 @@ final class GomokuLegacyLearningImporter {
         let preservedPartialGames: Int
         let preservedHashedPositions: Int
         let sourceSHA256: String
+        /// In exact pinned historical owner archives, legal partial fragments
+        /// labeled as complete are preserved raw but not promoted.
+        let quarantinedFragments: Int
     }
 
     let directory: URL
@@ -152,6 +155,17 @@ final class GomokuLegacyLearningImporter {
         let sourceSHA256 = SHA256.hash(data: bytes).map {
             String(format: "%02x", $0)
         }.joined()
+        // Historical original exports contain five known label/truncation
+        // inconsistencies; never apply this exception to modified packages.
+        let knownFragments: Set<Int>
+        switch sourceSHA256 {
+        case "d5cf13940bbb84dc937783700aa129303c4ec1d54a781992099675c3e6325d8b":
+            knownFragments = [11, 17, 64]
+        case "050f5abbac2c3f7991db5dbcad4b4d1bd33f49eb1aeeacb5025b17d0696ce325":
+            knownFragments = [28, 32]
+        default:
+            knownFragments = []
+        }
         let retainedSource = rawSources.appendingPathComponent(sourceSHA256 + ".vltrain.json")
         var writeOptions: Data.WritingOptions = [.atomic]
         #if canImport(UIKit)
@@ -162,17 +176,25 @@ final class GomokuLegacyLearningImporter {
         let staged = GomokuNativeTrainingJournal(directory: stage)
         let batchWriter = try staged.makeBatchWriter()
         var imported = 0, duplicated = 0, ignored = 0, partial = 0
+        var quarantined = 0
         for (ordinal, record) in envelope.payload.recentGames.enumerated() {
             guard record.game == "gomoku" else {
                 guard record.game == "xiangqi" else { throw ImportError.invalidHistory }
                 ignored += 1
                 continue
             }
-            // Even the unfinished records must replay legally before the raw
-            // export is admitted to the protected on-device archive.
-            guard record.actions.count <= 225,
-                  record.actions.count >= (record.result == .unfinished ? 0 : 5) else {
-                throw ImportError.invalidHistory
+            // Original history records actor identity independently of stone:
+            // "a112" may be the AI playing black while the owner plays white.
+            // The board always starts black; actor tags alternate after that.
+            guard record.actions.count <= 225 else { throw ImportError.invalidHistory }
+            let humanStone: UInt8
+            if let first = record.actions.first?.first {
+                guard first == "h" || first == "a" else { throw ImportError.invalidHistory }
+                humanStone = first == "h" ? 1 : 2
+            } else {
+                guard record.result == .unfinished else { throw ImportError.invalidHistory }
+                partial += 1
+                continue
             }
             var state = GomokuState()
             var plies: [AdaptiveBoardPly] = []
@@ -182,31 +204,47 @@ final class GomokuLegacyLearningImporter {
                       let index = Int(action.dropFirst()), (0..<225).contains(index) else {
                     throw ImportError.invalidHistory
                 }
-                let actor: MiniGamePlayer = prefix == "h" ? .host : .guest
+                let stone: UInt8 = prefix == "h" ? humanStone : (3 - humanStone)
+                let actor: MiniGamePlayer = stone == 1 ? .host : .guest
                 let ply = AdaptiveBoardPly(
                     position: AdaptiveBoardPosition.gomoku(state),
                     action: String(index), actor: actor
                 )
-                guard actor == state.currentPlayer, state.apply(index: index, actor: actor) else {
+                guard actor == state.currentPlayer,
+                      state.apply(index: index, actor: actor) else {
                     throw ImportError.invalidHistory
                 }
                 plies.append(ply)
             }
-            let verified: AdaptiveBoardGameResult = state.isDraw ? .draw
+            let colorOutcome: AdaptiveBoardGameResult = state.isDraw ? .draw
                 : state.winner == .guest ? .aiWon
                 : state.winner == .host ? .humanWon : .unfinished
-            guard verified == record.result else { throw ImportError.invalidHistory }
-            if verified == .unfinished {
+            let ownerOutcome: AdaptiveBoardGameResult = colorOutcome == .draw ? .draw
+                : colorOutcome == .unfinished ? .unfinished
+                : (state.winner == (humanStone == 1 ? .host : .guest))
+                    ? .humanWon : .aiWon
+            if ownerOutcome != record.result {
+                // These five records are genuine source fragments whose label
+                // falsely claims a terminal result. Whitelist ONLY the original
+                // SHA256 and ordinal; preserve bytes without learning from it.
+                guard ownerOutcome == .unfinished,
+                      knownFragments.contains(ordinal) else {
+                    throw ImportError.invalidHistory
+                }
+                quarantined += 1
+                continue
+            }
+            if colorOutcome == .unfinished {
                 partial += 1
                 continue
             }
             let game = NativeGomokuSelfPlayGame(
-                plies: plies, result: verified,
+                plies: plies, result: colorOutcome,
                 opening: Int(plies[0].action) ?? 112,
                 botDecisions: max(0, plies.count - 1)
             )
             do {
-                try batchWriter.append(game, seed: ordinal)
+                try batchWriter.append(game, seed: ordinal, humanStone: humanStone)
                 imported += 1
             } catch GomokuNativeTrainingJournalError.duplicate {
                 duplicated += 1
@@ -244,7 +282,8 @@ final class GomokuLegacyLearningImporter {
                 backup: backup, preservedPartialGames: partial,
                 preservedHashedPositions: envelope.payload.positions.filter {
                     $0.key.hasPrefix("g:")
-                }.count, sourceSHA256: sourceSHA256
+                }.count, sourceSHA256: sourceSHA256,
+                quarantinedFragments: quarantined
             )
         }) else {
             throw ImportError.unauthorized

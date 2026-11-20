@@ -8,7 +8,22 @@ struct GomokuNativeTrainingRecord: Codable, Sendable {
     let createdAt: Date
     let seed: Int
     let moves: [Int]
+    /// Color provenance for imported owner games; nil for native/self-play seed records.
+    /// Black/white outcomes remain encoded in `outcome` for backward compatibility.
     let outcome: AdaptiveBoardGameResult
+    let humanStone: UInt8?
+
+    init(version: Int, id: UUID, createdAt: Date, seed: Int,
+         moves: [Int], outcome: AdaptiveBoardGameResult,
+         humanStone: UInt8? = nil) {
+        self.version = version
+        self.id = id
+        self.createdAt = createdAt
+        self.seed = seed
+        self.moves = moves
+        self.outcome = outcome
+        self.humanStone = humanStone
+    }
 }
 
 enum GomokuNativeTrainingJournalError: LocalizedError {
@@ -154,7 +169,9 @@ final class GomokuNativeTrainingJournal {
     static func isValid(_ record: GomokuNativeTrainingRecord) -> Bool {
         guard record.version == GomokuNativeTrainingRecord.version,
               (5...225).contains(record.moves.count),
-              record.outcome != .unfinished else { return false }
+              record.outcome != .unfinished,
+              record.humanStone == nil || record.humanStone == 1 || record.humanStone == 2
+              else { return false }
         var replay = GomokuState()
         for index in record.moves {
             guard replay.apply(index: index, actor: replay.currentPlayer) else { return false }
@@ -189,12 +206,15 @@ final class GomokuNativeTrainingJournal {
         }
 
         @discardableResult
-        func append(_ game: NativeGomokuSelfPlayGame, seed: Int) throws -> URL {
+        func append(_ game: NativeGomokuSelfPlayGame, seed: Int,
+                    humanStone: UInt8? = nil) throws -> URL {
             let moves = try GomokuNativeTrainingJournal.verifiedMoves(game)
             guard !seen.contains(moves) else {
                 throw GomokuNativeTrainingJournalError.duplicate
             }
-            let path = try journal.writeVerified(moves: moves, result: game.result, seed: seed)
+            let path = try journal.writeVerified(
+                moves: moves, result: game.result, seed: seed, humanStone: humanStone
+            )
             seen.insert(moves)
             accepted += 1
             return path
@@ -236,12 +256,14 @@ final class GomokuNativeTrainingJournal {
     }
 
     private func writeVerified(
-        moves: [Int], result: AdaptiveBoardGameResult, seed: Int
+        moves: [Int], result: AdaptiveBoardGameResult, seed: Int,
+        humanStone: UInt8? = nil
     ) throws -> URL {
         let id = UUID()
         let record = GomokuNativeTrainingRecord(
             version: GomokuNativeTrainingRecord.version, id: id,
-            createdAt: Date(), seed: seed, moves: moves, outcome: result
+            createdAt: Date(), seed: seed, moves: moves, outcome: result,
+            humanStone: humanStone
         )
         try FileManager.default.createDirectory(
             at: directory, withIntermediateDirectories: true

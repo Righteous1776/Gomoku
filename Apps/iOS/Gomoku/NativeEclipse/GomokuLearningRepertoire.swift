@@ -126,27 +126,40 @@ enum GomokuLearningRepertoire {
                 .appendingPathComponent("ImportedLegacyLearningV1", isDirectory: true)
         let legacyVerification = GomokuNativeTrainingJournal(directory: legacyFolder).inspect { record in
             humanGames += 1
+            // The journal's outcome is intentionally color-oriented for replay
+            // verification. Imported owner identity must be mapped separately.
+            let ownerStone = record.humanStone ?? 1
+            let ownerOutcome: AdaptiveBoardGameResult
+            switch record.outcome {
+            case .draw: ownerOutcome = .draw
+            case .humanWon: ownerOutcome = ownerStone == 1 ? .humanWon : .aiWon
+            case .aiWon: ownerOutcome = ownerStone == 2 ? .humanWon : .aiWon
+            case .unfinished: return
+            }
             var game = GomokuState()
             for index in record.moves {
                 let position = AdaptiveBoardPosition.gomoku(game)
-                let byAI = game.currentPlayer == .guest
+                let stone: UInt8 = game.currentPlayer == .host ? 1 : 2
+                let byAI = stone != ownerStone
                 var options = humanStats[position] ?? [:]
                 var stat = options[String(index)] ?? Stat()
-                stat.add(record.outcome, byAI: byAI)
+                stat.add(ownerOutcome, byAI: byAI)
                 options[String(index)] = stat
                 humanStats[position] = options
                 _ = game.apply(index: index, actor: game.currentPlayer)
             }
-            guard humanStone == 1, record.moves.count > currentMoves.count,
-                  Array(record.moves.prefix(currentMoves.count)) == currentMoves.map(\.index),
-                  currentMoves.count.isMultiple(of: 2) == false else { return }
+            let nextStone: UInt8 = currentMoves.count.isMultiple(of: 2) ? 1 : 2
+            guard ownerStone == humanStone,
+                  nextStone != ownerStone,
+                  record.moves.count > currentMoves.count,
+                  Array(record.moves.prefix(currentMoves.count)) == currentMoves.map(\.index) else { return }
             let choice = String(record.moves[currentMoves.count])
-            roots[choice, default: 0] += record.outcome == .aiWon ? 420
-                : record.outcome == .humanWon ? -620 : -60
+            roots[choice, default: 0] += ownerOutcome == .aiWon ? 420
+                : ownerOutcome == .humanWon ? -620 : -60
             if record.moves.count > currentMoves.count + 1 {
                 let reply = String(record.moves[currentMoves.count + 1])
                 replies[choice, default: [:]][reply, default: 0] +=
-                    record.outcome == .humanWon ? 4 : 1
+                    ownerOutcome == .humanWon ? 4 : 1
             }
         }
 
