@@ -48,6 +48,13 @@ struct InstrumentHomeView: View {
                     onMove: { engine.play($0) }
                 )
                 .veilCard()
+                if engine.recoveryAvailable {
+                    Button("恢复上次未完成棋局") {
+                        _ = engine.restoreLastPlayingSession()
+                    }
+                    .buttonStyle(VeilPhysicalButtonStyle())
+                    .accessibilityIdentifier("gomoku.match.resume")
+                }
                 HStack(spacing: 12) {
                     Button("NEW GAME") { engine.reset() }
                         .buttonStyle(VeilPhysicalButtonStyle())
