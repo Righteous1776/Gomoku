@@ -70,15 +70,25 @@ struct InstrumentHomeView: View {
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("gomoku.eclipse.search-mode")
                 }
-                HStack(spacing: 12) {
-                    Button(engine.isNativeTraining ? "训练进行中" : "真实自对弈 1 局") {
-                        engine.beginNativeSelfPlay(games: 1)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        ForEach([10, 100, 1000], id: \.self) { count in
+                            Button("\(count) 局训练") {
+                                engine.beginNativeSelfPlay(games: count)
+                            }
+                            .disabled(engine.isNativeTraining)
+                            .buttonStyle(VeilPhysicalButtonStyle())
+                        }
+                        if engine.isNativeTraining {
+                            Button("停止") { engine.stopNativeSelfPlay() }
+                                .buttonStyle(VeilPhysicalButtonStyle())
+                        }
                     }
-                    .disabled(engine.isNativeTraining)
-                    .buttonStyle(VeilPhysicalButtonStyle())
-                    Text("已保存训练：\(engine.trainedGames) 局")
+                    Text("已验证唯一训练：\(engine.trainedGames) 局 · 本批完成 \(engine.trainingAttempted)/\(engine.trainingTarget) · 拒收 \(engine.trainingRejected)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                    Toggle("允许自对弈经验参与正式搜索", isOn: $engine.selfPlayLearningEnabled)
+                        .font(.caption)
                 }
                 HStack(spacing: 12) {
                     Button("导入棋谱 JSON") { choosingMatch = true }
@@ -94,7 +104,7 @@ struct InstrumentHomeView: View {
                     }
                     .accessibilityIdentifier("gomoku.match.share")
                 }
-                if let warning = engine.trainingWarning ?? engine.archiveWarning {
+                if let warning = engine.fallbackWarning ?? engine.trainingWarning ?? engine.archiveWarning {
                     Text(warning).font(.caption2).foregroundStyle(.orange)
                 }
                 Toggle(isOn: $engine.eclipseVisualizationEnabled) {
