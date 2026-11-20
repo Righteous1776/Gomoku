@@ -1,0 +1,29 @@
+{
+  "schema": "gomoku-drop-v1",
+  "agent_id": "chatgpt-ios-ui",
+  "task_id": "IOS",
+  "base_sha": "a819c1ea0ff82846a077ee856c49aacd7191bf10",
+  "state": "DRAFT",
+  "tests": [
+    {
+      "command": "R17.2 owner-regression static source checks",
+      "status": "PASS",
+      "evidence": "6/6 predicates passed; details in REPORT.md"
+    },
+    {
+      "command": "python3 Scripts/inbox.py check-drop",
+      "status": "BLOCKED",
+      "evidence": "IOS remains OPEN/unassigned and depends on SOURCE MERGED; cannot self-assign"
+    },
+    {
+      "command": "git apply --check PATCH.diff",
+      "status": "NOT RUN",
+      "evidence": "Requires authorized integration checkout"
+    },
+    {
+      "command": "xcodebuild -scheme Gomoku -sdk iphonesimulator build",
+      "status": "NOT RUN",
+      "evidence": "No macOS build or approved applied integration yet"
+    }
+  ]
+}

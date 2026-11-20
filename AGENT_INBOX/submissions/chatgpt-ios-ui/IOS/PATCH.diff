@@ -1,0 +1,366 @@
+diff --git a/Apps/iOS/Gomoku/InstrumentHomeView.swift b/Apps/iOS/Gomoku/InstrumentHomeView.swift
+--- a/Apps/iOS/Gomoku/InstrumentHomeView.swift
++++ b/Apps/iOS/Gomoku/InstrumentHomeView.swift
+@@ -1,78 +1,103 @@
+-import SwiftUI
+-
+-/// Standalone functional shell. Exact VeilLink instrument UI transplant is a P3 release gate.
+-struct InstrumentHomeView: View {
+-    @StateObject private var engine = EngineBridge()
+-    @Environment(\.colorScheme) private var scheme
+-
+-    private var panel: Color { scheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : Color(red: 0.89, green: 0.90, blue: 0.89) }
+-    private var surface: Color { scheme == .dark ? Color(red: 0.21, green: 0.24, blue: 0.27) : Color(red: 0.95, green: 0.95, blue: 0.93) }
+-
+-    var body: some View {
+-        ScrollView {
+-            VStack(alignment: .leading, spacing: 20) {
+-                HStack {
+-                    VStack(alignment: .leading, spacing: 3) {
+-                        Text("GOMOKU").font(.system(.largeTitle, design: .rounded, weight: .bold))
+-                        Text("ECLIPSE · INSTRUMENT CONSOLE")
+-                            .font(.system(size: 11, design: .monospaced, weight: .medium))
+-                            .tracking(1.5).foregroundStyle(.secondary)
+-                    }
+-                    Spacer()
+-                    Circle().fill(engine.isThinking ? .orange : .green)
+-                        .frame(width: 12, height: 12)
+-                        .shadow(color: engine.isThinking ? .orange.opacity(0.5) : .green.opacity(0.3), radius: 5)
+-                        .accessibilityLabel(engine.isThinking ? "AI searching" : "Engine ready")
+-                }
+-                HStack {
+-                    VStack(alignment: .leading, spacing: 4) {
+-                        Text("ENGINE STATUS").font(.caption2.monospaced()).foregroundStyle(.secondary)
+-                        Text(statusText).font(.system(.headline, design: .monospaced))
+-                    }
+-                    Spacer()
+-                    Text("15 × 15").font(.system(.caption, design: .monospaced))
+-                }
+-                .padding(16)
+-                .frame(maxWidth: .infinity, alignment: .leading)
+-                .background(surface, in: RoundedRectangle(cornerRadius: 16))
+-                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.08)))
+-                BoardInstrumentView(board: engine.board, enabled: engine.status == 0 && !engine.isThinking && engine.toMove == engine.humanColor) {
+-                    engine.play($0)
+-                }
+-                HStack(spacing: 12) {
+-                    Button("NEW GAME") { engine.reset() }
+-                        .buttonStyle(InstrumentButtonStyle())
+-                    Button(engine.humanIsBlack ? "BLACK · FIRST" : "WHITE · SECOND") { engine.toggleSide() }
+-                        .buttonStyle(InstrumentButtonStyle())
+-                }
+-                Text("ENGINE: C++ experimental baseline. Source-fidelity ECLIPSE migration and strength validation are mandatory before release.")
+-                    .font(.caption2).foregroundStyle(.secondary)
+-            }
+-            .padding(18)
+-            .frame(maxWidth: 680)
+-            .frame(maxWidth: .infinity)
+-        }
+-        .background(panel.ignoresSafeArea())
+-    }
+-
+-    private var statusText: String {
+-        switch engine.status {
+-        case 1: return "BLACK WINS"
+-        case 2: return "WHITE WINS"
+-        case 3: return "DRAW"
+-        default: return engine.isThinking ? "AI THINKING" : engine.toMove == 1 ? "BLACK TO MOVE" : "WHITE TO MOVE"
+-        }
+-    }
+-}
+-
+-private struct InstrumentButtonStyle: ButtonStyle {
+-    func makeBody(configuration: Configuration) -> some View {
+-        configuration.label
+-            .font(.system(size: 12, design: .monospaced, weight: .bold))
+-            .foregroundStyle(.primary)
+-            .frame(maxWidth: .infinity, minHeight: 50)
+-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+-            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.12)))
+-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+-    }
+-}
++import SwiftUI
++
++/// Standalone functional shell. Exact VeilLink instrument UI transplant is a P3 release gate.
++struct InstrumentHomeView: View {
++    @StateObject private var engine = EngineBridge()
++    @Environment(\.colorScheme) private var scheme
++    @Environment(\.scenePhase) private var scenePhase
++    @Environment(\.accessibilityReduceMotion) private var reduceMotion
++
++    private var panel: Color { scheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : Color(red: 0.89, green: 0.90, blue: 0.89) }
++    private var surface: Color { scheme == .dark ? Color(red: 0.21, green: 0.24, blue: 0.27) : Color(red: 0.95, green: 0.95, blue: 0.93) }
++
++    var body: some View {
++        ScrollView {
++            VStack(alignment: .leading, spacing: 20) {
++                HStack {
++                    VStack(alignment: .leading, spacing: 3) {
++                        Text("GOMOKU").font(.system(size: 31, weight: .bold, design: .rounded))
++                        Text("ECLIPSE · INSTRUMENT CONSOLE")
++                            .font(.system(size: 11, weight: .medium, design: .monospaced))
++                            .tracking(1.5).foregroundStyle(.secondary)
++                    }
++                    Spacer()
++                    Circle().fill(engine.isThinking ? .orange : Color(white: 0.70))
++                        .frame(width: 12, height: 12)
++                        .shadow(color: engine.isThinking ? .orange.opacity(0.4) : .clear, radius: 5)
++                        .accessibilityLabel(engine.isThinking ? "AI searching" : "Engine ready")
++                }
++                // One upper identity/compute unit. No lower telemetry dashboard.
++                VStack(alignment: .leading, spacing: 9) {
++                    HStack {
++                        Text("ECLIPSE / NATIVE INTELLIGENCE")
++                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
++                            .foregroundColor(.orange)
++                        Spacer()
++                        Text(engine.isThinking ? "COMPUTE" : "READY")
++                            .font(.system(size: 11, weight: .medium, design: .monospaced))
++                            .foregroundColor(Color(white: 0.75))
++                    }
++                    Text(statusText)
++                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
++                        .foregroundColor(.white)
++                    if engine.isThinking, let started = engine.searchStartedAt {
++                        TimelineView(.periodic(from: .now,
++                            by: scenePhase == .active && !reduceMotion ? 0.5 : 1.0)) { context in
++                            Text(String(format: "REAL CLOCK  T+%.1fs",
++                                        max(0, context.date.timeIntervalSince(started))))
++                                .font(.system(size: 11, weight: .medium, design: .monospaced))
++                                .foregroundColor(.orange)
++                        }
++                    } else {
++                        Text("REAL CLOCK / IDLE")
++                            .font(.system(size: 11, weight: .medium, design: .monospaced))
++                            .foregroundColor(Color(white: 0.65))
++                    }
++                }
++                .padding(16)
++                .frame(maxWidth: .infinity, alignment: .leading)
++                .background(Color(red: 0.08, green: 0.085, blue: 0.09),
++                            in: RoundedRectangle(cornerRadius: 15))
++                .overlay(RoundedRectangle(cornerRadius: 15)
++                    .strokeBorder(Color(white: 0.33), lineWidth: 0.8))
++                .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
++                BoardInstrumentView(board: engine.board, enabled: engine.status == 0 && !engine.isThinking && engine.toMove == engine.humanColor) {
++                    engine.play($0)
++                }
++                HStack(spacing: 12) {
++                    Button("NEW GAME") { engine.reset() }
++                        .buttonStyle(InstrumentButtonStyle())
++                    Button(engine.humanIsBlack ? "BLACK · FIRST" : "WHITE · SECOND") { engine.toggleSide() }
++                        .buttonStyle(InstrumentButtonStyle())
++                }
++                Text("ENGINE: C++ experimental baseline. Source-fidelity ECLIPSE migration and strength validation are mandatory before release.")
++                    .font(.caption2).foregroundStyle(.secondary)
++            }
++            .padding(18)
++            .frame(maxWidth: 680)
++            .frame(maxWidth: .infinity)
++        }
++        .background(panel.ignoresSafeArea())
++    }
++
++    private var statusText: String {
++        switch engine.status {
++        case 1: return "BLACK WINS"
++        case 2: return "WHITE WINS"
++        case 3: return "DRAW"
++        default: return engine.isThinking ? "AI THINKING" : engine.toMove == 1 ? "BLACK TO MOVE" : "WHITE TO MOVE"
++        }
++    }
++}
++
++private struct InstrumentButtonStyle: ButtonStyle {
++    func makeBody(configuration: Configuration) -> some View {
++        configuration.label
++            .font(.system(size: 12, weight: .bold, design: .monospaced))
++            .foregroundStyle(.primary)
++            .frame(maxWidth: .infinity, minHeight: 50)
++            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
++            .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.primary.opacity(0.12)))
++            .scaleEffect(configuration.isPressed ? 0.98 : 1)
++    }
++}
+diff --git a/Apps/iOS/Gomoku/EngineBridge.swift b/Apps/iOS/Gomoku/EngineBridge.swift
+--- a/Apps/iOS/Gomoku/EngineBridge.swift
++++ b/Apps/iOS/Gomoku/EngineBridge.swift
+@@ -1,86 +1,91 @@
+-import Foundation
+-import Combine
+-
+-/// Temporary standalone integration with the C++ PROTOTYPE.
+-/// Production must NOT replace the original Swift ECLIPSE until parity gates pass.
+-@MainActor
+-final class EngineBridge: ObservableObject {
+-    @Published private(set) var board = [UInt8](repeating: 0, count: 225)
+-    @Published private(set) var toMove: Int32 = 1
+-    @Published private(set) var status: Int32 = 0
+-    @Published private(set) var isThinking = false
+-    @Published var humanIsBlack = true
+-
+-    private var handle: OpaquePointer?
+-    private var moves: [Int32] = []
+-    private var generation = UUID()
+-
+-    init() {
+-        handle = eg_create()
+-        reload()
+-    }
+-
+-    deinit {
+-        if let handle { eg_destroy(handle) }
+-    }
+-
+-    var humanColor: Int32 { humanIsBlack ? 1 : 2 }
+-
+-    func reset() {
+-        generation = UUID()
+-        isThinking = false
+-        moves.removeAll()
+-        if let handle { eg_reset(handle) }
+-        reload()
+-        if !humanIsBlack { scheduleAI() }
+-    }
+-
+-    func toggleSide() {
+-        humanIsBlack.toggle()
+-        reset()
+-    }
+-
+-    func play(_ index: Int) {
+-        guard !isThinking, status == 0, toMove == humanColor,
+-              let handle, (0..<225).contains(index) else { return }
+-        guard eg_play(handle, Int32(index)) == 1 else { return }
+-        moves.append(Int32(index))
+-        reload()
+-        if status == 0 { scheduleAI() }
+-    }
+-
+-    private func reload() {
+-        guard let handle else { return }
+-        var snapshot = [UInt8](repeating: 0, count: 225)
+-        let result = snapshot.withUnsafeMutableBufferPointer { buffer in
+-            eg_copy_board(handle, buffer.baseAddress, Int32(buffer.count))
+-        }
+-        if result == 225 { board = snapshot }
+-        toMove = eg_to_move(handle)
+-        status = eg_status(handle)
+-    }
+-
+-    private func scheduleAI() {
+-        guard !isThinking, status == 0, toMove != humanColor else { return }
+-        let token = generation
+-        let history = moves
+-        isThinking = true
+-        Task.detached(priority: .userInitiated) {
+-            let worker = eg_create()
+-            var answer: Int32 = -1
+-            if let worker {
+-                let replayed = history.allSatisfy { eg_play(worker, $0) == 1 }
+-                if replayed { answer = eg_best_move(worker, 180) }
+-                eg_destroy(worker)
+-            }
+-            await MainActor.run {
+-                guard token == self.generation else { return }
+-                self.isThinking = false
+-                guard let handle = self.handle, answer >= 0,
+-                      eg_play(handle, answer) == 1 else { return }
+-                self.moves.append(answer)
+-                self.reload()
+-            }
+-        }
+-    }
+-}
++import Foundation
++import Combine
++
++/// Temporary standalone integration with the C++ PROTOTYPE.
++/// Production must NOT replace the original Swift ECLIPSE until parity gates pass.
++@MainActor
++final class EngineBridge: ObservableObject {
++    @Published private(set) var board = [UInt8](repeating: 0, count: 225)
++    @Published private(set) var toMove: Int32 = 1
++    @Published private(set) var status: Int32 = 0
++    @Published private(set) var isThinking = false
++    @Published private(set) var searchStartedAt: Date?
++    @Published var humanIsBlack = true
++
++    private var handle: OpaquePointer?
++    private var moves: [Int32] = []
++    private var generation = UUID()
++
++    init() {
++        handle = eg_create()
++        reload()
++    }
++
++    deinit {
++        if let handle { eg_destroy(handle) }
++    }
++
++    var humanColor: Int32 { humanIsBlack ? 1 : 2 }
++
++    func reset() {
++        generation = UUID()
++        isThinking = false
++        searchStartedAt = nil
++        moves.removeAll()
++        if let handle { eg_reset(handle) }
++        reload()
++        if !humanIsBlack { scheduleAI() }
++    }
++
++    func toggleSide() {
++        humanIsBlack.toggle()
++        reset()
++    }
++
++    func play(_ index: Int) {
++        guard !isThinking, status == 0, toMove == humanColor,
++              let handle, (0..<225).contains(index) else { return }
++        guard eg_play(handle, Int32(index)) == 1 else { return }
++        moves.append(Int32(index))
++        reload()
++        if status == 0 { scheduleAI() }
++    }
++
++    private func reload() {
++        guard let handle else { return }
++        var snapshot = [UInt8](repeating: 0, count: 225)
++        let result = snapshot.withUnsafeMutableBufferPointer { buffer in
++            eg_copy_board(handle, buffer.baseAddress, Int32(buffer.count))
++        }
++        if result == 225 { board = snapshot }
++        toMove = eg_to_move(handle)
++        status = eg_status(handle)
++    }
++
++    private func scheduleAI() {
++        guard !isThinking, status == 0, toMove != humanColor else { return }
++        let token = generation
++        let history = moves
++        isThinking = true
++        searchStartedAt = Date()
++        Task.detached(priority: .userInitiated) {
++            let worker = eg_create()
++            var answer: Int32 = -1
++            if let worker {
++                let replayed = history.allSatisfy { eg_play(worker, $0) == 1 }
++                if replayed { answer = eg_best_move(worker, 180) }
++                eg_destroy(worker)
++            }
++            let selectedMove = answer
++            await MainActor.run {
++                guard token == self.generation else { return }
++                self.isThinking = false
++                self.searchStartedAt = nil
++                guard let handle = self.handle, selectedMove >= 0,
++                      eg_play(handle, selectedMove) == 1 else { return }
++                self.moves.append(selectedMove)
++                self.reload()
++            }
++        }
++    }
++}
