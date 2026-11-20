@@ -135,6 +135,7 @@ final class GomokuLegacyLearningImporter {
             }
         }
         let staged = GomokuNativeTrainingJournal(directory: stage)
+        let batchWriter = try staged.makeBatchWriter()
         var imported = 0, duplicated = 0, ignored = 0
         for (ordinal, record) in envelope.payload.recentGames.enumerated() {
             guard record.game == "gomoku" else {
@@ -174,7 +175,7 @@ final class GomokuLegacyLearningImporter {
                 botDecisions: max(0, plies.count - 1)
             )
             do {
-                try staged.append(game, seed: ordinal)
+                try batchWriter.append(game, seed: ordinal)
                 imported += 1
             } catch GomokuNativeTrainingJournalError.duplicate {
                 duplicated += 1
