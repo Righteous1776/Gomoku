@@ -480,9 +480,12 @@ final class NativeGomokuAppController: ObservableObject {
         guard !isImportingLegacyLearning else { return }
         isImportingLegacyLearning = true
         legacyImportStatus = nil
+        let expiresAt = developerAuthorization.authorizedUntil ?? .distantPast
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let report = try GomokuLegacyLearningImporter().importPackage(from: url)
+                let report = try GomokuLegacyLearningImporter().importPackage(
+                    from: url, authorizationExpiresAt: expiresAt
+                )
                 await self?.finishLegacyImport(
                     message: "原版训练已验证导入 \(report.imported) 局；重复 \(report.duplicate) 局；跳过中国象棋 \(report.ignoredNonGomoku) 项。"
                 )
