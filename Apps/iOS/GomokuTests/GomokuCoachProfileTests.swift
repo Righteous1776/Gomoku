@@ -12,10 +12,15 @@ final class GomokuCoachProfileTests: XCTestCase {
             .init(index: index.isMultiple(of: 2) ? 105 + index / 2 : index / 2,
                   stone: index.isMultiple(of: 2) ? 1 : 2)
         }
-        _ = try archive.save(
+        let completed = try XCTUnwrap(archive.save(
             sessionID: UUID().uuidString, moves: moves,
             difficulty: "balanced", humanStone: 1, status: .humanWon
+        ))
+        let evidence = GomokuLocalMatchEvidence(
+            directory: folder.appendingPathComponent("proofs"),
+            testingKey: Data(repeating: 0x41, count: 32)
         )
+        try evidence.attestCommittedLocalMatch(completed)
         _ = try archive.save(
             sessionID: UUID().uuidString, moves: Array(moves.prefix(2)),
             difficulty: "balanced", humanStone: 1, status: .playing
@@ -23,7 +28,7 @@ final class GomokuCoachProfileTests: XCTestCase {
         let training = folder.appendingPathComponent("training")
         let profile = GomokuCoachProfile.build(
             archiveDirectory: archive.directory, trainingDirectory: training,
-            developerFormationCount: 0
+            developerFormationCount: 0, localEvidence: evidence
         )
         XCTAssertEqual(profile.completedHumanGames, 1)
         XCTAssertEqual(profile.verifiedSelfPlayGames, 0)
