@@ -23,6 +23,11 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var trainedGames = 0
     @Published private(set) var isNativeTraining = false
     @Published private(set) var trainingWarning: String?
+    @Published private(set) var trainingAttempted = 0
+    @Published private(set) var trainingRejected = 0
+    @Published var selfPlayLearningEnabled = UserDefaults.standard.object(forKey: "gomoku.eclipse.selfplay-feedback") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
+    }
 
     @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
         didSet {
@@ -42,6 +47,7 @@ final class NativeGomokuAppController: ObservableObject {
     private var sessionHumanStone: UInt8 = 1
     private var archivedMoves: [VeilGomokuMatchArchive.Move] = []
     private var trainingTask: Task<Void, Never>?
+    private var trainingGeneration = UUID()
 
     init() {
         trainedGames = trainingJournal.count()
@@ -121,16 +127,31 @@ final class NativeGomokuAppController: ObservableObject {
         } else {
             observer = nil
         }
+        let journalDirectory = trainingJournal.directory
+        let archiveDirectory = archive.directory
+        let existingMoves = archivedMoves
+        let humanStone = sessionHumanStone
+        let useNativeTraining = selfPlayLearningEnabled
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard !Task.isCancelled else { return }
+            // Construct from verified records off the main/UI actor. The exact
+            // immutable snapshot is used for this decision, not display only.
+            let learning = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: existingMoves,
+                humanStone: humanStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot
             guard !Task.isCancelled else { return }
             let budget = GomokuBotBudget.forDifficulty(
                 selectedTier, profileLabel: selectedMode.budgetProfileLabel
-            )
+            ).reinforced(by: learning.trainingLevel)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,
                 for: boardAtStart.currentPlayer,
                 budget: budget,
-                learning: .empty,
+                learning: learning,
                 formationPreference: .disabled,
                 difficultyRawValue: selectedTier.rawValue,
                 onExploredLine: observer
@@ -190,34 +211,56 @@ final class NativeGomokuAppController: ObservableObject {
         }
     }
 
-    func beginNativeSelfPlay(games: Int = 1) {
-        guard !isNativeTraining, games > 0 else { return }
+    func beginNativeSelfPlay(games: Int = 10) {
+        guard !isNativeTraining, [1, 10, 100, 1000].contains(games) else { return }
+        trainingGeneration = UUID()
+        let token = trainingGeneration
         isNativeTraining = true
         trainingWarning = nil
+        trainingAttempted = 0
+        trainingRejected = 0
         let starting = trainedGames
         trainingTask = Task.detached(priority: .utility) { [weak self] in
             for batch in 0..<games {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled,
+                      await self?.isCurrentTrainingSession(token) == true else { break }
                 let seed = starting + batch
                 let result = NativeGomokuSelfPlay.play(seed: seed, formationMode: .off)
-                if let result {
-                    do {
-                        let store = GomokuNativeTrainingJournal()
-                        _ = try store.append(result, seed: seed)
-                        await MainActor.run {
-                            self?.trainedGames = store.count()
-                        }
-                    } catch {
-                        let message = error.localizedDescription
-                        await MainActor.run { self?.trainingWarning = message }
-                    }
-                }
+                guard !Task.isCancelled else { break }
+                await self?.commitNativeTrainingResult(result, seed: seed, token: token)
             }
-            await MainActor.run {
-                self?.isNativeTraining = false
-                self?.trainingTask = nil
-            }
+            await self?.finishNativeTrainingSession(token)
         }
+    }
+
+    private func isCurrentTrainingSession(_ token: UUID) -> Bool {
+        isNativeTraining && trainingGeneration == token
+    }
+
+    private func commitNativeTrainingResult(
+        _ game: NativeGomokuSelfPlayGame?, seed: Int, token: UUID
+    ) {
+        // Serialized with stop/start on MainActor: a stale task cannot write
+        // a result after the Owner cancels or replaces the training session.
+        guard isCurrentTrainingSession(token) else { return }
+        trainingAttempted += 1
+        guard let game else {
+            trainingRejected += 1
+            return
+        }
+        do {
+            _ = try trainingJournal.append(game, seed: seed)
+            trainedGames = trainingJournal.count()
+        } catch {
+            trainingRejected += 1
+            trainingWarning = error.localizedDescription
+        }
+    }
+
+    private func finishNativeTrainingSession(_ token: UUID) {
+        guard isCurrentTrainingSession(token) else { return }
+        isNativeTraining = false
+        trainingTask = nil
     }
 
     func exportRecentMatch() -> URL? {
@@ -241,6 +284,7 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func stopNativeSelfPlay() {
+        trainingGeneration = UUID()
         trainingTask?.cancel()
         trainingTask = nil
         isNativeTraining = false
