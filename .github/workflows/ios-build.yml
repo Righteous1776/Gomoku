@@ -29,6 +29,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Reject private owner data in shared CI builds
+        run: python3 Scripts/check_private_bundle.py
       - name: Xcode and SDK
         run: xcodebuild -version && xcrun --sdk iphonesimulator --show-sdk-version
       - name: Install XcodeGen
@@ -46,6 +48,9 @@ jobs:
           xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" -derivedDataPath DerivedData -parallel-testing-enabled NO -resultBundlePath GomokuTests.xcresult CODE_SIGNING_ALLOWED=NO test
       - name: Simulator Release build
         run: xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Verify built Debug and Release app privacy
+        run: |
+          python3 Scripts/check_private_bundle.py --app DerivedData/Build/Products/Debug-iphonesimulator/Gomoku.app --app DerivedData/Build/Products/Release-iphonesimulator/Gomoku.app --manifest DerivedData/Privacy/public-build.json
       - name: Show compile artifact
         run: find DerivedData/Build/Products -maxdepth 3 -name 'Gomoku.app' -type d
       - name: Upload simulator test results and screenshots
