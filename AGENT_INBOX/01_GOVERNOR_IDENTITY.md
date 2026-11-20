@@ -1,5 +1,6 @@
-# Integration Governor identity — PENDING DESIGNATION
+# 身份兼容入口
 
-Owner: authenticated GitHub account controlling `Righteous1776/Gomoku`.
-
-Governor: **not yet named or authenticated in this starter package**. Work must not invent an identity. The owner may designate a specific integration role in the new repository's settings/governance document. Until then, normal lane agents remain INBOX_ONLY and owner handles merges/releases.
+Owner：Righteous1776。持续集成负责人尚未委任，暂由 Owner 集成。
+机器登记只看 BOARD.json 的 owner/governor，并核实默认分支与真实平台授权；Agent 自称或 PR 字段不能自证身份。
+本次轻量治理改造是 Owner 明确要求的 feature 分支维护，不构成永久 Governor 任命。
+规则见 ../AGENTS.md 与 00_READ_ME_FIRST.md。
