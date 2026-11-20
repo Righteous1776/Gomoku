@@ -55,6 +55,8 @@ final class NativeGomokuAppController: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
+    private let localMatchEvidence: GomokuLocalMatchEvidence
+    private var sessionHasLocalProvenance = true
     private lazy var transfer = GomokuMatchTransfer(archive: archive)
     private(set) var sessionID = UUID().uuidString
     private var sessionHumanStone: UInt8 = 1
@@ -65,6 +67,10 @@ final class NativeGomokuAppController: ObservableObject {
     init(archiveDirectory: URL? = nil, trainingDirectory: URL? = nil) {
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
+        let root = archive.directory.deletingLastPathComponent()
+        localMatchEvidence = GomokuLocalMatchEvidence(
+            directory: root.appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
+        )
         trainedGames = trainingJournal.count()
         archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
         recoveryAvailable = latestRestorableMatch() != nil
@@ -128,6 +134,7 @@ final class NativeGomokuAppController: ObservableObject {
         eclipseTraceStore.clear()
         state = resumed
         sessionID = previous.id
+        sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
         sessionHumanStone = previous.humanStone
         humanIsBlack = previous.humanStone == 1
         difficulty = restoredTier
@@ -159,6 +166,7 @@ final class NativeGomokuAppController: ObservableObject {
         eclipseTraceStore.clear()
         state = GomokuState()
         sessionID = UUID().uuidString
+        sessionHasLocalProvenance = true
         sessionHumanStone = humanIsBlack ? 1 : 2
         archivedMoves.removeAll()
         isThinking = false
@@ -249,6 +257,7 @@ final class NativeGomokuAppController: ObservableObject {
         state = GomokuState()
         archivedMoves.removeAll()
         sessionID = UUID().uuidString
+        sessionHasLocalProvenance = true
         isThinking = false
         searchStartedAt = nil
         refresh()
@@ -392,13 +401,25 @@ final class NativeGomokuAppController: ObservableObject {
     private func persistArchive(status state: VeilGomokuMatchArchive.Status) {
         guard !archivedMoves.isEmpty else { return }
         do {
-            _ = try archive.save(
+            let committed = try archive.save(
                 sessionID: sessionID, moves: archivedMoves,
                 difficulty: difficulty.rawValue,
                 humanStone: sessionHumanStone, status: state
             )
+            // Only actual play may create the device-keyed evidence receipt.
+            // Resuming an imported reference match cannot promote it to
+            // trusted learning data by adding one further local move.
+            if sessionHasLocalProvenance, let committed,
+               committed.status != .interrupted {
+                do {
+                    try localMatchEvidence.attestCommittedLocalMatch(committed)
+                } catch {
+                    sessionHasLocalProvenance = false
+                    archiveWarning = "本机棋局已保存，但训练来源证明失败，暂不纳入 ECLIPSE 学习。"
+                }
+            }
             archivedGames = (try? archive.page(limit: 1).totalFiles) ?? archivedGames
-            archiveWarning = nil
+            if sessionHasLocalProvenance { archiveWarning = nil }
         } catch {
             archiveWarning = error.localizedDescription
         }
