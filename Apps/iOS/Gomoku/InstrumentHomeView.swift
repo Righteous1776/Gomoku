@@ -5,6 +5,7 @@ struct InstrumentHomeView: View {
     @StateObject private var engine = NativeGomokuAppController()
     @State private var choosingMatch = false
     @State private var showingDeveloperLab = false
+    @State private var showingCoach = false
     @State private var matchExportURL: URL?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
@@ -98,6 +99,8 @@ struct InstrumentHomeView: View {
                     Toggle("允许自对弈经验参与正式搜索", isOn: $engine.selfPlayLearningEnabled)
                         .font(.caption)
                 }
+                Button("个人教练 · 真实学习统计") { showingCoach = true }
+                    .buttonStyle(VeilPhysicalButtonStyle())
                 Button("开发者阵法与私有训练") { showingDeveloperLab = true }
                     .buttonStyle(VeilPhysicalButtonStyle())
                 HStack(spacing: 12) {
@@ -151,6 +154,9 @@ struct InstrumentHomeView: View {
         .onChange(of: scheme) { appearance.update(colorScheme: $0) }
         .sheet(isPresented: $showsEclipseTrace) {
             EclipseAnalysisPresentation(engine: engine)
+        }
+        .sheet(isPresented: $showingCoach) {
+            GomokuCoachView(engine: engine)
         }
         .sheet(isPresented: $showingDeveloperLab) {
             GomokuDeveloperLearningLabView(
