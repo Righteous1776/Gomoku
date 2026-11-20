@@ -18,6 +18,7 @@ enum GomokuBundledSeedBootstrap {
         // Bundled verifier checks original revision, checksum, legality and
         // terminal result. A failure must not insert even one record.
         let verified = try GomokuBundledNativeSeed.verify(from: file)
+        let writer = try journal.makeBatchWriter()
         var accepted = 0
         var duplicate = 0
         var rejected = 0
@@ -30,7 +31,7 @@ enum GomokuBundledSeedBootstrap {
                 botDecisions: max(0, game.plies.count - 1)
             )
             do {
-                _ = try journal.append(composed, seed: ordinal)
+                _ = try writer.append(composed, seed: ordinal)
                 accepted += 1
             } catch GomokuNativeTrainingJournalError.duplicate {
                 duplicate += 1
@@ -40,7 +41,7 @@ enum GomokuBundledSeedBootstrap {
         }
         return Result(
             accepted: accepted, duplicate: duplicate, rejected: rejected,
-            totalValid: journal.count()
+            totalValid: writer.totalValidCount
         )
     }
 }
