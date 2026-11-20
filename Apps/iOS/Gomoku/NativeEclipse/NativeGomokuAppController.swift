@@ -21,6 +21,8 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
     @Published private(set) var developerTeachingMode = false
+    @Published private(set) var coachProfile: GomokuCoachProfile?
+    @Published private(set) var isCoachLoading = false
     @Published private(set) var developerMessage: String?
     @Published private(set) var savedDeveloperLessons = 0
     @Published var formationMode: GomokuFormationMode = .automatic
@@ -201,6 +203,27 @@ final class NativeGomokuAppController: ObservableObject {
         else if state.winner == .guest { status = 2 }
         else if state.isDraw { status = 3 }
         else { status = 0 }
+    }
+
+    func refreshCoachProfile() {
+        guard !isCoachLoading else { return }
+        isCoachLoading = true
+        let archiveDirectory = archive.directory
+        let trainingDirectory = trainingJournal.directory
+        let lessons = developerLessons.lessons.count
+        Task.detached(priority: .utility) { [weak self] in
+            let profile = GomokuCoachProfile.build(
+                archiveDirectory: archiveDirectory,
+                trainingDirectory: trainingDirectory,
+                developerFormationCount: lessons
+            )
+            await self?.finishCoachProfile(profile)
+        }
+    }
+
+    private func finishCoachProfile(_ profile: GomokuCoachProfile) {
+        coachProfile = profile
+        isCoachLoading = false
     }
 
     var developerLessonList: [GomokuDeveloperLessonLibrary.Lesson] {
