@@ -51,3 +51,24 @@ jobs:
         with:
           name: Gomoku-simulator-test-results
           path: GomokuTests.xcresult
+      - name: Export simulator screenshot attachments
+        if: always() && hashFiles('GomokuTests.xcresult/Info.plist') != ''
+        run: |
+          xcrun xcresulttool export attachments --path GomokuTests.xcresult --output-path SimulatorScreenshots
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          folder = Path("SimulatorScreenshots")
+          for test in json.loads((folder / "manifest.json").read_text()):
+              for attachment in test.get("attachments", []):
+                  source = folder / attachment["exportedFileName"]
+                  name = Path(attachment.get("suggestedHumanReadableName") or source.name).name
+                  if name.startswith("Gomoku-") and source.suffix.lower() == ".png" and source.name != name:
+                      source.rename(folder / name)
+          PY
+      - name: Upload simulator screenshots
+        if: always() && hashFiles('SimulatorScreenshots/*.png') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-simulator-screenshots
+          path: SimulatorScreenshots/*.png
