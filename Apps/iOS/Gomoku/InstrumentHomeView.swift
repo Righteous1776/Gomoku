@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct InstrumentHomeView: View {
     @StateObject private var engine = NativeGomokuAppController()
     @State private var choosingMatch = false
+    @State private var choosingLearningPackage = false
     @State private var matchExportURL: URL?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
@@ -90,6 +91,14 @@ struct InstrumentHomeView: View {
                     Toggle("允许自对弈经验参与正式搜索", isOn: $engine.selfPlayLearningEnabled)
                         .font(.caption)
                 }
+                Button(engine.isImportingLegacyLearning ? "验证导入中" : "导入 VeilLink .vltrain.json 学习包") {
+                    choosingLearningPackage = true
+                }
+                .disabled(engine.isImportingLegacyLearning || engine.isNativeTraining)
+                .buttonStyle(VeilPhysicalButtonStyle())
+                if let report = engine.legacyImportStatus {
+                    Text(report).font(.caption2).foregroundStyle(.secondary)
+                }
                 HStack(spacing: 12) {
                     Button("导入棋谱 JSON") { choosingMatch = true }
                         .buttonStyle(VeilPhysicalButtonStyle())
@@ -135,6 +144,12 @@ struct InstrumentHomeView: View {
         .onChange(of: scheme) { appearance.update(colorScheme: $0) }
         .sheet(isPresented: $showsEclipseTrace) {
             EclipseAnalysisPresentation(engine: engine)
+        }
+        .fileImporter(isPresented: $choosingLearningPackage,
+                      allowedContentTypes: [UTType.json]) { result in
+            if case let .success(url) = result {
+                engine.importLegacyLearning(from: url)
+            }
         }
         .fileImporter(isPresented: $choosingMatch,
                       allowedContentTypes: [UTType.json]) { result in
