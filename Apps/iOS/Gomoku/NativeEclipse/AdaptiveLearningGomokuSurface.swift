@@ -113,6 +113,12 @@ enum AdaptiveBoardPosition {
     }
 }
 
+struct AdaptiveBoardPly: Equatable, Sendable {
+    let position: String
+    let action: String
+    let actor: MiniGamePlayer
+}
+
 enum AdaptiveBoardGameResult: String, Codable, Sendable {
     case humanWon
     case aiWon
