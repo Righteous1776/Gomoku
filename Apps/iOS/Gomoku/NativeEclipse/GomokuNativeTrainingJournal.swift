@@ -1,7 +1,7 @@
 import Foundation
 
 /// Only real, fully replay-validated native self-play games are stored.
-struct GomokuNativeTrainingRecord: Codable {
+struct GomokuNativeTrainingRecord: Codable, Sendable {
     static let version = 1
     let version: Int
     let id: UUID
@@ -12,11 +12,12 @@ struct GomokuNativeTrainingRecord: Codable {
 }
 
 enum GomokuNativeTrainingJournalError: LocalizedError {
-    case invalidGame, corrupted
+    case invalidGame, corrupted, duplicate
     var errorDescription: String? {
         switch self {
         case .invalidGame: return "本局训练未完成或棋谱复验失败，未计入训练次数。"
         case .corrupted: return "训练档案校验失败，原文件已保留。"
+        case .duplicate: return "重复棋谱已存在，未增加有效训练经验。"
         }
     }
 }
@@ -38,14 +39,64 @@ final class GomokuNativeTrainingJournal {
         }
     }
 
-    func count() -> Int {
-        guard let names = try? FileManager.default.contentsOfDirectory(
-            atPath: directory.path
-        ) else { return 0 }
-        return names.filter { name in
-            name.hasSuffix(".json")
-                && UUID(uuidString: String(name.dropLast(5))) != nil
-        }.count
+    struct VerificationReport: Equatable {
+        let accepted: Int
+        let invalid: Int
+        let duplicates: Int
+    }
+
+    /// Checks the content, terminal outcome and unique *move sequence* of each
+    /// retained file. Invalid files remain untouched for manual recovery.
+    /// FileManager's directory enumerator avoids loading the archive at once.
+    @discardableResult
+    func inspect(_ receive: ((GomokuNativeTrainingRecord) -> Void)? = nil) -> VerificationReport {
+        guard FileManager.default.fileExists(atPath: directory.path),
+              let files = FileManager.default.enumerator(
+                at: directory, includingPropertiesForKeys: [.fileSizeKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles]
+              ) else {
+            return VerificationReport(accepted: 0, invalid: 0, duplicates: 0)
+        }
+        var accepted = 0, invalid = 0, duplicates = 0
+        var sequences = Set<[Int]>()
+        for case let file as URL in files {
+            guard file.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL,
+                  file.pathExtension == "json",
+                  UUID(uuidString: file.deletingPathExtension().lastPathComponent) != nil else { continue }
+            guard let metadata = try? file.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey]),
+                  metadata.isRegularFile == true,
+                  let size = metadata.fileSize, (1...128_000).contains(size),
+                  let bytes = try? Data(contentsOf: file),
+                  let record = try? JSONDecoder().decode(GomokuNativeTrainingRecord.self, from: bytes),
+                  record.id.uuidString == file.deletingPathExtension().lastPathComponent,
+                  Self.isValid(record) else {
+                invalid += 1
+                continue
+            }
+            guard sequences.insert(record.moves).inserted else {
+                duplicates += 1
+                continue
+            }
+            accepted += 1
+            receive?(record)
+        }
+        return VerificationReport(accepted: accepted, invalid: invalid, duplicates: duplicates)
+    }
+
+    func count() -> Int { inspect().accepted }
+
+    static func isValid(_ record: GomokuNativeTrainingRecord) -> Bool {
+        guard record.version == GomokuNativeTrainingRecord.version,
+              (5...225).contains(record.moves.count),
+              record.outcome != .unfinished else { return false }
+        var replay = GomokuState()
+        for index in record.moves {
+            guard replay.apply(index: index, actor: replay.currentPlayer) else { return false }
+        }
+        let outcome: AdaptiveBoardGameResult = replay.isDraw ? .draw
+            : replay.winner == .guest ? .aiWon
+            : replay.winner == .host ? .humanWon : .unfinished
+        return outcome == record.outcome
     }
 
     @discardableResult
@@ -67,9 +118,17 @@ final class GomokuNativeTrainingJournal {
             }
             indices.append(index)
         }
-        guard replay.winner != nil || replay.isDraw else {
+        let verifiedOutcome: AdaptiveBoardGameResult = replay.isDraw ? .draw
+            : replay.winner == .guest ? .aiWon
+            : replay.winner == .host ? .humanWon : .unfinished
+        guard verifiedOutcome != .unfinished, verifiedOutcome == game.result else {
             throw GomokuNativeTrainingJournalError.invalidGame
         }
+        var alreadyRecorded = false
+        inspect { record in
+            if record.moves == indices { alreadyRecorded = true }
+        }
+        guard !alreadyRecorded else { throw GomokuNativeTrainingJournalError.duplicate }
         let id = UUID()
         let record = GomokuNativeTrainingRecord(
             version: GomokuNativeTrainingRecord.version, id: id,
