@@ -29,6 +29,7 @@ final class NativeGomokuAppController: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private let archive = VeilGomokuMatchArchive()
     private let trainingJournal = GomokuNativeTrainingJournal()
+    private lazy var transfer = GomokuMatchTransfer(archive: archive)
     private var sessionID = UUID().uuidString
     private var sessionHumanStone: UInt8 = 1
     private var archivedMoves: [VeilGomokuMatchArchive.Move] = []
@@ -187,6 +188,26 @@ final class NativeGomokuAppController: ObservableObject {
                 self?.isNativeTraining = false
                 self?.trainingTask = nil
             }
+        }
+    }
+
+    func exportRecentMatch() -> URL? {
+        do {
+            archiveWarning = nil
+            return try transfer.exportMostRecent()
+        } catch {
+            archiveWarning = error.localizedDescription
+            return nil
+        }
+    }
+
+    func importMatch(from url: URL) {
+        do {
+            _ = try transfer.importMatch(from: url)
+            archivedGames = try archive.page(limit: 1).totalFiles
+            archiveWarning = nil
+        } catch {
+            archiveWarning = error.localizedDescription
         }
     }
 
