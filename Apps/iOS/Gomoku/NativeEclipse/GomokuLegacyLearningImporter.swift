@@ -37,9 +37,10 @@ final class GomokuLegacyLearningImporter {
     }
 
     enum ImportError: LocalizedError {
-        case unsupported, checksum, invalidHistory, damagedDestination, oversized
+        case unsupported, checksum, invalidHistory, damagedDestination, oversized, unauthorized
         var errorDescription: String? {
             switch self {
+            case .unauthorized: return "开发者身份验证已过期，尚未修改现有训练库。"
             case .unsupported: return "训练包不是 VeilLink v1 的有效五子棋学习导出。"
             case .checksum: return "训练包校验和不匹配，原有学习数据未更改。"
             case .invalidHistory: return "原始走子或胜负标签无法复验，拒绝导入。"
@@ -70,7 +71,8 @@ final class GomokuLegacyLearningImporter {
     }
 
     @discardableResult
-    func importPackage(from selectedURL: URL) throws -> ImportReport {
+    func importPackage(from selectedURL: URL, authorizationExpiresAt: Date = .distantPast) throws -> ImportReport {
+        guard Date() < authorizationExpiresAt else { throw ImportError.unauthorized }
         let scoped = selectedURL.startAccessingSecurityScopedResource()
         defer { if scoped { selectedURL.stopAccessingSecurityScopedResource() } }
         guard selectedURL.lastPathComponent.lowercased().hasSuffix(".vltrain.json") else {
@@ -185,6 +187,8 @@ final class GomokuLegacyLearningImporter {
         guard validated.accepted == oldReport.accepted + imported else {
             throw ImportError.invalidHistory
         }
+        // Revalidate the time-bound device-owner permit at the actual write boundary.
+        guard Date() < authorizationExpiresAt else { throw ImportError.unauthorized }
         let backup: URL? = manager.fileExists(atPath: directory.path)
             ? parent.appendingPathComponent("ImportedLegacyLearningV1.backup-" + UUID().uuidString)
             : nil
