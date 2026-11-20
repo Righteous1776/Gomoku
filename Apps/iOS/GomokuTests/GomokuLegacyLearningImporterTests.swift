@@ -215,7 +215,7 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
 
         // An invalid later import cannot erase the last valid source or
         // contaminate the validated native learning journal.
-        _ = try package(in: temp, includePartial: true, checksumOverride: "0")
+        _ = try package(in: temp, checksumOverride: "0", includePartial: true)
         XCTAssertThrowsError(try importer.importPackage(from: url, authorization: authorization))
         XCTAssertEqual(try Data(contentsOf: original), originalBytes)
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), 1)
