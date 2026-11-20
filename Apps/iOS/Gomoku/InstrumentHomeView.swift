@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 struct InstrumentHomeView: View {
     @StateObject private var engine = NativeGomokuAppController()
     @State private var choosingMatch = false
-    @State private var choosingLearningPackage = false
+    @State private var showingDeveloperLab = false
     @State private var matchExportURL: URL?
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
@@ -37,7 +37,7 @@ struct InstrumentHomeView: View {
                 GomokuBoardView(
                     state: engine.state,
                     localPlayer: engine.humanIsBlack ? .host : .guest,
-                    enabled: engine.status == 0 && !engine.isThinking && engine.toMove == engine.humanColor,
+                    enabled: engine.status == 0 && !engine.isThinking && (engine.developerTeachingMode || engine.toMove == engine.humanColor),
                     eclipseThinking: showingSearch,
                     actualSearchStartedAt: engine.searchStartedAt,
                     eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
@@ -98,14 +98,8 @@ struct InstrumentHomeView: View {
                     Toggle("允许自对弈经验参与正式搜索", isOn: $engine.selfPlayLearningEnabled)
                         .font(.caption)
                 }
-                Button(engine.isImportingLegacyLearning ? "验证导入中" : "导入 VeilLink .vltrain.json 学习包") {
-                    choosingLearningPackage = true
-                }
-                .disabled(engine.isImportingLegacyLearning || engine.isNativeTraining)
-                .buttonStyle(VeilPhysicalButtonStyle())
-                if let report = engine.legacyImportStatus {
-                    Text(report).font(.caption2).foregroundStyle(.secondary)
-                }
+                Button("开发者阵法与私有训练") { showingDeveloperLab = true }
+                    .buttonStyle(VeilPhysicalButtonStyle())
                 HStack(spacing: 12) {
                     Button("导入棋谱 JSON") { choosingMatch = true }
                         .buttonStyle(VeilPhysicalButtonStyle())
@@ -133,6 +127,12 @@ struct InstrumentHomeView: View {
                 }
                 .tint(VeilTheme.gold)
                 .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
+                Picker("阵法偏好", selection: $engine.formationMode) {
+                    ForEach(GomokuFormationMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
                 Picker("颜色模式", selection: $appearance.colorMode) {
                     ForEach(VeilColorMode.allCases) { mode in
                         Text(mode.title).tag(mode)
@@ -152,11 +152,10 @@ struct InstrumentHomeView: View {
         .sheet(isPresented: $showsEclipseTrace) {
             EclipseAnalysisPresentation(engine: engine)
         }
-        .fileImporter(isPresented: $choosingLearningPackage,
-                      allowedContentTypes: [UTType.json]) { result in
-            if case let .success(url) = result {
-                engine.importLegacyLearning(from: url)
-            }
+        .sheet(isPresented: $showingDeveloperLab) {
+            GomokuDeveloperLearningLabView(
+                engine: engine, authorization: engine.developerAuthorization
+            )
         }
         .fileImporter(isPresented: $choosingMatch,
                       allowedContentTypes: [UTType.json]) { result in
