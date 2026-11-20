@@ -172,6 +172,24 @@ final class VeilGomokuMatchArchive {
         return match
     }
 
+    /// For explicitly user-selected, pre-validated interchange files only.
+    /// Preserve the source's entire timeline, including startedAt, instead of
+    /// re-creating a new match at updatedAt. Never replace an existing session.
+    @discardableResult
+    func importValidatedMatch(_ match: Match) throws -> Match {
+        guard validate(match) else { throw ArchiveError.invalidMoves }
+        guard try read(sessionID: match.id) == nil else { throw ArchiveError.conflict }
+        try manager.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(match)
+        guard (1...128_000).contains(data.count) else { throw ArchiveError.invalidMoves }
+        var options: Data.WritingOptions = [.atomic]
+        #if canImport(UIKit)
+        options.insert(.completeFileProtectionUntilFirstUserAuthentication)
+        #endif
+        try data.write(to: try url(for: match.id), options: options)
+        return match
+    }
+
     /// Paged listing reads only the requested slice, so old archives have no
     /// fixed match-count or storage cap and browsing remains bounded.
     func page(offset: Int = 0, limit: Int = 30) throws -> Page {
