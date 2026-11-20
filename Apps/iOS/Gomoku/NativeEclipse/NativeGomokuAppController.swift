@@ -568,18 +568,17 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func importLegacyLearning(from url: URL) {
-        guard developerAuthorization.isAuthorized else {
+        guard let permit = developerAuthorization.importPermit else {
             legacyImportStatus = "只有通过设备持有人身份验证的开发者才能导入私有训练包。"
             return
         }
         guard !isImportingLegacyLearning else { return }
         isImportingLegacyLearning = true
         legacyImportStatus = nil
-        let expiresAt = developerAuthorization.authorizedUntil ?? .distantPast
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let report = try GomokuLegacyLearningImporter().importPackage(
-                    from: url, authorizationExpiresAt: expiresAt
+                    from: url, authorization: permit
                 )
                 await self?.finishLegacyImport(
                     message: "原版训练已验证导入 \(report.imported) 局；重复 \(report.duplicate) 局；跳过中国象棋 \(report.ignoredNonGomoku) 项。"
