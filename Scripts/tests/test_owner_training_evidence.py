@@ -28,6 +28,21 @@ class OwnerTrainingEvidenceTests(unittest.TestCase):
             self.assertEqual(tuple(report["quarantinedOrdinals"]),
                              entry["quarantined_ordinals"])
 
+    def test_cross_archive_unique_owner_training_cannot_inflate_count(self):
+        sources = [evidence.ARCHIVE.read_bytes()]
+        sources.extend(
+            evidence.november_path(entry).read_bytes()
+            for entry in evidence.NOVEMBER_EXPORTS
+        )
+        completed = []
+        for data in sources:
+            package = json.loads(data)
+            for game in package["payload"]["recentGames"]:
+                if evidence.replay(game["actions"]) == game["result"] and game["result"] != "unfinished":
+                    completed.append(tuple(int(m[1:]) for m in game["actions"]))
+        self.assertEqual(len(completed), 115)
+        self.assertEqual(len(set(completed)), 102)
+
     def test_modified_november_file_is_not_exempt_from_strict_labels(self):
         entry = evidence.NOVEMBER_EXPORTS[0]
         raw = evidence.november_path(entry).read_bytes() + b" "

@@ -94,6 +94,16 @@ Current runner check at `9e6b6f5`: iOS Actions `44785011256`, C++/Python `447850
 - Owner-only, nondefault bundle staging script and authenticated developer import are wired. Follow-on integration retains full raw input inside `ImportedLegacyLearningV1/RawSources` after user selection; real on-device ingestion remains NOT VERIFIED.
 - Historical source R6/R8 5,141-game raw private bundles, 62,500 surrogate experiment log, shared VLPOL model and 224 MB three-game dataset are NOT additional native ECLIPSE training evidence present in GitHub. See `Docs/Operations/REAL_TRAINING_DATA_MIGRATION.md`.
 
+## Owner raw data closeout, as actually staged on PR #13
+
+- Authentic private owner source files: **3 byte-exact original archives**, from 2026-10-31 and 2026-11-13 twice. Each is outside the normal iOS application bundle in `Migration/OwnerEvidence/`.
+- Independent replay: 28 + 107 + 78 = **213 raw recorded matches**, 115 genuine terminal-label/replay-compatible records, **102 unique completed trajectories**, 93 genuine nonterminal histories and **5 identified source restore fragments** with nonterminal board but terminal label. All original bytes retained. No invalid/mislabeled fragments enter learning.
+- Original native seed: 2,000 valid terminal entries but only 236 distinct move trajectories; **0 exact overlap** between the verified owner trajectory set and the unique native seed set; therefore **338 distinct move trajectories across both sources**, but NOT 338 verified on-device imported games. This is a dedup factual count, not a strength/Elo score.
+- Black/white real-owner training correction: `GomokuLegacyLearningImporter` honors the first actor identity as Black, persists `humanStone` in version-compatible journal records; `GomokuLearningRepertoire` applies owner-relative outcomes and AI turn; existing native-only self-play stores remain color-relative. The five known fragments are quarantined **only** for exact pinned SHA256 original package and ordinal.
+- Old v29 export Date precision can change canonical JSON FNV across runtimes; matching exact original SHA256 + expected envelope checksum permits those two only, while arbitrary modified exports still require canonical FNV.
+- Owner-only packaging requires explicit `--acknowledge-private-bundle`, creates ignored `Resources/OwnerPrivate` copies of all three sources, and supplies separately authorized developer-lab buttons. This *does not* automatically export or install private game history on the owner phone.
+- Python source verifier and XCTest unit tests authored; current GitHub Actions still show failure without any assigned runner or steps, so **runtime completion remains WIRED / NOT TESTED / NOT ACCEPTED**. Documentation `Docs/Operations/REAL_TRAINING_DATA_MIGRATION.md` is authoritative.
+
 ## Owner decision and rollback
 
 **Decision: NOT MERGEABLE / NOT RELEASABLE** pending iOS CI, above P0 gates, parity review and Owner approval. All work stays in `integration/veillink-migration-consolidated` attached to PR #13. Revert individual new commits if regressions surface; never mutate `Legacy/Original/` bytes or the source `VeilLink` repository.

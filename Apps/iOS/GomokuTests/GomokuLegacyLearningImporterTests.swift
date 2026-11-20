@@ -180,6 +180,8 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         )
         XCTAssertEqual(repertoire.validLegacyGames, 1)
         XCTAssertTrue(repertoire.snapshot.preferences.count > 0)
+        XCTAssertEqual(repertoire.snapshot.rootAdjustments["105"], 420,
+                       "The AI-black opening must receive owner-loss evidence")
     }
 
     func testOriginalRawPackageAndIncompleteHistorySurviveRepeatImports() throws {

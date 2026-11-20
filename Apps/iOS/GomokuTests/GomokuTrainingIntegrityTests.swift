@@ -80,6 +80,27 @@ final class GomokuTrainingIntegrityTests: XCTestCase {
         XCTAssertEqual(journal.count(), 1, "Export must not change stored training")
     }
 
+    func testCorruptOwnerColorMetadataIsRejectedWithoutDeletingOriginal() throws {
+        let folder = try tempDirectory()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let journal = GomokuNativeTrainingJournal(directory: folder)
+        let good = completedGame(outcome: .humanWon)
+        _ = try journal.append(good, seed: 1)
+        let id = UUID()
+        let forged = GomokuNativeTrainingRecord(
+            version: GomokuNativeTrainingRecord.version,
+            id: id, createdAt: Date(), seed: 2,
+            moves: [105, 0, 106, 1, 107, 2, 108, 3, 109],
+            outcome: .humanWon, humanStone: 3
+        )
+        let illegalURL = folder.appendingPathComponent(id.uuidString + ".json")
+        try JSONEncoder().encode(forged).write(to: illegalURL, options: .atomic)
+        let report = journal.inspect()
+        XCTAssertEqual(report.accepted, 1)
+        XCTAssertEqual(report.invalid, 1)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: illegalURL.path))
+    }
+
     func testExportRefusesCorruptedNativeTrainingArchive() throws {
         let folder = try tempDirectory()
         defer { try? FileManager.default.removeItem(at: folder) }
