@@ -21,6 +21,11 @@ targets:
     platform: iOS
     sources:
       - path: Apps/iOS/Gomoku
+        excludes:
+          - Vendor/**
+      - path: Apps/iOS/Gomoku/Vendor/GomokuEngineV2
+        type: folder
+        buildPhase: resources
       - path: Engine/src/board.cpp
       - path: Engine/src/search.cpp
       - path: Engine/src/eclipse_c_api.cpp

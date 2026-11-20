@@ -43,7 +43,6 @@ jobs:
       - name: Audit all staged VeilLink original sources
         run: |
           python3 Scripts/audit_git_blobs.py
-          python3 Scripts/audit_git_blobs.py --emit-sha256
           python3 Scripts/audit_migration.py
       - name: Enforce owner R17.2 UI exclusions
         run: python3 Scripts/verify_gomoku_ui_contract.py
