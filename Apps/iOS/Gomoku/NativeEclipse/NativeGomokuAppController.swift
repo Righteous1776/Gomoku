@@ -160,34 +160,42 @@ final class NativeGomokuAppController: ObservableObject {
                 onExploredLine: observer
             )
             guard !Task.isCancelled else { return }
-            await MainActor.run {
-                guard let self, token == self.generation,
-                      self.state == boardAtStart else { return }
-                self.eclipseTraceStore.clear()
-                self.isThinking = false
-                self.searchStartedAt = nil
-                self.searchTask = nil
-                self.lastDecisionNodes = decision?.nodes
-                self.lastDecisionMilliseconds = decision?.elapsedMilliseconds
-                let selectedIndex: Int
-                if let decision, boardAtStart.value(at: decision.index) == 0 {
-                    selectedIndex = decision.index
-                } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
-                    selectedIndex = legal
-                    self.fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
-                } else {
-                    self.refresh()
-                    return
-                }
-                guard self.state.apply(index: selectedIndex, actor: self.state.currentPlayer) else {
-                    self.fallbackWarning = "搜索结果未能落子，请重开棋局。"
-                    return
-                }
-                self.archivedMoves.append(.init(index: selectedIndex, stone: UInt8(boardAtStart.currentPlayer == .host ? 1 : 2)))
-                self.persistArchive(status: self.archiveStatus())
-                self.refresh()
-            }
+            await self?.applyDecision(decision, boardAtStart: boardAtStart, token: token)
         }
+    }
+
+    private func applyDecision(
+        _ decision: GomokuBotMove?, boardAtStart: GomokuState, token: UUID
+    ) {
+        // The detached worker never captures mutable actor-isolated self in a
+        // concurrently executing MainActor.run closure (Swift 6 safe).
+        guard token == generation, state == boardAtStart else { return }
+        eclipseTraceStore.clear()
+        isThinking = false
+        searchStartedAt = nil
+        searchTask = nil
+        lastDecisionNodes = decision?.nodes
+        lastDecisionMilliseconds = decision?.elapsedMilliseconds
+        let selectedIndex: Int
+        if let decision, boardAtStart.value(at: decision.index) == 0 {
+            selectedIndex = decision.index
+        } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
+            selectedIndex = legal
+            fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
+        } else {
+            refresh()
+            return
+        }
+        guard state.apply(index: selectedIndex, actor: state.currentPlayer) else {
+            fallbackWarning = "搜索结果未能落子，请重开棋局。"
+            return
+        }
+        archivedMoves.append(.init(
+            index: selectedIndex,
+            stone: UInt8(boardAtStart.currentPlayer == .host ? 1 : 2)
+        ))
+        persistArchive(status: archiveStatus())
+        refresh()
     }
 
     private func archiveStatus() -> VeilGomokuMatchArchive.Status {
