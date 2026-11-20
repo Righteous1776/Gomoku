@@ -23,6 +23,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var archiveWarning: String?
     @Published private(set) var trainedGames = 0
     @Published private(set) var isNativeTraining = false
+    @Published private(set) var isBootstrappingSeed = false
     @Published private(set) var trainingWarning: String?
     @Published private(set) var legacyImportStatus: String?
     @Published private(set) var isImportingLegacyLearning = false
@@ -59,6 +60,11 @@ final class NativeGomokuAppController: ObservableObject {
         trainedGames = trainingJournal.count()
         archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
         recoveryAvailable = latestRestorableMatch() != nil
+        // Seed bootstrap runs only for the production sandbox; injected test
+        // directories never silently receive fixture or bundled data.
+        if archiveDirectory == nil && trainingDirectory == nil {
+            beginSeedBootstrap()
+        }
     }
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
@@ -288,8 +294,46 @@ final class NativeGomokuAppController: ObservableObject {
         }
     }
 
+    private func beginSeedBootstrap() {
+        let flag = "gomoku.eclipse.bundled-native-seed-v1-verified"
+        guard !UserDefaults.standard.bool(forKey: flag),
+              let url = Bundle.main.url(
+                forResource: GomokuBundledNativeSeed.resourceName, withExtension: "json"
+              ) else { return }
+        isBootstrappingSeed = true
+        let directory = trainingJournal.directory
+        Task.detached(priority: .utility) { [weak self] in
+            do {
+                let result = try GomokuBundledSeedBootstrap.importVerifiedSeed(
+                    from: url, into: GomokuNativeTrainingJournal(directory: directory)
+                )
+                let complete = !Task.isCancelled && result.rejected == 0
+                await self?.finishSeedBootstrap(result: result, complete: complete, flag: flag)
+            } catch {
+                await self?.finishSeedBootstrapFailure(error.localizedDescription)
+            }
+        }
+    }
+
+    private func finishSeedBootstrap(
+        result: GomokuBundledSeedBootstrap.Result, complete: Bool, flag: String
+    ) {
+        trainedGames = result.totalValid
+        isBootstrappingSeed = false
+        if complete {
+            UserDefaults.standard.set(true, forKey: flag)
+        } else {
+            trainingWarning = "首次训练种子未完整导入，已保留有效棋谱；下次启动可重试。"
+        }
+    }
+
+    private func finishSeedBootstrapFailure(_ message: String) {
+        isBootstrappingSeed = false
+        trainingWarning = "内置训练种子校验或导入失败：" + message
+    }
+
     func beginNativeSelfPlay(games: Int = 10) {
-        guard !isNativeTraining, [1, 10, 100, 1000].contains(games) else { return }
+        guard !isNativeTraining, !isBootstrappingSeed, [1, 10, 100, 1000].contains(games) else { return }
         trainingGeneration = UUID()
         let token = trainingGeneration
         isNativeTraining = true
