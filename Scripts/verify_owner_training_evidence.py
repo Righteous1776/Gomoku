@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify exact archived owner training evidence; never substitute simulation data."""
 from __future__ import annotations
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -107,18 +108,54 @@ def audit_bytes(data: bytes, *, enforce_blob: bool = True) -> dict:
             "fnv1a64": canonical_fingerprint}
 
 
+def audit_native_seed(data: bytes) -> dict:
+    if blob_sha1(data) != NATIVE_SEED_BLOB:
+        raise ValueError("Original native game seed bytes changed")
+    original = json.loads(data)
+    records = original["records"]
+    if (original.get("format") != "veillink.native-gomoku-real-selfplay.v1" or
+            original.get("engineRevision") !=
+            "bc919b454379841180fb8698a9e0addec87e7af0" or
+            original.get("count") != 2000 or len(records) != 2000):
+        raise ValueError("Native game seed format or count changed")
+    digest = bytearray()
+    unique = set()
+    outcomes = {"a": 0, "h": 0, "d": 0}
+    for record in records:
+        if not isinstance(record["s"], int) or record["s"] < 0:
+            raise ValueError("Invalid native seed value")
+        digest.extend(f'{record["s"]}|{record["r"]}|{record["m"]}\n'.encode())
+        raw_moves = base64.b64decode(record["m"], validate=True)
+        if not (5 <= len(raw_moves) <= 225):
+            raise ValueError("Invalid native compressed move count")
+        legal_result = replay(
+            [("h" if ply % 2 == 0 else "a") + str(point)
+             for ply, point in enumerate(raw_moves)]
+        )
+        mapped = {"a": "aiWon", "h": "humanWon", "d": "draw"}
+        if record["r"] not in mapped or legal_result != mapped[record["r"]]:
+            raise ValueError("Invalid native terminal claim")
+        outcomes[record["r"]] += 1
+        unique.add(bytes(raw_moves))
+    if fnv1a64(digest) != original["fnv1a64"]:
+        raise ValueError("Native seed FNV mismatch")
+    if len(unique) != 236 or outcomes != {"a": 860, "h": 1102, "d": 38}:
+        raise ValueError("Native unique evidence count or outcomes changed")
+    return {
+        "originalRecords": len(records),
+        "legalTerminalRecords": len(records),
+        "distinctCompletedGames": len(unique),
+        "duplicateGames": len(records) - len(unique),
+        "outcomes": outcomes,
+        "fnv1a64": original["fnv1a64"],
+    }
+
+
 def main() -> None:
     report = audit_bytes(ARCHIVE.read_bytes())
     native_path = ROOT / "Apps/iOS/Gomoku/Resources/GomokuNativeTrainingSeed.json"
-    native_bytes = native_path.read_bytes()
-    if blob_sha1(native_bytes) != NATIVE_SEED_BLOB:
-        raise ValueError("Original 2000-record native seed differs from VeilLink")
-    native = json.loads(native_bytes)
-    if native.get("count") != 2000 or len(native["records"]) != 2000:
-        raise ValueError("Native seed record count altered")
-    print("Authentic owner archive and native self-play seed PASS:")
-    print(json.dumps(report, sort_keys=True))
-    print("Native seed: 2000 original records (unique count not asserted)")
+    seed = audit_native_seed(native_path.read_bytes())
+    print("Native self-play deduplicated:", json.dumps(seed, sort_keys=True))
 
 
 if __name__ == "__main__":
