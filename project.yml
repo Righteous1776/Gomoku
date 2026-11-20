@@ -41,6 +41,7 @@ targets:
           - $(SRCROOT)/Engine/include
           - $(SRCROOT)/Engine/src
         INFOPLIST_KEY_CFBundleDisplayName: Gomoku
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "仅用于验证设备持有人身份，以保护私有阵法和训练数据库；不读取或保存生物识别信息。"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         SUPPORTS_MACCATALYST: NO
     scheme:
