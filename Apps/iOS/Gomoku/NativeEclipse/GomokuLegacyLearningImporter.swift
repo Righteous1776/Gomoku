@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Imports explicitly user-selected VeilLink .vltrain.json packages. The only
 /// promoted evidence is fully replayable Gomoku terminal move history. Legacy
@@ -56,6 +57,10 @@ final class GomokuLegacyLearningImporter {
         let ignoredNonGomoku: Int
         let totalUnique: Int
         let backup: URL?
+        /// Original file is retained, including unfinished games and hash-only positions.
+        let preservedPartialGames: Int
+        let preservedHashedPositions: Int
+        let sourceSHA256: String
     }
 
     let directory: URL
@@ -134,17 +139,39 @@ final class GomokuLegacyLearningImporter {
                 try manager.copyItem(at: file, to: stage.appendingPathComponent(file.lastPathComponent))
             }
         }
+        // Preserve every previously imported original source inside the same
+        // transactional directory. Do not discard partial games or aggregates
+        // merely because they are not promotable model training examples.
+        let rawSources = stage.appendingPathComponent("RawSources", isDirectory: true)
+        let previousSources = directory.appendingPathComponent("RawSources", isDirectory: true)
+        if manager.fileExists(atPath: previousSources.path) {
+            try manager.copyItem(at: previousSources, to: rawSources)
+        } else {
+            try manager.createDirectory(at: rawSources, withIntermediateDirectories: true)
+        }
+        let sourceSHA256 = SHA256.hash(data: bytes).map {
+            String(format: "%02x", $0)
+        }.joined()
+        let retainedSource = rawSources.appendingPathComponent(sourceSHA256 + ".vltrain.json")
+        var writeOptions: Data.WritingOptions = [.atomic]
+        #if canImport(UIKit)
+        writeOptions.insert(.completeFileProtectionUntilFirstUserAuthentication)
+        #endif
+        try bytes.write(to: retainedSource, options: writeOptions)
+
         let staged = GomokuNativeTrainingJournal(directory: stage)
         let batchWriter = try staged.makeBatchWriter()
-        var imported = 0, duplicated = 0, ignored = 0
+        var imported = 0, duplicated = 0, ignored = 0, partial = 0
         for (ordinal, record) in envelope.payload.recentGames.enumerated() {
             guard record.game == "gomoku" else {
                 guard record.game == "xiangqi" else { throw ImportError.invalidHistory }
                 ignored += 1
                 continue
             }
-            guard record.result != .unfinished else { continue }
-            guard (5...225).contains(record.actions.count) else {
+            // Even the unfinished records must replay legally before the raw
+            // export is admitted to the protected on-device archive.
+            guard record.actions.count <= 225,
+                  record.actions.count >= (record.result == .unfinished ? 0 : 5) else {
                 throw ImportError.invalidHistory
             }
             var state = GomokuState()
@@ -169,6 +196,10 @@ final class GomokuLegacyLearningImporter {
                 : state.winner == .guest ? .aiWon
                 : state.winner == .host ? .humanWon : .unfinished
             guard verified == record.result else { throw ImportError.invalidHistory }
+            if verified == .unfinished {
+                partial += 1
+                continue
+            }
             let game = NativeGomokuSelfPlayGame(
                 plies: plies, result: verified,
                 opening: Int(plies[0].action) ?? 112,
@@ -206,7 +237,10 @@ final class GomokuLegacyLearningImporter {
             return ImportReport(
                 imported: imported, duplicate: duplicated,
                 ignoredNonGomoku: ignored, totalUnique: validated.accepted,
-                backup: backup
+                backup: backup, preservedPartialGames: partial,
+                preservedHashedPositions: envelope.payload.positions.filter {
+                    $0.key.hasPrefix("g:")
+                }.count, sourceSHA256: sourceSHA256
             )
         }) else {
             throw ImportError.unauthorized

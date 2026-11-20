@@ -36,7 +36,8 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
 
     private func package(in directory: URL,
                          winner: AdaptiveBoardGameResult = .humanWon,
-                         checksumOverride: String? = nil) throws -> URL {
+                         checksumOverride: String? = nil,
+                         includePartial: Bool = false) throws -> URL {
         let moves = [105, 0, 106, 1, 107, 2, 108, 3, 109]
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let gomoku = Match(
@@ -47,8 +48,13 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         )
         let xiangqi = Match(game: "xiangqi", result: .aiWon,
                             actions: ["h64:67", "a19:22"], finishedAt: now)
-        let payload = Payload(schema: 1, completedGames: 2, sequence: 2,
-                              positions: [:], recentGames: [gomoku, xiangqi])
+        let partial = Match(
+            game: "gomoku", result: .unfinished,
+            actions: ["h112", "a113", "h97"], finishedAt: now
+        )
+        let matches = includePartial ? [gomoku, xiangqi, partial] : [gomoku, xiangqi]
+        let payload = Payload(schema: 1, completedGames: 2, sequence: matches.count,
+                              positions: [:], recentGames: matches)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let checksum = fnv(try encoder.encode(payload))
@@ -124,6 +130,43 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         XCTAssertFalse(permission.isValid)
         XCTAssertThrowsError(try importer.importPackage(from: url, authorization: permission))
         XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+
+    func testOriginalRawPackageAndIncompleteHistorySurviveRepeatImports() throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuLegacyRawRetention-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let url = try package(in: temp, includePartial: true)
+        let originalBytes = try Data(contentsOf: url)
+        let directory = temp.appendingPathComponent("Gomoku/ImportedLegacyLearningV1")
+        let importer = GomokuLegacyLearningImporter(directory: directory)
+        let gate = GomokuDeveloperPermit()
+        let authorization = gate.grant(until: Date().addingTimeInterval(600))
+
+        let first = try importer.importPackage(from: url, authorization: authorization)
+        XCTAssertEqual(first.imported, 1)
+        XCTAssertEqual(first.preservedPartialGames, 1)
+        XCTAssertEqual(first.preservedHashedPositions, 0)
+        XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), 1)
+
+        let sources = directory.appendingPathComponent("RawSources")
+        let original = sources.appendingPathComponent(first.sourceSHA256 + ".vltrain.json")
+        XCTAssertEqual(try Data(contentsOf: original), originalBytes)
+
+        let repeated = try importer.importPackage(from: url, authorization: authorization)
+        XCTAssertEqual(repeated.imported, 0)
+        XCTAssertEqual(repeated.duplicate, 1)
+        XCTAssertEqual(repeated.sourceSHA256, first.sourceSHA256)
+        XCTAssertEqual(try Data(contentsOf: original), originalBytes)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: sources.path).count, 1)
+
+        // An invalid later import cannot erase the last valid source or
+        // contaminate the validated native learning journal.
+        _ = try package(in: temp, includePartial: true, checksumOverride: "0")
+        XCTAssertThrowsError(try importer.importPackage(from: url, authorization: authorization))
+        XCTAssertEqual(try Data(contentsOf: original), originalBytes)
+        XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), 1)
     }
 
 }
