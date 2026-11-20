@@ -37,7 +37,7 @@ final class GomokuNativeTrainingResourceTests: XCTestCase {
         let second = try GomokuBundledSeedBootstrap.importVerifiedSeed(from: url, into: journal)
         XCTAssertEqual(second.accepted, 0)
         XCTAssertEqual(second.rejected, 0)
-        XCTAssertEqual(second.duplicate, first.accepted)
+        XCTAssertEqual(second.duplicate, first.accepted + first.duplicate)
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), first.accepted)
     }
 
