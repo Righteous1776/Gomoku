@@ -4,6 +4,8 @@ import SwiftUI
 struct InstrumentHomeView: View {
     @StateObject private var engine = EngineBridge()
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var panel: Color { scheme == .dark ? Color(red: 0.15, green: 0.17, blue: 0.20) : Color(red: 0.89, green: 0.90, blue: 0.89) }
     private var surface: Color { scheme == .dark ? Color(red: 0.21, green: 0.24, blue: 0.27) : Color(red: 0.95, green: 0.95, blue: 0.93) }
@@ -13,29 +15,52 @@ struct InstrumentHomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("GOMOKU").font(.system(.largeTitle, design: .rounded, weight: .bold))
+                        Text("GOMOKU").font(.system(size: 31, weight: .bold, design: .rounded))
                         Text("ECLIPSE · INSTRUMENT CONSOLE")
-                            .font(.system(size: 11, design: .monospaced, weight: .medium))
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
                             .tracking(1.5).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Circle().fill(engine.isThinking ? .orange : .green)
+                    Circle().fill(engine.isThinking ? .orange : Color(white: 0.70))
                         .frame(width: 12, height: 12)
-                        .shadow(color: engine.isThinking ? .orange.opacity(0.5) : .green.opacity(0.3), radius: 5)
+                        .shadow(color: engine.isThinking ? .orange.opacity(0.4) : .clear, radius: 5)
                         .accessibilityLabel(engine.isThinking ? "AI searching" : "Engine ready")
                 }
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("ENGINE STATUS").font(.caption2.monospaced()).foregroundStyle(.secondary)
-                        Text(statusText).font(.system(.headline, design: .monospaced))
+                // One upper identity/compute unit. No lower telemetry dashboard.
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack {
+                        Text("ECLIPSE / NATIVE INTELLIGENCE")
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.orange)
+                        Spacer()
+                        Text(engine.isThinking ? "COMPUTE" : "READY")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(white: 0.75))
                     }
-                    Spacer()
-                    Text("15 × 15").font(.system(.caption, design: .monospaced))
+                    Text(statusText)
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .foregroundColor(.white)
+                    if engine.isThinking, let started = engine.searchStartedAt {
+                        TimelineView(.periodic(from: .now,
+                            by: scenePhase == .active && !reduceMotion ? 0.5 : 1.0)) { context in
+                            Text(String(format: "REAL CLOCK  T+%.1fs",
+                                        max(0, context.date.timeIntervalSince(started))))
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundColor(.orange)
+                        }
+                    } else {
+                        Text("REAL CLOCK / IDLE")
+                            .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundColor(Color(white: 0.65))
+                    }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(surface, in: RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.primary.opacity(0.08)))
+                .background(Color(red: 0.08, green: 0.085, blue: 0.09),
+                            in: RoundedRectangle(cornerRadius: 15))
+                .overlay(RoundedRectangle(cornerRadius: 15)
+                    .strokeBorder(Color(white: 0.33), lineWidth: 0.8))
+                .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
                 BoardInstrumentView(board: engine.board, enabled: engine.status == 0 && !engine.isThinking && engine.toMove == engine.humanColor) {
                     engine.play($0)
                 }
@@ -68,7 +93,7 @@ struct InstrumentHomeView: View {
 private struct InstrumentButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, design: .monospaced, weight: .bold))
+            .font(.system(size: 12, weight: .bold, design: .monospaced))
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
