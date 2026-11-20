@@ -22,18 +22,20 @@ struct InstrumentHomeView: View {
                     Text(statusText).font(.caption.monospaced())
                         .foregroundColor(VeilTheme.secondaryText)
                 }
-                VeilEclipseIdentityCard(
-                    isThinking: showingSearch,
-                    matchFinished: engine.status != 0,
-                    lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
-                    actualSearchStartedAt: showingSearch ? engine.searchStartedAt : nil,
-                    difficultyTitle: engine.difficulty.title,
-                    liveMetrics: nil,
-                    openTrace: { showsEclipseTrace = true }
-                )
-                .veilCard()
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
+                TimelineView(.periodic(from: .now, by: showingSearch ? 0.25 : 30)) { _ in
+                    VeilEclipseIdentityCard(
+                        isThinking: showingSearch,
+                        matchFinished: engine.status != 0,
+                        lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
+                        actualSearchStartedAt: showingSearch ? engine.searchStartedAt : nil,
+                        difficultyTitle: engine.difficulty.title,
+                        liveMetrics: engine.realSearchMetrics,
+                        openTrace: { showsEclipseTrace = true }
+                    )
+                    .veilCard()
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
+                }
 
                 GomokuBoardView(
                     state: engine.state,
@@ -191,16 +193,18 @@ private struct EclipseAnalysisPresentation: View {
 
     var body: some View {
         let active = scenePhase == .active && engine.isThinking
-        VeilEclipseTraceSheet(
-            isThinking: active,
-            matchFinished: engine.status != 0,
-            lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
-            actualSearchStartedAt: active ? engine.searchStartedAt : nil,
-            committedMoves: engine.completedMoves,
-            difficultyTitle: engine.difficulty.title,
-            searchModeTitle: engine.searchMode.title,
-            liveMetrics: nil,
-            archivedMatchPage: engine.historyPage(offset:limit:)
-        )
+        TimelineView(.periodic(from: .now, by: active ? 0.25 : 30)) { _ in
+            VeilEclipseTraceSheet(
+                isThinking: active,
+                matchFinished: engine.status != 0,
+                lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
+                actualSearchStartedAt: active ? engine.searchStartedAt : nil,
+                committedMoves: engine.completedMoves,
+                difficultyTitle: engine.difficulty.title,
+                searchModeTitle: engine.searchMode.title,
+                liveMetrics: engine.realSearchMetrics,
+                archivedMatchPage: engine.historyPage(offset:limit:)
+            )
+        }
     }
 }
