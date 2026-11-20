@@ -20,6 +20,10 @@ final class NativeGomokuAppController: ObservableObject {
     @Published var searchMode: BoardSearchMode = .full
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
+    @Published private(set) var developerTeachingMode = false
+    @Published private(set) var developerMessage: String?
+    @Published private(set) var savedDeveloperLessons = 0
+    @Published var formationMode: GomokuFormationMode = .automatic
     @Published private(set) var archiveWarning: String?
     @Published private(set) var trainedGames = 0
     @Published private(set) var isNativeTraining = false
@@ -43,6 +47,8 @@ final class NativeGomokuAppController: ObservableObject {
 
     private(set) var state = GomokuState()
     let eclipseTraceStore = VeilEclipseSearchTraceStore()
+    let developerAuthorization = GomokuDeveloperAuthorization()
+    private let developerLessons = GomokuDeveloperLessonLibrary()
     private var generation = UUID()
     private var searchTask: Task<Void, Never>?
     private let archive: VeilGomokuMatchArchive
@@ -60,6 +66,7 @@ final class NativeGomokuAppController: ObservableObject {
         trainedGames = trainingJournal.count()
         archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
         recoveryAvailable = latestRestorableMatch() != nil
+        savedDeveloperLessons = developerLessons.lessons.count
         // Seed bootstrap runs only for the production sandbox; injected test
         // directories never silently receive fixture or bundled data.
         if archiveDirectory == nil && trainingDirectory == nil {
@@ -141,7 +148,7 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func reset() {
-        if status == 0, !archivedMoves.isEmpty {
+        if !developerTeachingMode && status == 0, !archivedMoves.isEmpty {
             persistArchive(status: .interrupted)
         }
         generation = UUID()
@@ -158,7 +165,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionMilliseconds = nil
         fallbackWarning = nil
         refresh()
-        if !humanIsBlack { scheduleAI() }
+        if !humanIsBlack && !developerTeachingMode { scheduleAI() }
     }
 
     func toggleSide() {
@@ -167,6 +174,18 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func play(_ index: Int) {
+        if developerTeachingMode {
+            guard developerAuthorization.isAuthorized,
+                  !isThinking, status == 0 else {
+                developerMessage = "开发者身份验证已过期，无法继续示范。"
+                return
+            }
+            let stone: UInt8 = state.currentPlayer == .host ? 1 : 2
+            guard state.apply(index: index, actor: state.currentPlayer) else { return }
+            archivedMoves.append(.init(index: index, stone: stone))
+            refresh()
+            return
+        }
         guard !isThinking, status == 0, Int32(state.currentPlayer == .host ? 1 : 2) == humanColor,
               state.apply(index: index, actor: state.currentPlayer) else { return }
         archivedMoves.append(.init(index: index, stone: UInt8(humanColor)))
@@ -182,6 +201,63 @@ final class NativeGomokuAppController: ObservableObject {
         else if state.winner == .guest { status = 2 }
         else if state.isDraw { status = 3 }
         else { status = 0 }
+    }
+
+    var developerLessonList: [GomokuDeveloperLessonLibrary.Lesson] {
+        developerLessons.lessons
+    }
+
+    func beginDeveloperTeaching() {
+        guard developerAuthorization.isAuthorized, !isNativeTraining,
+              !isBootstrappingSeed else {
+            developerMessage = "请先通过设备身份验证，并等待其他训练结束。"
+            return
+        }
+        developerTeachingMode = true
+        reset() // Teaching moves are never persisted into ordinary match history.
+        developerMessage = nil
+    }
+
+    func stopDeveloperTeaching() {
+        developerTeachingMode = false
+        generation = UUID()
+        searchTask?.cancel()
+        searchTask = nil
+        state = GomokuState()
+        archivedMoves.removeAll()
+        sessionID = UUID().uuidString
+        isThinking = false
+        searchStartedAt = nil
+        refresh()
+        developerMessage = nil
+    }
+
+    func saveDeveloperLesson(name: String, purpose: String, objective: String) {
+        guard developerTeachingMode, developerAuthorization.isAuthorized else {
+            developerMessage = "授权失效，不能保存教学内容。"
+            return
+        }
+        do {
+            try developerLessons.capture(
+                name: name, purpose: purpose, objective: objective,
+                moves: archivedMoves.map { .init(index: $0.index, stone: $0.stone) },
+                authorized: developerAuthorization.isAuthorized
+            )
+            savedDeveloperLessons = developerLessons.lessons.count
+            developerMessage = "阵法已验证并签名保存，可在相同棋谱前缀加入正式搜索偏好。"
+        } catch {
+            developerMessage = error.localizedDescription
+        }
+    }
+
+    func removeDeveloperLesson(id: UUID) {
+        do {
+            try developerLessons.remove(id: id, authorized: developerAuthorization.isAuthorized)
+            savedDeveloperLessons = developerLessons.lessons.count
+            developerMessage = "阵法已删除。"
+        } catch {
+            developerMessage = error.localizedDescription
+        }
     }
 
     private func scheduleAI() {
@@ -207,6 +283,17 @@ final class NativeGomokuAppController: ObservableObject {
         let existingMoves = archivedMoves
         let humanStone = sessionHumanStone
         let useNativeTraining = selfPlayLearningEnabled
+        let aiStone: UInt8 = humanStone == 1 ? 2 : 1
+        let lessonInfluence = developerLessons.influence(
+            for: existingMoves.map { .init(index: $0.index, stone: $0.stone) },
+            aiStone: aiStone
+        )
+        let aiMoves = existingMoves.filter { $0.stone == aiStone }.map(\.index)
+        let opponentMoves = existingMoves.filter { $0.stone == humanStone }.map(\.index)
+        let activeFormation = GomokuFormationPreference(
+            mode: formationMode, aiHistory: aiMoves,
+            opponentHistory: opponentMoves, discovered: []
+        )
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
             // Construct from verified records off the main/UI actor. The exact
@@ -217,7 +304,7 @@ final class NativeGomokuAppController: ObservableObject {
                 currentMoves: existingMoves,
                 humanStone: humanStone,
                 includeNativeSelfPlay: useNativeTraining
-            ).snapshot
+            ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
             let budget = GomokuBotBudget.forDifficulty(
                 selectedTier, profileLabel: selectedMode.budgetProfileLabel
@@ -227,7 +314,7 @@ final class NativeGomokuAppController: ObservableObject {
                 for: boardAtStart.currentPlayer,
                 budget: budget,
                 learning: learning,
-                formationPreference: .disabled,
+                formationPreference: activeFormation,
                 difficultyRawValue: selectedTier.rawValue,
                 onExploredLine: observer
             )
@@ -386,6 +473,10 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func importLegacyLearning(from url: URL) {
+        guard developerAuthorization.isAuthorized else {
+            legacyImportStatus = "只有通过设备持有人身份验证的开发者才能导入私有训练包。"
+            return
+        }
         guard !isImportingLegacyLearning else { return }
         isImportingLegacyLearning = true
         legacyImportStatus = nil
