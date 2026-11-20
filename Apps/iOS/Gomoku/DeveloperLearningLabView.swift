@@ -12,6 +12,18 @@ struct GomokuDeveloperLearningLabView: View {
     @State private var purpose = ""
     @State private var objective = ""
 
+    /// Non-nil only in an explicitly prepared owner-personal build.
+    /// General/release app targets never ship this owner game history.
+    private var bundledOwnerTraining: URL? {
+        Bundle.main.url(
+            forResource: "VeilLink-Gomoku-OwnerTraining-20261031.vltrain",
+            withExtension: "json"
+        ) ?? Bundle.main.url(
+            forResource: "VeilLink-Gomoku-OwnerTraining-20261031.vltrain",
+            withExtension: "json", subdirectory: "OwnerPrivate"
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -73,6 +85,24 @@ struct GomokuDeveloperLearningLabView: View {
                         Divider()
                         Text("原版私有训练数据库")
                             .font(.subheadline.weight(.semibold))
+
+                        if let bundledOwnerTraining {
+                            Button {
+                                engine.importLegacyLearning(from: bundledOwnerTraining)
+                            } label: {
+                                Label("导入本机私有构建内的原版真实训练",
+                                      systemImage: "checkmark.shield")
+                            }
+                            .disabled(engine.isImportingLegacyLearning ||
+                                      engine.isNativeTraining ||
+                                      engine.isBootstrappingSeed)
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("gomoku.training.owner-bundled-import")
+                            Text("原始 28 局完整保留；只有复验通过的 10 局已完成棋谱可计入训练。")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+
                         Button(engine.isImportingLegacyLearning
                                ? "正在验证并导入" : "选择 VeilLink .vltrain.json") {
                             choosingPackage = true
