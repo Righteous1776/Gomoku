@@ -111,3 +111,15 @@ Current runner check at `9e6b6f5`: iOS Actions `44785011256`, C++/Python `447850
 ## TenGate Lite lane ownership
 
 Current integration changes are authored under the Owner's explicit single-task direction, not proof of persistent Governor delegation. Do not silently grant ordinary Agents direct edit permission. Proposed lanes, only when assigned in `AGENT_INBOX/BOARD.json`: ENGINE / TRAINING / DATA / FORMATION / IOS / BLE / QA, with disjoint file ownership and INBOX_ONLY submissions.
+
+## Continuation: raw owner evidence and privacy fail-closed · 2026-11-21
+
+Scope: PR #13 Draft only, VeilLink read-only, no merge/release. Source head before this documentation commit: `3458a6419c266f41a712f7bbfa9e2dda3df98d1c`.
+
+- `9c4c921`, `4fb813f`, `654528d`, `2a26324`: `Scripts/check_private_bundle.py` refuses staged `Resources/OwnerPrivate` in shared CI/local preflight, detects private original envelope even when renamed, and checks actual .app resources. Seven isolated synthetic Python tests executed locally **7/7 PASS**; exact private source bytes were not used in these tests.
+- `3458a64`: manual unsigned IPA workflow now requires a 40-character exact expected source SHA, checks checkout provenance, rejects owner-only resources before compilation, checks the built device .app, and scans the final IPA **before artifact upload**. This workflow has not completed on a macOS runner; no IPA or signed build is claimed.
+- `1a148e2`, `5537daa`, `1266af0`, `cdf0108`: read-only, digest-verified `ImportedLegacyLearningV1/RawSources` inventory with original record/hash-position counts; an explicit `ShareLink` is visible only inside the device-owner-authorized developer lab. Listing/export never promotes partial or hash-only evidence to learning. A synthetic XCTest verifies byte preservation, tamper rejection and no synthetic training promotion; **XCTest NOT RUN**.
+- Swift source syntax only: local `swiftc -frontend -parse` succeeded for three new Swift files. This is **not** Xcode typecheck, linked app compilation, simulator screenshot or device evidence.
+- Latest CI after code SHA `3458a64`: iOS run `44839224695`, Core `44839224579`, Inbox `44839224639` all report failure with null steps/no assigned runner information. **Do not infer test failure or success** from these zero-step records.
+
+**Remaining blockers:** original three owner archives require actual importer/Keychain/iOS end-to-end verification, including restart/A-B learning and unauthorized export checks; real device, dark/light UI, endurance, historical archive completeness, BLE/E2EE, signing remain unaccepted. No claim of 100% data or production-code migration is warranted.
