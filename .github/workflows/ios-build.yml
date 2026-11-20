@@ -40,8 +40,14 @@ jobs:
         run: |
           set -o pipefail
           phone_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in reversed(sorted(d)) if ".iOS-" in runtime for x in d[runtime] if x["name"].startswith("iPhone")))')
-          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" -derivedDataPath DerivedData -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO test
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" -derivedDataPath DerivedData -parallel-testing-enabled NO -resultBundlePath GomokuTests.xcresult CODE_SIGNING_ALLOWED=NO test
       - name: Simulator Release build
         run: xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
       - name: Show compile artifact
         run: find DerivedData/Build/Products -maxdepth 3 -name 'Gomoku.app' -type d
+      - name: Upload simulator test results and screenshots
+        if: always() && hashFiles('GomokuTests.xcresult/Info.plist') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-simulator-test-results
+          path: GomokuTests.xcresult

@@ -1,60 +1,192 @@
 import SwiftUI
+import UIKit
 
-struct BoardInstrumentView: View {
-    let board: [UInt8]
+private struct VeilBoardTapSurface: UIViewRepresentable {
     let enabled: Bool
-    let onTap: (Int) -> Void
+    let onTap: (CGPoint) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onTap: onTap)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.backgroundColor = .clear
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        view.addGestureRecognizer(tap)
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.onTap = onTap
+        view.isUserInteractionEnabled = enabled
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onTap: (CGPoint) -> Void
+
+        init(onTap: @escaping (CGPoint) -> Void) {
+            self.onTap = onTap
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended, let view = recognizer.view else { return }
+            onTap(recognizer.location(in: view))
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+}
+
+struct GomokuBoardView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let state: GomokuState
+    let localPlayer: MiniGamePlayer
+    let enabled: Bool
+    var eclipseThinking = false
+    var actualSearchStartedAt: Date? = nil
+    var eclipseVisualizationEnabled = false
+    var eclipseTraceStore: VeilEclipseSearchTraceStore? = nil
+    var eclipseSessionID = ""
+    var eclipseBoardTurn = 0
+    var eclipseMatchPlaying = true
+    let onMove: (Int) -> Void
+
+    private let starPoints = [48, 56, 112, 168, 176]
 
     var body: some View {
-        GeometryReader { geometry in
-            let side = min(geometry.size.width, geometry.size.height)
-            let inset: CGFloat = 18
-            let step = (side - inset * 2) / 14
-            ZStack {
-                RoundedRectangle(cornerRadius: 15)
-                    .fill(Color(red: 0.68, green: 0.61, blue: 0.48).gradient)
-                    .shadow(color: .black.opacity(0.25), radius: 8, y: 4)
-                Canvas { context, _ in
-                    var lines = Path()
-                    for i in 0..<15 {
-                        let p = inset + CGFloat(i) * step
-                        lines.move(to: CGPoint(x: p, y: inset))
-                        lines.addLine(to: CGPoint(x: p, y: side - inset))
-                        lines.move(to: CGPoint(x: inset, y: p))
-                        lines.addLine(to: CGPoint(x: side - inset, y: p))
+        VStack(spacing: 11) {
+            GeometryReader { proxy in
+                let side = min(proxy.size.width, proxy.size.height)
+                let margin = side * 0.055
+                let step = (side - margin * 2) / CGFloat(GomokuState.size - 1)
+
+                ZStack {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color(red: 0.42, green: 0.29, blue: 0.15).opacity(0.46))
+                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VeilTheme.hairline, lineWidth: 1))
+
+                    gomokuGrid(side: side, margin: margin, step: step)
+                        .stroke(Color.white.opacity(0.27), lineWidth: 0.65)
+
+                    ForEach(starPoints, id: \.self) { index in
+                        let point = gomokuPoint(index: index, margin: margin, step: step)
+                        Circle().fill(Color.white.opacity(0.42)).frame(width: 4.2, height: 4.2).position(point)
                     }
-                    context.stroke(lines, with: .color(.black.opacity(0.55)), lineWidth: 0.75)
-                    for r in [3, 7, 11] {
-                        for c in [3, 7, 11] {
-                            let point = CGPoint(x: inset + CGFloat(c) * step, y: inset + CGFloat(r) * step)
-                            context.fill(Path(ellipseIn: CGRect(x: point.x-2.4, y: point.y-2.4, width: 4.8, height: 4.8)), with: .color(.black.opacity(0.8)))
+
+                    // Purely decorative; has NO board data/search scores and
+                    // cannot intercept touches or provide a move recommendation.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let eclipseTraceStore {
+                        VeilEclipseBoardThoughtField(
+                            isThinking: eclipseThinking,
+                            actualSearchStartedAt: actualSearchStartedAt,
+                            enabled: eclipseVisualizationEnabled,
+                            searchTrace: eclipseTraceStore,
+                            sessionID: eclipseSessionID,
+                            turn: eclipseBoardTurn,
+                            matchPlaying: eclipseMatchPlaying
+                        )
+                        .frame(width: side, height: side)
+                        .allowsHitTesting(false)
+                    }
+
+                    if state.winningLine.count >= 5,
+                       let first = state.winningLine.first,
+                       let last = state.winningLine.last {
+                        Path { path in
+                            path.move(to: gomokuPoint(index: first, margin: margin, step: step))
+                            path.addLine(to: gomokuPoint(index: last, margin: margin, step: step))
                         }
+                        .stroke(VeilTheme.gold.opacity(0.9), style: StrokeStyle(lineWidth: max(2, step * 0.12), lineCap: .round))
+                    }
+
+                    ForEach(0..<(GomokuState.size * GomokuState.size), id: \.self) { index in
+                        let value = state.value(at: index)
+                        if value != 0 {
+                            let point = gomokuPoint(index: index, margin: margin, step: step)
+                            Circle()
+                                .fill(value == 1 ? Color.black.opacity(0.96) : Color.white.opacity(0.96))
+                                .frame(width: step * 0.82, height: step * 0.82)
+                                .overlay(
+                                    Circle().stroke(state.lastMove == index ? VeilTheme.gold : (value == 1 ? Color.white.opacity(0.16) : Color.black.opacity(0.24)), lineWidth: state.lastMove == index ? 2 : 0.7)
+                                )
+                                .shadow(color: Color.black.opacity(0.28), radius: 1.4, x: 0, y: 1)
+                                .position(point)
+                                .transition(.scale.combined(with: .opacity))
+                        }
+                    }
+
+                    VeilBoardTapSurface(enabled: enabled) { location in
+                        guard enabled, step > 0 else { return }
+                        let col = Int(round((location.x - margin) / step))
+                        let row = Int(round((location.y - margin) / step))
+                        guard (0..<GomokuState.size).contains(row), (0..<GomokuState.size).contains(col) else { return }
+                        let point = CGPoint(x: margin + CGFloat(col) * step, y: margin + CGFloat(row) * step)
+                        let dx = location.x - point.x
+                        let dy = location.y - point.y
+                        guard hypot(dx, dy) <= step * 0.52 else { return }
+                        let index = row * GomokuState.size + col
+                        guard state.value(at: index) == 0 else { return }
+                        onMove(index)
                     }
                 }
-                ForEach(0..<225, id: \.self) { index in
-                    let piece: UInt8 = index < board.count ? board[index] : 0
-                    let x = inset + CGFloat(index % 15) * step
-                    let y = inset + CGFloat(index / 15) * step
-                    Button { onTap(index) } label: {
-                        ZStack {
-                            if piece != 0 {
-                                Circle()
-                                    .fill(piece == 1 ? Color(white: 0.09).gradient : Color(white: 0.95).gradient)
-                                    .overlay(Circle().strokeBorder(piece == 1 ? .white.opacity(0.12) : .black.opacity(0.13)))
-                                    .shadow(color: .black.opacity(0.25), radius: 1.5, y: 1)
-                            } else { Circle().fill(.clear) }
+                .frame(width: side, height: side)
+                .animation(VeilMotionPolicy.animation(.resolve, reduceMotionRequested: reduceMotion), value: state.moveCount)
+            }
+            .aspectRatio(1, contentMode: .fit)
+
+            HStack {
+                Text(localPlayer == .host ? "你执黑 · 先手" : "你执白 · 后手")
+                Spacer()
+                Text(enabled ? "轻触交叉点落子" : "等待对方")
+            }
+            .font(.caption)
+            .foregroundColor(enabled ? VeilTheme.gold : VeilTheme.secondaryText)
+        }
+        .accessibilityRepresentation {
+            VStack {
+                Text("五子棋棋盘，已进行 \(state.moveCount) 手")
+                ForEach(0..<GomokuState.size, id: \.self) { row in
+                    HStack {
+                        ForEach(0..<GomokuState.size, id: \.self) { col in
+                            let index = row * GomokuState.size + col
+                            let stone = state.value(at: index)
+                            Button("第 \(row + 1) 行，第 \(col + 1) 列，\(stone == 1 ? "黑棋" : stone == 2 ? "白棋" : "空位")") {
+                                if enabled && stone == 0 { onMove(index) }
+                            }
+                            .disabled(!enabled || stone != 0)
                         }
-                        .frame(width: step * 0.84, height: step * 0.84)
-                        .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .disabled(!enabled || piece != 0)
-                    .accessibilityLabel("Row \(index / 15 + 1), column \(index % 15 + 1), \(piece == 1 ? "black" : piece == 2 ? "white" : "empty")")
-                    .position(x: x, y: y)
                 }
             }
-            .frame(width: side, height: side)
         }
-        .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func gomokuPoint(index: Int, margin: CGFloat, step: CGFloat) -> CGPoint {
+        CGPoint(x: margin + CGFloat(index % GomokuState.size) * step,
+                y: margin + CGFloat(index / GomokuState.size) * step)
+    }
+
+    private func gomokuGrid(side: CGFloat, margin: CGFloat, step: CGFloat) -> Path {
+        Path { path in
+            for value in 0..<GomokuState.size {
+                let offset = margin + CGFloat(value) * step
+                path.move(to: CGPoint(x: margin, y: offset))
+                path.addLine(to: CGPoint(x: side - margin, y: offset))
+                path.move(to: CGPoint(x: offset, y: margin))
+                path.addLine(to: CGPoint(x: offset, y: side - margin))
+            }
+        }
     }
 }

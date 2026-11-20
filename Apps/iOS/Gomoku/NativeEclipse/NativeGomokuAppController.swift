@@ -24,13 +24,21 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var isNativeTraining = false
     @Published private(set) var trainingWarning: String?
 
-    private var state = GomokuState()
+    @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
+        didSet {
+            UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
+            if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }
+        }
+    }
+
+    private(set) var state = GomokuState()
+    let eclipseTraceStore = VeilEclipseSearchTraceStore()
     private var generation = UUID()
     private var searchTask: Task<Void, Never>?
     private let archive = VeilGomokuMatchArchive()
     private let trainingJournal = GomokuNativeTrainingJournal()
     private lazy var transfer = GomokuMatchTransfer(archive: archive)
-    private var sessionID = UUID().uuidString
+    private(set) var sessionID = UUID().uuidString
     private var sessionHumanStone: UInt8 = 1
     private var archivedMoves: [VeilGomokuMatchArchive.Move] = []
     private var trainingTask: Task<Void, Never>?
@@ -42,6 +50,15 @@ final class NativeGomokuAppController: ObservableObject {
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
 
+    var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
+        guard status != 0 else { return [] }
+        return archivedMoves.map { .init(index: $0.index, stone: $0.stone) }
+    }
+
+    func historyPage(offset: Int, limit: Int) -> VeilGomokuMatchArchive.Page? {
+        try? archive.page(offset: offset, limit: limit)
+    }
+
     func reset() {
         if status == 0, !archivedMoves.isEmpty {
             persistArchive(status: .interrupted)
@@ -49,6 +66,7 @@ final class NativeGomokuAppController: ObservableObject {
         generation = UUID()
         searchTask?.cancel()
         searchTask = nil
+        eclipseTraceStore.clear()
         state = GomokuState()
         sessionID = UUID().uuidString
         sessionHumanStone = humanIsBlack ? 1 : 2
@@ -94,6 +112,15 @@ final class NativeGomokuAppController: ObservableObject {
         isThinking = true
         searchStartedAt = Date()
         fallbackWarning = nil
+        let traceStore = eclipseTraceStore
+        let observer: (@Sendable ([Int], Int) -> Void)?
+        if eclipseVisualizationEnabled, let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
+            observer = { indices, nodes in
+                _ = traceStore.record(indices, nodes: nodes, token: traceToken)
+            }
+        } else {
+            observer = nil
+        }
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
             let budget = GomokuBotBudget.forDifficulty(
@@ -105,12 +132,14 @@ final class NativeGomokuAppController: ObservableObject {
                 budget: budget,
                 learning: .empty,
                 formationPreference: .disabled,
-                difficultyRawValue: selectedTier.rawValue
+                difficultyRawValue: selectedTier.rawValue,
+                onExploredLine: observer
             )
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard let self, token == self.generation,
                       self.state == boardAtStart else { return }
+                self.eclipseTraceStore.clear()
                 self.isThinking = false
                 self.searchStartedAt = nil
                 self.searchTask = nil

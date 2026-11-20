@@ -46,6 +46,7 @@ targets:
     scheme:
       testTargets:
         - GomokuTests
+        - GomokuUITests
   GomokuTests:
     type: bundle.unit-test
     platform: iOS
@@ -57,3 +58,15 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: studio.zeo.gomoku.tests
+  GomokuUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Apps/iOS/GomokuUITests
+    dependencies:
+      - target: Gomoku
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: studio.zeo.gomoku.uitests
+        TEST_TARGET_NAME: Gomoku
