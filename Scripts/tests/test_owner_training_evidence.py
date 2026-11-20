@@ -69,7 +69,10 @@ class OwnerTrainingEvidenceTests(unittest.TestCase):
         obj["payloadChecksum"] = evidence.fnv1a64(
             evidence.canonical_bytes(obj["payload"])
         )
-        with self.assertRaisesRegex(ValueError, "terminal label"):
+        # Even with a recomputed envelope checksum, the pinned original
+        # source checksum rejects relabeling before move replay is reached.
+        # Keep this integrity gate; do not weaken it to satisfy a message test.
+        with self.assertRaisesRegex(ValueError, "Training checksum mismatch"):
             evidence.audit_bytes(json.dumps(obj).encode(), enforce_blob=False)
 
 
