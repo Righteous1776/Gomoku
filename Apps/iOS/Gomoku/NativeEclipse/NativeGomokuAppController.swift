@@ -13,6 +13,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var isThinking = false
     @Published private(set) var searchStartedAt: Date?
     @Published private(set) var lastDecisionNodes: Int?
+    @Published private(set) var lastDecisionDepth: Int?
     @Published private(set) var lastDecisionMilliseconds: Int?
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
@@ -50,6 +51,7 @@ final class NativeGomokuAppController: ObservableObject {
 
     private(set) var state = GomokuState()
     let eclipseTraceStore = VeilEclipseSearchTraceStore()
+    let eclipseMetricsStore = VeilEclipseMeasuredMetricsStore()
     let developerAuthorization = GomokuDeveloperAuthorization()
     private let developerLessons = GomokuDeveloperLessonLibrary()
     private var generation = UUID()
@@ -101,6 +103,21 @@ final class NativeGomokuAppController: ObservableObject {
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
 
+    var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
+        if isThinking {
+            return eclipseMetricsStore.snapshot(
+                sessionID: sessionID, turn: state.moveCount, isThinking: true
+            )
+        }
+        if lastDecisionNodes != nil || lastDecisionDepth != nil {
+            return VeilEclipseTracePolicy.LiveMetrics(
+                completedDepth: lastDecisionDepth,
+                visitedNodes: lastDecisionNodes
+            )
+        }
+        return nil
+    }
+
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
         guard status != 0 else { return [] }
         return archivedMoves.map { .init(index: $0.index, stone: $0.stone) }
@@ -149,6 +166,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask?.cancel()
         searchTask = nil
         eclipseTraceStore.clear()
+        eclipseMetricsStore.clear()
         state = resumed
         sessionID = previous.id
         sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
@@ -160,6 +178,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedAt = nil
         fallbackWarning = nil
         lastDecisionNodes = nil
+        lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
         recoveryAvailable = false
         refresh()
@@ -181,6 +200,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask?.cancel()
         searchTask = nil
         eclipseTraceStore.clear()
+        eclipseMetricsStore.clear()
         state = GomokuState()
         sessionID = UUID().uuidString
         sessionHasLocalProvenance = true
@@ -189,6 +209,7 @@ final class NativeGomokuAppController: ObservableObject {
         isThinking = false
         searchStartedAt = nil
         lastDecisionNodes = nil
+        lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
         fallbackWarning = nil
         refresh()
@@ -319,6 +340,13 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedAt = Date()
         fallbackWarning = nil
         let traceStore = eclipseTraceStore
+        let metricSink = eclipseMetricsStore
+        let metricToken = metricSink.begin(
+            sessionID: sessionID, turn: boardAtStart.moveCount
+        )
+        let metricObserver: @Sendable (VeilGomokuUnifiedSearch.Trace) -> Void = { trace in
+            _ = metricSink.record(trace, token: metricToken)
+        }
         let observer: (@Sendable ([Int], Int) -> Void)?
         if eclipseVisualizationEnabled, let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
             observer = { indices, nodes in
@@ -365,7 +393,8 @@ final class NativeGomokuAppController: ObservableObject {
                 learning: learning,
                 formationPreference: activeFormation,
                 difficultyRawValue: selectedTier.rawValue,
-                onExploredLine: observer
+                onExploredLine: observer,
+                onSearchTrace: metricObserver
             )
             guard !Task.isCancelled else { return }
             await self?.applyDecision(decision, boardAtStart: boardAtStart, token: token)
@@ -378,7 +407,11 @@ final class NativeGomokuAppController: ObservableObject {
         // The detached worker never captures mutable actor-isolated self in a
         // concurrently executing MainActor.run closure (Swift 6 safe).
         guard token == generation, state == boardAtStart else { return }
+        lastDecisionDepth = eclipseMetricsStore.snapshot(
+            sessionID: sessionID, turn: boardAtStart.moveCount, isThinking: true
+        )?.completedDepth
         eclipseTraceStore.clear()
+        eclipseMetricsStore.clear()
         isThinking = false
         searchStartedAt = nil
         searchTask = nil
