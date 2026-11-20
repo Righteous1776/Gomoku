@@ -37,7 +37,8 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
     private func package(in directory: URL,
                          winner: AdaptiveBoardGameResult = .humanWon,
                          checksumOverride: String? = nil,
-                         includePartial: Bool = false) throws -> URL {
+                         includePartial: Bool = false,
+                         onlyPartial: Bool = false) throws -> URL {
         let moves = [105, 0, 106, 1, 107, 2, 108, 3, 109]
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let gomoku = Match(
@@ -52,8 +53,9 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
             game: "gomoku", result: .unfinished,
             actions: ["h112", "a113", "h97"], finishedAt: now
         )
-        let matches = includePartial ? [gomoku, xiangqi, partial] : [gomoku, xiangqi]
-        let payload = Payload(schema: 1, completedGames: 2, sequence: matches.count,
+        let matches = onlyPartial ? [partial]
+            : (includePartial ? [gomoku, xiangqi, partial] : [gomoku, xiangqi])
+        let payload = Payload(schema: 1, completedGames: onlyPartial ? 0 : 2, sequence: matches.count,
                               positions: [:], recentGames: matches)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -167,6 +169,28 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         XCTAssertThrowsError(try importer.importPackage(from: url, authorization: authorization))
         XCTAssertEqual(try Data(contentsOf: original), originalBytes)
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), 1)
+    }
+
+    func testArchiveWithOnlyValidUnfinishedGamesIsRetainedWithoutLearningInflation() throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuLegacyOnlyPartial-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let selected = try package(in: temp, onlyPartial: true)
+        let original = try Data(contentsOf: selected)
+        let directory = temp.appendingPathComponent("Gomoku/ImportedLegacyLearningV1")
+        let importer = GomokuLegacyLearningImporter(directory: directory)
+        let gate = GomokuDeveloperPermit()
+        let permit = gate.grant(until: Date().addingTimeInterval(600))
+
+        let report = try importer.importPackage(from: selected, authorization: permit)
+        XCTAssertEqual(report.imported, 0)
+        XCTAssertEqual(report.preservedPartialGames, 1)
+        XCTAssertEqual(report.totalUnique, 0)
+        XCTAssertEqual(GomokuNativeTrainingJournal(directory: directory).count(), 0)
+        let raw = directory.appendingPathComponent("RawSources")
+            .appendingPathComponent(report.sourceSHA256 + ".vltrain.json")
+        XCTAssertEqual(try Data(contentsOf: raw), original)
     }
 
 }

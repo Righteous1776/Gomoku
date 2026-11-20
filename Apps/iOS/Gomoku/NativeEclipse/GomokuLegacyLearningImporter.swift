@@ -212,7 +212,11 @@ final class GomokuLegacyLearningImporter {
                 duplicated += 1
             }
         }
-        guard imported > 0 || oldReport.accepted > 0,
+        // A genuine legacy export may contain only interrupted games or
+        // hashed-position aggregates. Preserve it as evidence without
+        // manufacturing any completed training games.
+        guard imported > 0 || oldReport.accepted > 0 || partial > 0
+                || !envelope.payload.positions.isEmpty,
               staged.inspect().invalid == 0 else { throw ImportError.invalidHistory }
         // Recheck the staging repository before replacing the live dataset.
         let validated = staged.inspect()
