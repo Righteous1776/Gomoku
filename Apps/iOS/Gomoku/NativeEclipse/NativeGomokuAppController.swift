@@ -63,6 +63,7 @@ final class NativeGomokuAppController: ObservableObject {
     private var archivedMoves: [VeilGomokuMatchArchive.Move] = []
     private var trainingTask: Task<Void, Never>?
     private var trainingGeneration = UUID()
+    private let trainingWriteGate = GomokuTrainingWriteGate()
 
     init(archiveDirectory: URL? = nil, trainingDirectory: URL? = nil) {
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
@@ -464,54 +465,87 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func beginNativeSelfPlay(games: Int = 10) {
-        guard !isNativeTraining, !isBootstrappingSeed, [1, 10, 100, 1000].contains(games) else { return }
+        guard !isNativeTraining, !isBootstrappingSeed,
+              [1, 10, 100, 1000].contains(games) else { return }
         trainingGeneration = UUID()
         let token = trainingGeneration
+        trainingWriteGate.begin(token)
         isNativeTraining = true
         trainingWarning = nil
         trainingAttempted = 0
         trainingRejected = 0
         trainingTarget = games
-        let starting = trainedGames
+        let directory = trainingJournal.directory
+        let gate = trainingWriteGate
+
         trainingTask = Task.detached(priority: .utility) { [weak self] in
+            // The full archive audit and all disk writes run on the worker,
+            // never on MainActor or in the board's gesture event loop.
+            let writer: GomokuNativeTrainingJournal.BatchWriter
+            do {
+                writer = try GomokuNativeTrainingJournal(
+                    directory: directory
+                ).makeBatchWriter()
+            } catch {
+                await self?.failNativeTrainingBatch(error.localizedDescription, token: token)
+                return
+            }
             for batch in 0..<games {
-                guard !Task.isCancelled,
-                      await self?.isCurrentTrainingSession(token) == true else { break }
-                let seed = starting + batch
-                let result = NativeGomokuSelfPlay.play(seed: seed, formationMode: .off)
-                guard !Task.isCancelled else { break }
-                await self?.commitNativeTrainingResult(result, seed: seed, token: token)
+                guard !Task.isCancelled, gate.isCurrent(token) else { break }
+                let seed = writer.initialValidCount + batch
+                let played = NativeGomokuSelfPlay.play(
+                    seed: seed, formationMode: .off
+                )
+                guard !Task.isCancelled, gate.isCurrent(token) else { break }
+                guard let played else {
+                    await self?.recordNativeTrainingAttempt(
+                        validCount: nil, message: "本局未形成合法终局，已拒收。",
+                        token: token
+                    )
+                    continue
+                }
+                do {
+                    let count = try gate.commit(generation: token) {
+                        try writer.append(played, seed: seed)
+                        return writer.totalValidCount
+                    }
+                    guard let count else { break }
+                    await self?.recordNativeTrainingAttempt(
+                        validCount: count, message: nil, token: token
+                    )
+                } catch {
+                    await self?.recordNativeTrainingAttempt(
+                        validCount: nil, message: error.localizedDescription,
+                        token: token
+                    )
+                }
             }
             await self?.finishNativeTrainingSession(token)
         }
     }
 
-    private func isCurrentTrainingSession(_ token: UUID) -> Bool {
-        isNativeTraining && trainingGeneration == token
+    private func recordNativeTrainingAttempt(
+        validCount: Int?, message: String?, token: UUID
+    ) {
+        guard isNativeTraining && trainingGeneration == token else { return }
+        trainingAttempted += 1
+        if let validCount {
+            trainedGames = validCount
+        } else {
+            trainingRejected += 1
+            trainingWarning = message
+        }
     }
 
-    private func commitNativeTrainingResult(
-        _ game: NativeGomokuSelfPlayGame?, seed: Int, token: UUID
-    ) {
-        // Serialized with stop/start on MainActor: a stale task cannot write
-        // a result after the Owner cancels or replaces the training session.
-        guard isCurrentTrainingSession(token) else { return }
-        trainingAttempted += 1
-        guard let game else {
-            trainingRejected += 1
-            return
-        }
-        do {
-            _ = try trainingJournal.append(game, seed: seed)
-            trainedGames = trainingJournal.count()
-        } catch {
-            trainingRejected += 1
-            trainingWarning = error.localizedDescription
-        }
+    private func failNativeTrainingBatch(_ message: String, token: UUID) {
+        guard trainingGeneration == token else { return }
+        trainingWarning = "训练数据库复验失败，原始资料已保留：" + message
+        finishNativeTrainingSession(token)
     }
 
     private func finishNativeTrainingSession(_ token: UUID) {
-        guard isCurrentTrainingSession(token) else { return }
+        guard isNativeTraining && trainingGeneration == token else { return }
+        trainingWriteGate.revoke()
         isNativeTraining = false
         trainingTask = nil
     }
@@ -565,6 +599,9 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     func stopNativeSelfPlay() {
+        // Invalidate the file-write gate BEFORE accepting a new generation.
+        // A stale detached worker cannot append after this method returns.
+        trainingWriteGate.revoke()
         trainingGeneration = UUID()
         trainingTask?.cancel()
         trainingTask = nil
