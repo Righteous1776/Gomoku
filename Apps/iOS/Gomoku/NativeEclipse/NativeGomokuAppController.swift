@@ -19,6 +19,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published var difficulty: BoardBotDifficulty = .balanced
     @Published var searchMode: BoardSearchMode = .full
     @Published private(set) var archivedGames = 0
+    @Published private(set) var recoveryAvailable = false
     @Published private(set) var archiveWarning: String?
     @Published private(set) var trainedGames = 0
     @Published private(set) var isNativeTraining = false
@@ -43,8 +44,8 @@ final class NativeGomokuAppController: ObservableObject {
     let eclipseTraceStore = VeilEclipseSearchTraceStore()
     private var generation = UUID()
     private var searchTask: Task<Void, Never>?
-    private let archive = VeilGomokuMatchArchive()
-    private let trainingJournal = GomokuNativeTrainingJournal()
+    private let archive: VeilGomokuMatchArchive
+    private let trainingJournal: GomokuNativeTrainingJournal
     private lazy var transfer = GomokuMatchTransfer(archive: archive)
     private(set) var sessionID = UUID().uuidString
     private var sessionHumanStone: UInt8 = 1
@@ -52,9 +53,12 @@ final class NativeGomokuAppController: ObservableObject {
     private var trainingTask: Task<Void, Never>?
     private var trainingGeneration = UUID()
 
-    init() {
+    init(archiveDirectory: URL? = nil, trainingDirectory: URL? = nil) {
+        archive = VeilGomokuMatchArchive(directory: archiveDirectory)
+        trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         trainedGames = trainingJournal.count()
         archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
+        recoveryAvailable = latestRestorableMatch() != nil
     }
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
@@ -62,6 +66,68 @@ final class NativeGomokuAppController: ObservableObject {
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
         guard status != 0 else { return [] }
         return archivedMoves.map { .init(index: $0.index, stone: $0.stone) }
+    }
+
+    private func latestRestorableMatch() -> VeilGomokuMatchArchive.Match? {
+        var offset = 0
+        while let page = try? archive.page(offset: offset, limit: 50) {
+            for record in page.matches where record.status == .playing {
+                if Self.replayIncompleteMatch(record) != nil { return record }
+            }
+            guard let next = page.nextOffset, next > offset else { break }
+            offset = next
+        }
+        return nil
+    }
+
+    private static func replayIncompleteMatch(
+        _ record: VeilGomokuMatchArchive.Match
+    ) -> GomokuState? {
+        guard record.status == .playing, record.completedAt == nil,
+              BoardBotDifficulty(rawValue: record.difficulty) != nil else { return nil }
+        var restored = GomokuState()
+        for move in record.moves {
+            let expected: UInt8 = restored.currentPlayer == .host ? 1 : 2
+            guard move.stone == expected,
+                  restored.apply(index: move.index, actor: restored.currentPlayer) else {
+                return nil
+            }
+        }
+        guard restored.winner == nil, !restored.isDraw else { return nil }
+        return restored
+    }
+
+    /// Explicit resume is safer than silently replacing a new in-memory match.
+    /// It reads but never rewrites the old journal until a fresh legal move.
+    @discardableResult
+    func restoreLastPlayingSession() -> Bool {
+        guard let previous = latestRestorableMatch(),
+              let resumed = Self.replayIncompleteMatch(previous),
+              let restoredTier = BoardBotDifficulty(rawValue: previous.difficulty) else {
+            recoveryAvailable = false
+            return false
+        }
+        generation = UUID()
+        searchTask?.cancel()
+        searchTask = nil
+        eclipseTraceStore.clear()
+        state = resumed
+        sessionID = previous.id
+        sessionHumanStone = previous.humanStone
+        humanIsBlack = previous.humanStone == 1
+        difficulty = restoredTier
+        archivedMoves = previous.moves
+        isThinking = false
+        searchStartedAt = nil
+        fallbackWarning = nil
+        lastDecisionNodes = nil
+        lastDecisionMilliseconds = nil
+        recoveryAvailable = false
+        refresh()
+        if Int32(state.currentPlayer == .host ? 1 : 2) != humanColor {
+            scheduleAI()
+        }
+        return true
     }
 
     func historyPage(offset: Int, limit: Int) -> VeilGomokuMatchArchive.Page? {
