@@ -77,7 +77,7 @@ final class NativeGomokuAppController: ObservableObject {
         localMatchEvidence = GomokuLocalMatchEvidence(
             directory: root.appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
         )
-        archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
+        archivedGames = (try? archive.recordCount()) ?? 0
         recoveryAvailable = latestRestorableMatch() != nil
         savedDeveloperLessons = developerLessons.lessons.count
         let journalFolder = trainingJournal.directory
@@ -126,15 +126,11 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     private func latestRestorableMatch() -> VeilGomokuMatchArchive.Match? {
-        var offset = 0
-        while let page = try? archive.page(offset: offset, limit: 50) {
-            for record in page.matches where record.status == .playing {
-                if Self.replayIncompleteMatch(record) != nil { return record }
-            }
-            guard let next = page.nextOffset, next > offset else { break }
-            offset = next
+        // One metadata sort for the whole boot/recovery operation, rather than
+        // re-sorting 10,000+ entries for every 50-game page.
+        try? archive.mostRecentMatch { record in
+            record.status == .playing && Self.replayIncompleteMatch(record) != nil
         }
-        return nil
     }
 
     private static func replayIncompleteMatch(
@@ -470,7 +466,10 @@ final class NativeGomokuAppController: ObservableObject {
                     archiveWarning = "本机棋局已保存，但训练来源证明失败，暂不纳入 ECLIPSE 学习。"
                 }
             }
-            archivedGames = (try? archive.page(limit: 1).totalFiles) ?? archivedGames
+            // Session ids are fresh at new-game start. A newly committed
+            // first move adds exactly one file; all later moves update it.
+            // Never sort the entire game history for an ordinary stone tap.
+            if archivedMoves.count == 1 { archivedGames += 1 }
             if sessionHasLocalProvenance { archiveWarning = nil }
         } catch {
             archiveWarning = error.localizedDescription
@@ -676,7 +675,7 @@ final class NativeGomokuAppController: ObservableObject {
     func importMatch(from url: URL) {
         do {
             _ = try transfer.importMatch(from: url)
-            archivedGames = try archive.page(limit: 1).totalFiles
+            archivedGames = try archive.recordCount()
             archiveWarning = nil
         } catch {
             archiveWarning = error.localizedDescription
