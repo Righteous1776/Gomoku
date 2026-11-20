@@ -10,7 +10,7 @@ xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -sdk ip
 xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build
 ```
 
-CI `.github/workflows/unsigned-ipa-dev.yml` manually packages device `.app` into an **UNSIGNED** developer-only IPA. This is not a signed installable IPA on standard stock iOS. Any use of sideloading tools is outside of this package's claims.
+In **Actions → Gomoku CI → Run workflow**, enter the reviewed 40-character commit SHA in `expected_sha`. After core checks and simulator tests pass, CI packages the device build as an **unsigned** developer-only IPA. Leave the input blank to run CI alone. This is not a signed installable IPA on standard stock iOS. Any use of sideloading tools is outside of this package's claims.
 
 ## Signed IPA
 

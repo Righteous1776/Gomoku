@@ -81,9 +81,8 @@ python3 Scripts/audit_migration.py
 
 ## 7. CI, tests, iOS IPA, distribution
 
-- CI `cpp-python-ci.yml`: clang/g++ C++ build, CTest, Python tests, self-play dataset validation, no downloaded proprietary weights.
-- CI `ios-build.yml`: XcodeGen Xcode simulator build; adapt original source and tests, add XCTest / UI tests and static checks.
-- Manual `unsigned-ipa-dev.yml`: developer investigation only; produces `Gomoku-UNSIGNED-DEV-ONLY.ipa`. It is **not** signed, not a release and not by itself installable on stock iOS.
+- `Gomoku CI` runs the Inbox and Python regressions, C++ build and CTest, self-play dataset validation, and source and package audits before the iOS simulator build and XCTest.
+- To package a developer IPA from the same workflow, dispatch it with the full reviewed commit SHA. After all checks pass, CI scans and uploads `Gomoku-UNSIGNED-DEV-ONLY.ipa`.
 - Add signed IPA workflow **only** if the owner actually supplies valid certificate/provisioning credentials through secure secrets. Confirm Bundle ID, team ID, entitlements and method of distribution; no credentials committed or printed. App icon and launch imagery must be distinct in product name but respect agreed original visual style. Signed IPA upload only after all quality gates and owner release approval.
 - Test matrix: C++ Linux, C++ macOS, Python dataset, iOS simulator Debug/Release, iPhone/iPad physical device where accessible, BLE paired devices, data migration and parity. Any unavailable hardware is a documented blocker, not PASS.
 
