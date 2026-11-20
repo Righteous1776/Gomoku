@@ -65,15 +65,9 @@ final class GomokuMatchTransfer {
         guard try archive.read(sessionID: record.id) == nil else {
             throw GomokuMatchTransferError.duplicate
         }
-        // Original archive.save validates win/draw consistency, turn order,
-        // move bounds, id, conflict safety and writes atomically.
-        guard let saved = try archive.save(
-            sessionID: record.id, moves: record.moves,
-            difficulty: record.difficulty, humanStone: record.humanStone,
-            status: record.status, now: record.updatedAt
-        ) else {
-            throw GomokuMatchTransferError.invalidFile
-        }
-        return saved.id
+        // Verify all terminal conditions through the archive validator and
+        // atomically preserve the imported record's original timestamps.
+        // Do not call save(now: updatedAt): that resets startedAt on a new ID.
+        return try archive.importValidatedMatch(record).id
     }
 }
