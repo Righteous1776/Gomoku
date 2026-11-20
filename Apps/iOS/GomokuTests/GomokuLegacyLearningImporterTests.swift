@@ -71,18 +71,20 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         let url = try package(in: temp)
         let target = temp.appendingPathComponent("Gomoku/ImportedLegacyLearningV1")
         let importer = GomokuLegacyLearningImporter(directory: target)
+        let developerGate = GomokuDeveloperPermit()
+        let permission = developerGate.grant(until: Date().addingTimeInterval(600))
         XCTAssertThrowsError(try importer.importPackage(from: url)) { error in
             guard case GomokuLegacyLearningImporter.ImportError.unauthorized = error else {
                 XCTFail("No authorization must block the private training import")
                 return
             }
         }
-        let result = try importer.importPackage(from: url, authorizationExpiresAt: .distantFuture)
+        let result = try importer.importPackage(from: url, authorization: permission)
         XCTAssertEqual(result.imported, 1)
         XCTAssertEqual(result.ignoredNonGomoku, 1)
         XCTAssertEqual(result.totalUnique, 1)
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: target).count(), 1)
-        let repeated = try importer.importPackage(from: url, authorizationExpiresAt: .distantFuture)
+        let repeated = try importer.importPackage(from: url, authorization: permission)
         XCTAssertEqual(repeated.imported, 0)
         XCTAssertEqual(repeated.duplicate, 1)
         XCTAssertEqual(repeated.totalUnique, 1)
@@ -97,12 +99,31 @@ final class GomokuLegacyLearningImporterTests: XCTestCase {
         let url = try package(in: temp)
         let folder = temp.appendingPathComponent("Gomoku/ImportedLegacyLearningV1")
         let importer = GomokuLegacyLearningImporter(directory: folder)
-        _ = try importer.importPackage(from: url, authorizationExpiresAt: .distantFuture)
+        let developerGate = GomokuDeveloperPermit()
+        let permission = developerGate.grant(until: Date().addingTimeInterval(600))
+        _ = try importer.importPackage(from: url, authorization: permission)
         _ = try package(in: temp, checksumOverride: "0")
-        XCTAssertThrowsError(try importer.importPackage(from: url, authorizationExpiresAt: .distantFuture))
+        XCTAssertThrowsError(try importer.importPackage(from: url, authorization: permission))
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: folder).count(), 1)
         _ = try package(in: temp, winner: .aiWon)
-        XCTAssertThrowsError(try importer.importPackage(from: url, authorizationExpiresAt: .distantFuture))
+        XCTAssertThrowsError(try importer.importPackage(from: url, authorization: permission))
         XCTAssertEqual(GomokuNativeTrainingJournal(directory: folder).count(), 1)
     }
+    func testRevokedDeveloperPermitCannotCommitPreviouslyValidatedImport() throws {
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuRevokedImport-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let url = try package(in: temp)
+        let destination = temp.appendingPathComponent("Gomoku/ImportedLegacyLearningV1")
+        let importer = GomokuLegacyLearningImporter(directory: destination)
+        let gate = GomokuDeveloperPermit()
+        let permission = gate.grant(until: Date().addingTimeInterval(600))
+        XCTAssertTrue(permission.isValid)
+        gate.revoke()
+        XCTAssertFalse(permission.isValid)
+        XCTAssertThrowsError(try importer.importPackage(from: url, authorization: permission))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+    }
+
 }
