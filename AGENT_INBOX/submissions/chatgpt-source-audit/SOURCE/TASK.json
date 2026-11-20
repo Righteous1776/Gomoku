@@ -1,0 +1,29 @@
+{
+  "schema": "gomoku-drop-v1",
+  "agent_id": "chatgpt-source-audit",
+  "task_id": "SOURCE",
+  "base_sha": "9a8e2863db9f7efc93895986604691fc17e4e20c",
+  "state": "DRAFT",
+  "tests": [
+    {
+      "command": "Pinned GitHub source retrieval",
+      "status": "PASS",
+      "evidence": "9/9 text sources retrieved at 0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32; blob SHAs in REPORT.md"
+    },
+    {
+      "command": "Scripts/inbox.py check-drop",
+      "status": "BLOCKED",
+      "evidence": "SOURCE task unassigned/OPEN, governance PR #1 remains unmerged; awaiting Owner board assignment"
+    },
+    {
+      "command": "git apply --check PATCH.diff",
+      "status": "NOT RUN",
+      "evidence": "Only Inbox text staged; no integration worktree under reviewer control"
+    },
+    {
+      "command": "SHA256 source parity + XCTest",
+      "status": "NOT RUN",
+      "evidence": "Not applied or compiled"
+    }
+  ]
+}
