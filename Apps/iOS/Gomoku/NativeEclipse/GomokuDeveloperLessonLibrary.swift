@@ -148,12 +148,12 @@ final class GomokuDeveloperLessonLibrary {
             let bytes = try Data(contentsOf: fileURL)
             let envelope = try JSONDecoder().decode(Envelope.self, from: bytes)
             guard envelope.schema == 1,
-                  let key = try Self.macKey(createIfMissing: false) as Data?,
                   Set(envelope.lessons.map(\.id)).count == envelope.lessons.count,
                   envelope.lessons.allSatisfy({ valid($0) }) else {
                 requiresRecovery = true
                 return
             }
+            let key = try Self.macKey(createIfMissing: false)
             let calculated = Data(HMAC<SHA256>.authenticationCode(
                 for: try Self.canonical(envelope.lessons),
                 using: SymmetricKey(data: key)
