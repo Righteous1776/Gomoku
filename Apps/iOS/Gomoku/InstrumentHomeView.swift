@@ -3,8 +3,7 @@ import UniformTypeIdentifiers
 
 struct InstrumentHomeView: View {
     @StateObject private var engine = NativeGomokuAppController()
-    @State private var choosingMatch = false
-    @State private var matchExportURL: URL?
+    @State private var showsAdvancedPanel = false
     @Environment(\.colorScheme) private var scheme
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var appearance = VeilAppearanceController.shared
@@ -15,10 +14,19 @@ struct InstrumentHomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: VeilSpacing.xxs) {
-                    Text("GOMOKU").font(.system(size: 31, weight: .bold, design: .rounded))
-                    Text(statusText).font(.caption.monospaced())
-                        .foregroundColor(VeilTheme.secondaryText)
+                HStack(alignment: .center, spacing: VeilSpacing.sm) {
+                    VStack(alignment: .leading, spacing: VeilSpacing.xxs) {
+                        Text("GOMOKU").font(.system(size: 31, weight: .bold, design: .rounded))
+                        Text(statusText).font(.caption.monospaced())
+                            .foregroundColor(VeilTheme.secondaryText)
+                    }
+                    Spacer(minLength: 0)
+                    Button { showsAdvancedPanel = true } label: {
+                        Label("高级面板", systemImage: "slider.horizontal.3")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(VeilPhysicalButtonStyle())
+                    .accessibilityIdentifier("gomoku.advanced.open")
                 }
                 VeilEclipseIdentityCard(
                     isThinking: showingSearch,
@@ -47,19 +55,14 @@ struct InstrumentHomeView: View {
                     onMove: { engine.play($0) }
                 )
                 .veilCard()
-                HStack(spacing: 12) {
-                    Button("NEW GAME") { engine.reset() }
-                        .buttonStyle(VeilPhysicalButtonStyle())
-                    Button(engine.humanIsBlack ? "BLACK · FIRST" : "WHITE · SECOND") { engine.toggleSide() }
-                        .buttonStyle(VeilPhysicalButtonStyle())
-                }
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: VeilSpacing.sm) {
                     Picker("ECLIPSE 难度", selection: $engine.difficulty) {
                         ForEach(BoardBotDifficulty.allCases) { level in
                             Text(level.title).tag(level)
                         }
                     }
                     .pickerStyle(.menu)
+                    .tint(VeilTheme.gold)
                     .accessibilityIdentifier("gomoku.eclipse.seven-tiers")
 
                     Picker("搜索模式", selection: $engine.searchMode) {
@@ -69,50 +72,19 @@ struct InstrumentHomeView: View {
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("gomoku.eclipse.search-mode")
-                }
-                HStack(spacing: 12) {
-                    Button(engine.isNativeTraining ? "训练进行中" : "真实自对弈 1 局") {
-                        engine.beginNativeSelfPlay(games: 1)
-                    }
-                    .disabled(engine.isNativeTraining)
-                    .buttonStyle(VeilPhysicalButtonStyle())
-                    Text("已保存训练：\(engine.trainedGames) 局")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 12) {
-                    Button("导入棋谱 JSON") { choosingMatch = true }
-                        .buttonStyle(VeilPhysicalButtonStyle())
-                    Button("准备导出最新棋谱") {
-                        matchExportURL = engine.exportRecentMatch()
+
+                    HStack(spacing: VeilSpacing.xs) {
+                        Button { engine.reset() } label: {
+                            MatchKey(title: "重开", icon: "arrow.counterclockwise")
+                        }
+                        Button { engine.toggleSide() } label: {
+                            MatchKey(title: engine.humanIsBlack ? "执黑 · 先手" : "执白 · 后手",
+                                     icon: "circle.lefthalf.filled")
+                        }
                     }
                     .buttonStyle(VeilPhysicalButtonStyle())
                 }
-                if let exportURL = matchExportURL {
-                    ShareLink(item: exportURL) {
-                        Label("分享最新棋谱", systemImage: "square.and.arrow.up")
-                    }
-                    .accessibilityIdentifier("gomoku.match.share")
-                }
-                if let warning = engine.trainingWarning ?? engine.archiveWarning {
-                    Text(warning).font(.caption2).foregroundStyle(.orange)
-                }
-                Toggle(isOn: $engine.eclipseVisualizationEnabled) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                        Text("显示原生 AI 实际搜索的分支，可能透露棋路。")
-                            .font(.caption2)
-                            .foregroundColor(VeilTheme.secondaryText)
-                    }
-                }
-                .tint(VeilTheme.gold)
-                .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
-                Picker("颜色模式", selection: $appearance.colorMode) {
-                    ForEach(VeilColorMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
+                .veilCard()
             }
             .padding(18)
             .frame(maxWidth: 680)
@@ -126,15 +98,8 @@ struct InstrumentHomeView: View {
         .sheet(isPresented: $showsEclipseTrace) {
             EclipseAnalysisPresentation(engine: engine)
         }
-        .fileImporter(isPresented: $choosingMatch,
-                      allowedContentTypes: [UTType.json]) { result in
-            switch result {
-            case .success(let url):
-                engine.importMatch(from: url)
-            case .failure:
-                // Cancellation must not modify any existing chess record.
-                break
-            }
+        .sheet(isPresented: $showsAdvancedPanel) {
+            GomokuAdvancedPanel(engine: engine)
         }
     }
 
@@ -165,5 +130,127 @@ private struct EclipseAnalysisPresentation: View {
             liveMetrics: nil,
             archivedMatchPage: engine.historyPage(offset:limit:)
         )
+    }
+}
+
+private struct MatchKey: View {
+    let title: String
+    let icon: String
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+            .frame(maxWidth: .infinity, minHeight: 24)
+    }
+}
+
+private struct GomokuAdvancedPanel: View {
+    @ObservedObject var engine: NativeGomokuAppController
+    @ObservedObject private var appearance = VeilAppearanceController.shared
+    @Environment(\.dismiss) private var dismiss
+    @State private var choosingMatch = false
+    @State private var matchExportURL: URL?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: VeilSpacing.md) {
+                    VStack(alignment: .leading, spacing: VeilSpacing.sm) {
+                        sectionTitle("搜索与显示", icon: "waveform.path")
+                        Toggle(isOn: $engine.eclipseVisualizationEnabled) {
+                            VStack(alignment: .leading, spacing: VeilSpacing.xxs) {
+                                Text("棋盘思考可视化")
+                                Text("显示 AI 实际搜索过的棋路。下一次 AI 回合生效。")
+                                    .font(.caption)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
+                        }
+                        .tint(VeilTheme.gold)
+                        .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
+
+                        Picker("颜色模式", selection: $appearance.colorMode) {
+                            Text("跟随系统").tag(VeilColorMode.automatic)
+                            Text("浅色").tag(VeilColorMode.light)
+                            Text("深夜").tag(VeilColorMode.dark)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("gomoku.appearance.mode")
+                    }
+                    .veilCard()
+
+                    VStack(alignment: .leading, spacing: VeilSpacing.sm) {
+                        sectionTitle("自对弈训练", icon: "cpu")
+                        Text("已保存 \(engine.trainedGames) 局")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(VeilTheme.secondaryText)
+                        Button { engine.beginNativeSelfPlay(games: 1) } label: {
+                            MatchKey(title: engine.isNativeTraining ? "训练进行中" : "开始一局自对弈", icon: "play.fill")
+                        }
+                        .buttonStyle(VeilPhysicalButtonStyle())
+                        .disabled(engine.isNativeTraining)
+                        if let warning = engine.trainingWarning {
+                            Text(warning).font(.caption).foregroundColor(VeilTheme.danger)
+                        }
+                    }
+                    .veilCard()
+
+                    VStack(alignment: .leading, spacing: VeilSpacing.sm) {
+                        sectionTitle("棋谱", icon: "books.vertical")
+                        Text("已保存 \(engine.archivedGames) 份")
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(VeilTheme.secondaryText)
+                        Button { choosingMatch = true } label: {
+                            MatchKey(title: "导入棋谱", icon: "square.and.arrow.down")
+                        }
+                        .buttonStyle(VeilPhysicalButtonStyle())
+                        if let exportURL = matchExportURL {
+                            ShareLink(item: exportURL) {
+                                MatchKey(title: "分享最新棋谱", icon: "square.and.arrow.up")
+                            }
+                            .buttonStyle(VeilPhysicalButtonStyle())
+                            .accessibilityIdentifier("gomoku.match.share")
+                        } else {
+                            Button { matchExportURL = engine.exportRecentMatch() } label: {
+                                MatchKey(title: "导出最新棋谱", icon: "square.and.arrow.up")
+                            }
+                            .buttonStyle(VeilPhysicalButtonStyle())
+                            .disabled(engine.archivedGames == 0)
+                        }
+                        if let warning = engine.archiveWarning {
+                            Text(warning).font(.caption).foregroundColor(VeilTheme.danger)
+                        }
+                    }
+                    .veilCard()
+                }
+                .padding(VeilSpacing.md)
+                .frame(maxWidth: 680)
+                .frame(maxWidth: .infinity)
+            }
+            .foregroundColor(VeilTheme.text)
+            .background(VeilInstrumentBackground())
+            .navigationTitle("高级面板")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }.tint(VeilTheme.gold)
+                }
+            }
+            .fileImporter(isPresented: $choosingMatch, allowedContentTypes: [UTType.json]) { result in
+                if case .success(let url) = result {
+                    engine.importMatch(from: url)
+                    matchExportURL = nil
+                }
+            }
+        }
+        .preferredColorScheme(appearance.preferredColorScheme)
+    }
+
+    private func sectionTitle(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(.subheadline.weight(.semibold))
+            .foregroundColor(VeilTheme.text)
+            .accessibilityAddTraits(.isHeader)
     }
 }
