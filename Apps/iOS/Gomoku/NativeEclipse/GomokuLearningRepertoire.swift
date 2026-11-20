@@ -6,21 +6,32 @@ import Foundation
 /// A persistent indexed store is a separate scale/performance acceptance gate.
 enum GomokuLearningRepertoire {
     private struct Stat {
-        var count = 0
-        var reward = 0
-        mutating func add(_ outcome: AdaptiveBoardGameResult) {
-            count = min(65_535, count + 1)
+        var aiCount = 0
+        var opponentCount = 0
+        var aiReward = 0
+        var opponentReward = 0
+
+        mutating func add(_ outcome: AdaptiveBoardGameResult, byAI: Bool) {
             let value: Int
             switch outcome {
             case .aiWon: value = 2
             case .humanWon: value = -2
             case .draw, .unfinished: value = 0
             }
-            reward = max(-32_000, min(32_000, reward + value))
+            if byAI {
+                aiCount = min(65_535, aiCount + 1)
+                aiReward = max(-32_000, min(32_000, aiReward + value))
+            } else {
+                opponentCount = min(65_535, opponentCount + 1)
+                opponentReward = max(-32_000, min(32_000, opponentReward + value))
+            }
         }
-        func bonus(forAI: Bool) -> Int {
-            let raw = forAI ? count * 18 + reward * 55
-                : count * 42 + max(0, -reward) * 20
+
+        func bonus() -> Int {
+            // The source's two actor roles have different priors: bot decisions
+            // are reinforced by outcome, opponent actions inform reply order.
+            let raw = aiCount * 18 + aiReward * 55
+                + opponentCount * 42 + max(0, -opponentReward) * 20
             return min(900, max(-180, raw))
         }
     }
@@ -67,12 +78,11 @@ enum GomokuLearningRepertoire {
                     let byAI = ply.stone != match.humanStone
                     var options = humanStats[position] ?? [:]
                     var stat = options[action] ?? Stat()
-                    stat.add(result)
+                    stat.add(result, byAI: byAI)
                     options[action] = stat
                     humanStats[position] = options
                     // Archive's read() and validate() already confirmed legality.
                     _ = state.apply(index: ply.index, actor: state.currentPlayer)
-                    _ = byAI // the value is used when calculating role-aware bonus below
                 }
                 if match.humanStone == humanStone,
                    match.moves.count > currentMoves.count,
@@ -105,7 +115,7 @@ enum GomokuLearningRepertoire {
                 let action = String(actionIndex)
                 var options = nativeStats[position] ?? [:]
                 var stat = options[action] ?? Stat()
-                stat.add(record.outcome)
+                stat.add(record.outcome, byAI: state.currentPlayer == .guest)
                 options[action] = stat
                 nativeStats[position] = options
                 _ = state.apply(index: actionIndex, actor: state.currentPlayer)
@@ -114,7 +124,7 @@ enum GomokuLearningRepertoire {
 
         func preferences(_ stats: [String: [String: Stat]]) -> [String: [String: Int]] {
             stats.mapValues { actions in
-                actions.mapValues { $0.bonus(forAI: true) }
+                actions.mapValues { $0.bonus() }
             }
         }
 
