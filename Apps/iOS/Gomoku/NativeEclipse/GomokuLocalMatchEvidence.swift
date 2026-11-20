@@ -41,8 +41,10 @@ final class GomokuLocalMatchEvidence {
 
     /// Called only by the real local match lifecycle, not importMatch().
     func attestCommittedLocalMatch(_ match: VeilGomokuMatchArchive.Match) throws {
-        guard match.status == .humanWon || match.status == .aiWon || match.status == .draw,
-              match.completedAt != nil, match.isReplayable,
+        guard match.status == .playing || match.status == .humanWon
+                || match.status == .aiWon || match.status == .draw,
+              match.status == .playing ? match.completedAt == nil : match.completedAt != nil,
+              match.isReplayable,
               UUID(uuidString: match.id)?.uuidString == match.id else {
             throw EvidenceError.invalidMatch
         }
@@ -62,8 +64,9 @@ final class GomokuLocalMatchEvidence {
 
     /// No automatic promotion of untrusted historical or imported matches.
     func isVerifiedLocal(_ match: VeilGomokuMatchArchive.Match) -> Bool {
-        guard match.status == .humanWon || match.status == .aiWon || match.status == .draw,
-              match.completedAt != nil,
+        guard match.status == .playing || match.status == .humanWon
+                || match.status == .aiWon || match.status == .draw,
+              match.status == .playing ? match.completedAt == nil : match.completedAt != nil,
               UUID(uuidString: match.id)?.uuidString == match.id,
               let key = try? signingKey(createIfMissing: false) else {
             return false
