@@ -25,13 +25,13 @@ final class InstrumentUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["gomoku.instrument.quick-controls"].exists)
 
         let advanced = app.buttons["gomoku.training.advanced.toggle"]
-        XCTAssertTrue(advanced.exists)
         scrollUntilHittable(advanced, in: app)
         advanced.tap()
 
         let learning = app.descendants(matching: .any)["gomoku.training.learning-card"]
-        XCTAssertTrue(learning.waitForExistence(timeout: 6))
+        scrollUntilHittable(learning, in: app)
         capture(app, named: "Gomoku-instrument-training-expanded")
+        scrollUntilHittable(advanced, in: app, swipeUp: false)
         advanced.tap()
         XCTAssertFalse(learning.exists)
     }
@@ -40,7 +40,6 @@ final class InstrumentUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         let advanced = app.buttons["gomoku.training.advanced.toggle"]
-        XCTAssertTrue(advanced.waitForExistence(timeout: 15))
         scrollUntilHittable(advanced, in: app)
         advanced.tap()
 
@@ -55,10 +54,21 @@ final class InstrumentUITests: XCTestCase {
         appearance.buttons["自动"].tap()
     }
 
-    private func scrollUntilHittable(_ element: XCUIElement, in app: XCUIApplication) {
-        for _ in 0..<10 {
+    /// LazyVStack does not create off-screen elements until scrolling.
+    /// The original test queried .exists before scrolling, so its snapshot
+    /// check could fail without any defect in the actual iPhone UI.
+    private func scrollUntilHittable(
+        _ element: XCUIElement,
+        in app: XCUIApplication,
+        swipeUp: Bool = true
+    ) {
+        for _ in 0..<15 {
             if element.isHittable { return }
-            app.swipeUp()
+            if swipeUp {
+                app.swipeUp()
+            } else {
+                app.swipeDown()
+            }
         }
         XCTAssertTrue(element.isHittable, "Target must remain reachable by native scrolling")
     }
