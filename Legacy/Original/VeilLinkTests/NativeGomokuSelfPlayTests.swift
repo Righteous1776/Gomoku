@@ -1,0 +1,153 @@
+import Foundation
+import XCTest
+@testable import VeilLink
+
+@MainActor
+final class NativeGomokuSelfPlayTests: XCTestCase {
+    func testNativeSelfPlayIsACompletedLegalGameAndPersistsToNativeArchive() async throws {
+        // Call exact product GomokuBot and GomokuState on a worker,
+        // rather than creating image-label or random-coordinate "training".
+        let budget = GomokuBotBudget(
+            candidateRadius: 2,
+            rootCandidateLimit: 8,
+            replyCandidateLimit: 4,
+            continuationCandidateLimit: 0,
+            timeLimitMilliseconds: 35
+        )
+        let game = await Task.detached(priority: .userInitiated) {
+            NativeGomokuSelfPlay.play(
+                seed: 0, formationMode: .automatic, budget: budget
+            )
+        }.value
+        guard let game else {
+            XCTFail("Native Bot-vs-Bot did not reach an actual terminal result")
+            return
+        }
+        XCTAssertTrue(game.completed)
+        XCTAssertGreaterThan(game.botDecisions, 0)
+        XCTAssertEqual(game.plies.count, game.botDecisions + 1)
+        var replay = GomokuState()
+        for ply in game.plies {
+            XCTAssertEqual(ply.position, AdaptiveBoardPosition.gomoku(replay))
+            XCTAssertEqual(ply.actor, replay.currentPlayer)
+            guard let index = Int(ply.action) else {
+                XCTFail("Invalid coordinate in native match")
+                return
+            }
+            XCTAssertTrue(replay.apply(index: index, actor: ply.actor))
+        }
+        XCTAssertTrue(replay.winner != nil || replay.isDraw)
+        XCTAssertEqual(
+            game.result,
+            replay.isDraw ? .draw : (replay.winner == .guest ? .aiWon : .humanWon)
+        )
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("veillink-native-selfplay-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let archive = AdaptiveBoardLearningStore(game: .gomoku, fileURL: url)
+        XCTAssertEqual(archive.summary.completedGames, 0)
+        XCTAssertEqual(
+            archive.recordCompletedNativeBatch([(plies: game.plies, result: game.result)]), 1
+        )
+        XCTAssertEqual(archive.summary.completedGames, 1)
+        XCTAssertTrue(archive.lastSaveSucceeded)
+
+        // Export the dedicated native archive, not the human-player repertoire.
+        // It must retain every move and the actual terminal result.
+        let packageURL = try archive.exportPackage(filenameLabel: "GomokuNativeSelfPlay")
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        XCTAssertTrue(packageURL.lastPathComponent.contains("GomokuNativeSelfPlay"))
+        let packageData = try Data(contentsOf: packageURL)
+        let envelope = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: packageData) as? [String: Any]
+        )
+        let payload = try XCTUnwrap(envelope["payload"] as? [String: Any])
+        XCTAssertEqual(payload["completedGames"] as? Int, 1)
+        let games = try XCTUnwrap(payload["recentGames"] as? [[String: Any]])
+        XCTAssertEqual(games.count, 1)
+        XCTAssertEqual(games[0]["result"] as? String, game.result.rawValue)
+        XCTAssertEqual(
+            games[0]["actions"] as? [String],
+            game.plies.map { ($0.actor == .host ? "h" : "a") + $0.action }
+        )
+        XCTAssertNotNil(games[0]["finishedAt"])
+
+        // Restart / cold-load: the match must survive as actual Bot experience.
+        let restored = AdaptiveBoardLearningStore(game: .gomoku, fileURL: url)
+        XCTAssertEqual(restored.summary.completedGames, 1)
+        XCTAssertGreaterThan(restored.summary.rememberedPositions, 0)
+        // One self-play match may be a loss or draw and its bounded blending
+        // contribution is legitimately zero. Persistence and legal replay are
+        // the invariant here; strength is covered by paired-tournament gates.
+        XCTAssertGreaterThan(restored.summary.rememberedPositions, 0)
+    }
+
+    func testR3NativeOpeningCurriculumAndBudgetModes() {
+        XCTAssertEqual(NativeGomokuSelfPlay.openingIndices.count, 49)
+        XCTAssertEqual(Set(NativeGomokuSelfPlay.openingIndices).count, 49)
+        XCTAssertTrue(NativeGomokuSelfPlay.openingIndices.contains(112))
+        let budgets = (0..<4).map {
+            NativeGomokuSelfPlay.curriculumBudget(seed: $0 * 49)
+        }
+        XCTAssertEqual(Set(budgets.map(\.rootCandidateLimit)).count, 4)
+        XCTAssertTrue(budgets.allSatisfy { $0.timeLimitMilliseconds <= 100 })
+    }
+
+    func testR3ForgedTerminalAndReplayedDuplicateAreNeverCounted() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("native-r3-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let archive = AdaptiveBoardLearningStore(game: .gomoku, fileURL: url)
+        let before = GomokuState()
+        let fake = AdaptiveBoardPly(
+            position: AdaptiveBoardPosition.gomoku(before), action: "112", actor: .host
+        )
+        XCTAssertEqual(
+            archive.recordCompletedNativeBatch([(plies: [fake], result: .humanWon)]), 0
+        )
+        XCTAssertEqual(archive.summary.completedGames, 0)
+
+        let budget = GomokuBotBudget(
+            candidateRadius: 2, rootCandidateLimit: 8, replyCandidateLimit: 4,
+            continuationCandidateLimit: 0, timeLimitMilliseconds: 35
+        )
+        let completed = await Task.detached {
+            NativeGomokuSelfPlay.play(seed: 0, formationMode: .automatic, budget: budget)
+        }.value
+        let game = try XCTUnwrap(completed)
+        XCTAssertTrue(game.completed)
+        XCTAssertEqual(archive.recordCompletedNativeBatch([
+            (plies: game.plies, result: game.result)
+        ]), 1)
+        XCTAssertEqual(archive.recordCompletedNativeBatch([
+            (plies: game.plies, result: game.result)
+        ]), 0)
+        XCTAssertEqual(archive.summary.completedGames, 1)
+        XCTAssertTrue(archive.lastSaveSucceeded)
+    }
+
+    func testNoFalseMatchesWhenGameDidNotComplete() async {
+        let game = await Task.detached {
+            NativeGomokuSelfPlay.play(
+                seed: 0, formationMode: .bagua, moveLimit: 5
+            )
+        }.value
+        XCTAssertNil(game, "An unfinished 5-ply game must never count as one training match")
+    }
+
+    func testCorruptArchiveRemainsFailClosed() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("veillink-selfplay-invalid-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try? Data("invalid json".utf8).write(to: url)
+        let archive = AdaptiveBoardLearningStore(game: .gomoku, fileURL: url)
+        XCTAssertFalse(archive.lastSaveSucceeded)
+        XCTAssertEqual(archive.summary.completedGames, 0)
+        let game = [AdaptiveBoardPly(position: "g:invalid", action: "112", actor: .host)]
+        XCTAssertEqual(
+            archive.recordCompletedNativeBatch([(plies: game, result: .aiWon)]), 0
+        )
+        XCTAssertEqual(try? String(contentsOf: url, encoding: .utf8), "invalid json")
+    }
+}
