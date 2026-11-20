@@ -5,8 +5,8 @@
   "tasks": [
     {
       "task_id": "SOURCE",
-      "agent_id": "unassigned",
-      "state": "OPEN",
+      "agent_id": "chatgpt-work",
+      "state": "REVIEW",
       "scope": [
         "Legacy/Original/",
         "Provenance/",

@@ -40,3 +40,5 @@ jobs:
         run: python3 Training/validate_dataset.py --path Training/outputs/smoke.jsonl
       - name: Verify package
         run: python3 Scripts/verify_package.py
+      - name: Verify exact upstream source stage
+        run: python3 Scripts/audit_migration.py

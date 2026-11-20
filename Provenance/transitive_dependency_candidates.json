@@ -1,0 +1,1559 @@
+[
+  {
+    "source": "VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilExportFileName": [
+        "VeilLink/Core/VeilExportFileName.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/AgentGameAdapter.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/AgentGameRegistry.swift",
+    "references": {
+      "TacticalBot": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/DeveloperFormationLibrary.swift",
+    "references": {
+      "Move": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ],
+      "Key": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift",
+        "VeilLink/Core/PerformanceOverrides.swift",
+        "VeilLink/Core/TacticalV2/TacticalSupplyFieldV1.swift",
+        "VeilLink/Legal/VeilLegalConsentController.swift",
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "Node": [
+        "VeilLink/Core/TacticalV2/TacticalRoutePlannerV2.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/GomokuAgentAdapter.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/GomokuBot.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+    "references": {
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/GomokuFormationLearning.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "layered": [
+        "VeilLink/Diagnostics/CollaborativeStressProtocol.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/LocalAIGameController.swift",
+    "references": {
+      "TacticalBotDifficulty": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ],
+      "TacticalBot": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "TacticalDebrief": [
+        "VeilLink/Core/TacticalSoloFeatures.swift"
+      ],
+      "MagneticHockeyBot": [
+        "VeilLink/Core/MagneticHockeyGame.swift"
+      ],
+      "XiangqiAgentAdapter": [
+        "VeilLink/Agent/Games/XiangqiAgentAdapter.swift"
+      ],
+      "DiagnosticLogLevel": [
+        "VeilLink/Diagnostics/DiagnosticLogStore.swift"
+      ],
+      "RuntimeDiagnosticsBridge": [
+        "VeilLink/Diagnostics/RuntimeDiagnosticsBridge.swift"
+      ],
+      "TacticalState": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "ArtilleryState": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ],
+      "LudoBot": [
+        "VeilLink/Agent/Games/LudoBot.swift"
+      ],
+      "Status": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmRenderCache.swift"
+      ],
+      "XiangqiBotBudget": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ],
+      "MagneticHockeyState": [
+        "VeilLink/Core/MagneticHockeyGame.swift"
+      ],
+      "ArtilleryBot": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ],
+      "Failure": [
+        "VeilLink/Entertainment/Rendering/VeilRenderGeometry.swift",
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift",
+        "VeilLink/Entertainment/VeilRhythmLiveConductor.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "TacticalDailyChallenge": [
+        "VeilLink/Core/TacticalSoloFeatures.swift"
+      ],
+      "LudoAgentAdapter": [
+        "VeilLink/Agent/Games/LudoAgentAdapter.swift"
+      ],
+      "LightTrailState": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ],
+      "Move": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ],
+      "TacticalSoloScenario": [
+        "VeilLink/Core/TacticalSoloFeatures.swift"
+      ],
+      "LightTrailBot": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ],
+      "XiangqiBot": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/LocalBoardMatchStore.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/TrainedGamePolicyRuntime.swift",
+    "references": {
+      "Tensor": [
+        "VeilLink/Agent/MaleCNS/MaleCNSGameRanker.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+    "references": {
+      "Phase": [
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "Entry": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Agent/Games/VeilOfflineGomokuEngine.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/App/AppModel.swift",
+    "references": {
+      "DiagnosticLogStore": [
+        "VeilLink/Diagnostics/DiagnosticLogStore.swift"
+      ],
+      "InternetRelayTransport": [
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "AgentCoordinator": [
+        "VeilLink/Agent/Core/AgentCoordinator.swift"
+      ],
+      "AgentLocalContext": [
+        "VeilLink/Agent/Integration/AgentLocalContext.swift"
+      ],
+      "VeilA9TransportCoverage": [
+        "VeilLink/Health/VeilA9Lattice.swift"
+      ],
+      "VeilAutoRegulationSnapshot": [
+        "VeilLink/Agent/Integration/VeilAutoRegulation.swift"
+      ],
+      "AgentConversationContext": [
+        "VeilLink/Agent/Integration/AgentLocalContext.swift"
+      ],
+      "VeilLatticeKernelBridge": [
+        "VeilLink/Health/VeilLatticeKernelBridge.swift"
+      ],
+      "VeilAppResourceFocus": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "VeilKernelRuntimeMode": [
+        "VeilLink/Health/VeilKernelRuntimeSelector.swift"
+      ],
+      "VeilKernelHostSafetyPolicy": [
+        "VeilLink/Health/VeilKernelHostSafetyPolicy.swift"
+      ],
+      "VeilPTTSendReport": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "VeilAppControlParser": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "ImagePreviewCache": [
+        "VeilLink/Media/ImagePreviewCache.swift"
+      ],
+      "A10UltraM5GovernanceAdvisor": [
+        "VeilLink/Agent/Integration/A10UltraM5GovernanceAdvisor.swift"
+      ],
+      "VeilAppDestination": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "A10UltraComputeBudget": [
+        "VeilLink/Agent/Compute/A10UltraComputeCore.swift"
+      ],
+      "VeilMeshOverlayRouter": [
+        "VeilLink/Community/VeilMeshOverlay.swift"
+      ],
+      "VeilA9Input": [
+        "VeilLink/Health/VeilA9Lattice.swift"
+      ],
+      "VeilLegalConsentController": [
+        "VeilLink/Legal/VeilLegalConsentController.swift"
+      ],
+      "VeilAppControlCommand": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "VeilAppControlPermissions": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "AgentToolExecution": [
+        "VeilLink/Agent/Integration/AgentToolRouter.swift"
+      ],
+      "AgentCapabilityProfile": [
+        "VeilLink/Agent/Core/AgentCapabilityProfile.swift"
+      ],
+      "AgentGameDecisionMode": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift"
+      ],
+      "VeilA9DatabaseIntegrity": [
+        "VeilLink/Health/VeilA9Lattice.swift"
+      ],
+      "AgentControlCenterSettings": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift"
+      ],
+      "A10UltraOmegaHostContext": [
+        "VeilLink/Health/A10UltraOmegaShadow.swift"
+      ],
+      "VeilWalkieTalkieAudioController": [
+        "VeilLink/Voice/WalkieTalkieAudioController.swift"
+      ],
+      "VeilAppControlSource": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "PhotoLibrarySaver": [
+        "VeilLink/Media/PhotoLibrarySaver.swift"
+      ],
+      "VeilKernelRuntimeSelector": [
+        "VeilLink/Health/VeilKernelRuntimeSelector.swift"
+      ],
+      "VeilopolyMultiplayerBridge": [
+        "VeilLink/App/VeilopolyMultiplayerBridge.swift"
+      ],
+      "MediaTransferPolicy": [
+        "VeilLink/Core/MediaTransferPolicy.swift"
+      ],
+      "VeilA9HealthMonitor": [
+        "VeilLink/Health/VeilA9HealthMonitor.swift"
+      ],
+      "VeilAutoThermalLevel": [
+        "VeilLink/Agent/Integration/VeilAutoRegulation.swift"
+      ],
+      "VeilA9ThermalLevel": [
+        "VeilLink/Health/VeilA9Lattice.swift"
+      ],
+      "AgentBluetoothContext": [
+        "VeilLink/Agent/Integration/AgentLocalContext.swift"
+      ],
+      "VeilRelayCapabilityStore": [
+        "VeilLink/Relay/RelayCapabilityStore.swift"
+      ],
+      "VeilAutoRegulationPolicy": [
+        "VeilLink/Agent/Integration/VeilAutoRegulation.swift"
+      ],
+      "VeilAppControlPolicy": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "VeilCommunityStore": [
+        "VeilLink/Community/VeilCommunityStore.swift"
+      ],
+      "AgentGameContextBroker": [
+        "VeilLink/Agent/Integration/AgentGameContextBroker.swift"
+      ],
+      "Game": [
+        "VeilLink/Entertainment/VeilRhythmLiveConductor.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "RuntimeDiagnosticsBridge": [
+        "VeilLink/Diagnostics/RuntimeDiagnosticsBridge.swift"
+      ],
+      "LocalTextModelRuntimeFactory": [
+        "VeilLink/Agent/Language/LocalTextModelRuntimeFactory.swift"
+      ],
+      "VeilA9ComputeGovernor": [
+        "VeilLink/Agent/Compute/A9ComputeGovernor.swift"
+      ],
+      "VeilAppControlAccess": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "A10UltraM5Runtime": [
+        "VeilLink/Agent/Compute/A10UltraM5Runtime.swift"
+      ],
+      "PerformanceOverrideController": [
+        "VeilLink/Core/PerformanceOverrideController.swift"
+      ],
+      "BackupManager": [
+        "VeilLink/Storage/BackupManager.swift"
+      ],
+      "VeilAppControlResult": [
+        "VeilLink/Agent/Integration/VeilAppControlPlane.swift"
+      ],
+      "A10UltraOmegaShadowCoordinator": [
+        "VeilLink/Health/A10UltraOmegaShadow.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/App/VeilLinkApp.swift",
+    "references": {
+      "Event": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift",
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "VeilPreConsentBlackBox": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift"
+      ],
+      "VeilImportStagingLeasePolicy": [
+        "VeilLink/Core/VeilImportStagingLeasePolicy.swift"
+      ],
+      "Stage": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilPreConsentBlackBoxButton": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift"
+      ],
+      "LegalConsentGateView": [
+        "VeilLink/UI/LegalConsentGateView.swift"
+      ],
+      "VeilReleaseActivationView": [
+        "VeilLink/UI/VeilReleaseActivationView.swift"
+      ],
+      "VeilBackgroundAppDelegate": [
+        "VeilLink/Background/BackgroundContinuityCoordinator.swift"
+      ],
+      "RuntimeDiagnosticsBridge": [
+        "VeilLink/Diagnostics/RuntimeDiagnosticsBridge.swift"
+      ],
+      "DeviceStressTestHUD": [
+        "VeilLink/UI/DeviceStressTestView.swift"
+      ],
+      "VeilFirstRunOnboardingController": [
+        "VeilLink/Onboarding/VeilFirstRunOnboardingController.swift"
+      ],
+      "OnboardingView": [
+        "VeilLink/UI/OnboardingView.swift"
+      ],
+      "VeilLegalConsentController": [
+        "VeilLink/Legal/VeilLegalConsentController.swift"
+      ],
+      "AdaptiveRootView": [
+        "VeilLink/UI/AdaptiveRootView.swift"
+      ],
+      "LockScreenView": [
+        "VeilLink/UI/LockScreenView.swift"
+      ],
+      "VeilAppLifecycleCoordinator": [
+        "VeilLink/App/VeilAppLifecycleCoordinator.swift"
+      ],
+      "DeviceStressTestController": [
+        "VeilLink/Diagnostics/DeviceStressTestController.swift"
+      ],
+      "TacticalLocalRenderCache": [
+        "VeilLink/UI/TacticalLocalRenderCache.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/AppTheme.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilIsletBackground": [
+        "VeilLink/UI/IsletRootView.swift"
+      ],
+      "PerformanceOverrideStore": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "VeilAppleSoftSurface": [
+        "VeilLink/Core/VeilAppleMaterialEngine.swift"
+      ],
+      "RenderCompatibilityPolicy": [
+        "VeilLink/Core/RenderCompatibilityPolicy.swift"
+      ],
+      "VeilPerformanceOverrides": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "VeilPlatformGlassSurfaceModifier": [
+        "VeilLink/Core/VeilAppleMaterialEngine.swift"
+      ],
+      "VeilAppleSoftBackground": [
+        "VeilLink/Core/VeilAppleMaterialEngine.swift"
+      ],
+      "UnitPoint": [
+        "VeilLink/UI/TacticalLocalRenderCache.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/AppearanceTheme.swift",
+    "references": {
+      "Key": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift",
+        "VeilLink/Core/PerformanceOverrides.swift",
+        "VeilLink/Core/TacticalV2/TacticalSupplyFieldV1.swift",
+        "VeilLink/Legal/VeilLegalConsentController.swift",
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/DevicePerformanceProfile.swift",
+    "references": {
+      "PerformanceOverrideStore": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "PerformanceOverridePolicy": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/HapticEngine.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/MiniGames.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "TacticalState": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "ArtilleryState": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ],
+      "MagneticHockeyState": [
+        "VeilLink/Core/MagneticHockeyGame.swift"
+      ],
+      "LightTrailState": [
+        "VeilLink/Core/ArcadeGames.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/Models.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/SkeuomorphicComponents.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/SkeuomorphicPerformanceBudget.swift",
+    "references": {
+      "PerformanceOverrideStore": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "PerformanceOverridePolicy": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/VeilFileInbox.swift",
+    "references": {
+      "MediaTransferPolicy": [
+        "VeilLink/Core/MediaTransferPolicy.swift"
+      ],
+      "VeilImportStagingLeasePolicy": [
+        "VeilLink/Core/VeilImportStagingLeasePolicy.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilFileIntegrityEngine": [
+        "VeilLink/Core/VeilFileIntegrityEngine.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/VeilImportedFileAccess.swift",
+    "references": {
+      "VeilImportStagingLeasePolicy": [
+        "VeilLink/Core/VeilImportStagingLeasePolicy.swift"
+      ],
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/VeilMotionKit.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "PerformanceOverridePolicy": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "VeilPerformanceOverrides": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ],
+      "UnitPoint": [
+        "VeilLink/UI/TacticalLocalRenderCache.swift"
+      ],
+      "TransientMotionQuality": [
+        "VeilLink/Core/PerformanceOverrides.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/VeilUnifiedImportRouter.swift",
+    "references": {
+      "VeilBackupArchiveInspector": [
+        "VeilLink/Storage/VeilBackupArchiveInspector.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Core/WireCodec.swift",
+    "references": {
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Pairing/RemotePairingCoordinator.swift",
+    "references": {
+      "VeilRelayPushRequest": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "VeilRelayCapabilityStore": [
+        "VeilLink/Relay/RelayCapabilityStore.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilRelayRegisterRequest": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "VeilRelaySettings": [
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "VeilRelayAckRequest": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "VeilRelayStoredPacket": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "VeilRelayRegion": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "VeilRelayCrypto": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "VeilRelayPullResponse": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Pairing/RemotePairingCore.swift",
+    "references": {
+      "VeilRelayRegion": [
+        "VeilLink/Relay/VeilRelayCore.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/AppLockController.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/Base32.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/CryptoEngine.swift",
+    "references": {
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/DeveloperLearningLabGate.swift",
+    "references": {
+      "Key": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift",
+        "VeilLink/Core/PerformanceOverrides.swift",
+        "VeilLink/Core/TacticalV2/TacticalSupplyFieldV1.swift",
+        "VeilLink/Legal/VeilLegalConsentController.swift",
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/IdentityManager.swift",
+    "references": {
+      "Key": [
+        "VeilLink/Agent/Integration/AgentControlCenterSettings.swift",
+        "VeilLink/Core/PerformanceOverrides.swift",
+        "VeilLink/Core/TacticalV2/TacticalSupplyFieldV1.swift",
+        "VeilLink/Legal/VeilLegalConsentController.swift",
+        "VeilLink/Relay/InternetRelayTransport.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/KeychainStore.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/OwnerModeController.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/PacketAbuseLimiter.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/PasswordKDF.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/ReplayWindow.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/SessionCoordinator.swift",
+    "references": {
+      "VeilPTTAudioFrame": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "WireEnvelopeV2": [
+        "VeilLink/Core/TacticalV2/TacticalWireV2.swift"
+      ],
+      "VeilPTTIncomingControl": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "CodingKeys": [
+        "VeilLink/Agent/MaleCNS/MaleCNSGameRanker.swift",
+        "VeilLink/Agent/MaleCNS/MaleCNSLearnedReadout.swift",
+        "VeilLink/Agent/MaleCNS/VFLY1Format.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "CollaborativeStressFrame": [
+        "VeilLink/Diagnostics/CollaborativeStressProtocol.swift"
+      ],
+      "VeilMeshCodec": [
+        "VeilLink/Community/VeilMeshOverlay.swift"
+      ],
+      "VeilRelayProvisionPacket": [
+        "VeilLink/Relay/RelayCapabilityStore.swift"
+      ],
+      "VeilPTTControlPacket": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "WireCodecV2": [
+        "VeilLink/Core/TacticalV2/TacticalWireV2.swift"
+      ],
+      "CollaborativeStressInboundBulkAccumulator": [
+        "VeilLink/Diagnostics/CollaborativeStressProtocol.swift"
+      ],
+      "VeilPeerCapabilityPolicy": [
+        "VeilLink/Core/VeilPeerCapabilityPolicy.swift"
+      ],
+      "VeilRuntimeMaintenanceTuning": [
+        "VeilLink/Core/RuntimeMaintenanceTuning.swift"
+      ],
+      "CollaborativeStressBulkReceipt": [
+        "VeilLink/Diagnostics/CollaborativeStressProtocol.swift"
+      ],
+      "Kind": [
+        "VeilLink/Agent/MaleCNS/VFLY1Format.swift",
+        "VeilLink/Core/AfterglowConvoyGame.swift",
+        "VeilLink/Core/AshHarborGame.swift",
+        "VeilLink/Core/BlackoutDistrictGame.swift",
+        "VeilLink/Core/RainlineLastTrainGame.swift",
+        "VeilLink/Core/SignalDiveGame.swift",
+        "VeilLink/Core/VeilMessageForge.swift",
+        "VeilLink/Core/VeilRuntimeEnvironment.swift",
+        "VeilLink/Entertainment/VeilStoryEngine.swift",
+        "VeilLink/Storage/VeilBackupPreflightPolicy.swift"
+      ],
+      "VeilControlEvent": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "TacticalV2": [
+        "VeilLink/Core/TacticalV2/TacticalCampaignCoreV2.swift"
+      ],
+      "VoiceMessageCodec": [
+        "VeilLink/Voice/VoiceMessageCodec.swift"
+      ],
+      "CollaborativeStressCodec": [
+        "VeilLink/Diagnostics/CollaborativeStressProtocol.swift"
+      ],
+      "VeilControlEventCodec": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "Failure": [
+        "VeilLink/Entertainment/Rendering/VeilRenderGeometry.swift",
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift",
+        "VeilLink/Entertainment/VeilRhythmLiveConductor.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "VeilPTTIncomingAudio": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "VeilPTTSendReport": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "VeilPTTCodec": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "MediaTransferPolicy": [
+        "VeilLink/Core/MediaTransferPolicy.swift"
+      ],
+      "VeilPTTTransportPolicy": [
+        "VeilLink/Voice/PTTWire.swift"
+      ],
+      "ReplyTextCodec": [
+        "VeilLink/Core/MessageTextFeatures.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Security/TacticalPendingRevealSecureStoreV2.swift",
+    "references": {
+      "RevealV2": [
+        "VeilLink/Core/TacticalV2/TacticalWEGOV2.swift"
+      ],
+      "TacticalV2": [
+        "VeilLink/Core/TacticalV2/TacticalCampaignCoreV2.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Storage/DatabaseStore.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "VeilPeerCapabilityPolicy": [
+        "VeilLink/Core/VeilPeerCapabilityPolicy.swift"
+      ],
+      "VeilControlEvent": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "VoiceMessageCodec": [
+        "VeilLink/Voice/VoiceMessageCodec.swift"
+      ],
+      "VeilControlEventCodec": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "MediaTransferPolicy": [
+        "VeilLink/Core/MediaTransferPolicy.swift"
+      ],
+      "ReplyTextCodec": [
+        "VeilLink/Core/MessageTextFeatures.swift"
+      ],
+      "BackupError": [
+        "VeilLink/Storage/BackupManager.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/BLEFramer.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/BLEGattHandshakeWatchdog.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/BLELinkSnapshot.swift",
+    "references": {
+      "Status": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmRenderCache.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/BLETransport.swift",
+    "references": {
+      "DiagnosticLogStore": [
+        "VeilLink/Diagnostics/DiagnosticLogStore.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "DiagnosticLogLevel": [
+        "VeilLink/Diagnostics/DiagnosticLogStore.swift"
+      ],
+      "VeilRuntimeMaintenanceTuning": [
+        "VeilLink/Core/RuntimeMaintenanceTuning.swift"
+      ],
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ],
+      "VeilConcurrentFabricPolicy": [
+        "VeilLink/Core/RuntimeMaintenanceTuning.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/ConnectionEventGate.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/Transport/LANTransport.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "Error": [
+        "VeilLink/Core/VeilControlEvent.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/BoardDeveloperLearningLabView.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/GameLobbyView.swift",
+    "references": {
+      "VeilStoryLabView": [
+        "VeilLink/Entertainment/VeilStoryLabView.swift"
+      ],
+      "ArcadeVisualIcon": [
+        "VeilLink/ArcadeRealtime/ArcadeVisualIcon.swift"
+      ],
+      "TacticalBotDifficulty": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ],
+      "SignalDiveLabView": [
+        "VeilLink/UI/SignalDiveLabView.swift"
+      ],
+      "PrismRift3DGameView": [
+        "VeilLink/UI/PrismRift3DGameView.swift"
+      ],
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "MagneticHockeyGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "ArcadeVisualMotif": [
+        "VeilLink/ArcadeRealtime/ArcadeVisualTheme.swift"
+      ],
+      "VeilRhythmR6NativeGameView": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmR6NativeGameView.swift"
+      ],
+      "RhythmNeonView": [
+        "VeilLink/ArcadeRealtime/RhythmNeonView.swift"
+      ],
+      "VeilToolCenterToolbarLink": [
+        "VeilLink/UI/ToolCenterView.swift"
+      ],
+      "RuntimeDiagnosticsBridge": [
+        "VeilLink/Diagnostics/RuntimeDiagnosticsBridge.swift"
+      ],
+      "LightTrailGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "AfterglowConvoyLabView": [
+        "VeilLink/UI/AfterglowConvoyLabView.swift"
+      ],
+      "TacticalBoardView": [
+        "VeilLink/UI/TacticalGameViews.swift"
+      ],
+      "BlackoutDistrictLabView": [
+        "VeilLink/UI/BlackoutDistrictLabView.swift"
+      ],
+      "TacticalV2SoloView": [
+        "VeilLink/UI/TacticalV2/TacticalV2SoloView.swift"
+      ],
+      "VeilPulseRunnerView": [
+        "VeilLink/ArcadeRealtime/PlatformerView.swift"
+      ],
+      "TacticalSoloGuideView": [
+        "VeilLink/UI/TacticalSoloGuideView.swift"
+      ],
+      "VeilMonogatariHostView": [
+        "VeilLink/UI/VeilMonogatariHostView.swift"
+      ],
+      "LatticeClashLabView": [
+        "VeilLink/UI/LatticeClashLabView.swift"
+      ],
+      "ArtilleryGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "AshHarborLabView": [
+        "VeilLink/UI/AshHarborLabView.swift"
+      ],
+      "ShareSheet": [
+        "VeilLink/UI/SettingsView.swift"
+      ],
+      "RainlineLastTrainLabView": [
+        "VeilLink/UI/RainlineLastTrainLabView.swift"
+      ],
+      "VeilopolyMultiplayerLobby": [
+        "VeilLink/UI/VeilopolyMultiplayerLobby.swift"
+      ],
+      "TacticalSoloScenario": [
+        "VeilLink/Core/TacticalSoloFeatures.swift"
+      ],
+      "VeilVoidSwarmView": [
+        "VeilLink/ArcadeRealtime/SpaceGameView.swift"
+      ],
+      "VeilMonogatariGameView": [
+        "VeilLink/Narrative/VeilMonogatariGameView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/MiniGameViews.swift",
+    "references": {
+      "Event": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift",
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift",
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ],
+      "TacticalV2LaunchGateView": [
+        "VeilLink/UI/TacticalV2/TacticalV2LaunchGateView.swift"
+      ],
+      "MagneticHockeyGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "WireCodecV2": [
+        "VeilLink/Core/TacticalV2/TacticalWireV2.swift"
+      ],
+      "LightTrailGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "RuntimeDiagnosticsBridge": [
+        "VeilLink/Diagnostics/RuntimeDiagnosticsBridge.swift"
+      ],
+      "Coordinator": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmNativeScene.swift",
+        "VeilLink/Narrative/VeilMonogatariGameView.swift",
+        "VeilLink/UI/ConversationViews.swift",
+        "VeilLink/UI/LegalConsentGateView.swift",
+        "VeilLink/UI/RemotePairingView.swift",
+        "VeilLink/UI/VeilFileInboxPreview.swift",
+        "VeilLink/UI/VeilMonogatariHostView.swift"
+      ],
+      "TacticalReplayBoardView": [
+        "VeilLink/UI/TacticalGameViews.swift"
+      ],
+      "TacticalV2": [
+        "VeilLink/Core/TacticalV2/TacticalCampaignCoreV2.swift"
+      ],
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "ArtilleryGameView": [
+        "VeilLink/UI/ArcadeGameViews.swift"
+      ],
+      "VeilopolyMultiplayerLobby": [
+        "VeilLink/UI/VeilopolyMultiplayerLobby.swift"
+      ],
+      "AgentGameAssistantSheet": [
+        "VeilLink/UI/AgentGameAssistantSheet.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseBoardThoughtField.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseComputeConsole.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseConsoleStream.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseIdentityAndTrace.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseRuntimeInstruments.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+    "references": {
+      "Session": [
+        "VeilLink/Entertainment/VeilRhythmExpeditionEngine.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseTracePolicy.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "Replay": [
+        "VeilLink/Entertainment/VeilStationChronicleEngine.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilForgeVisualSystem.swift",
+    "references": {
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "Kind": [
+        "VeilLink/Agent/MaleCNS/VFLY1Format.swift",
+        "VeilLink/Core/AfterglowConvoyGame.swift",
+        "VeilLink/Core/AshHarborGame.swift",
+        "VeilLink/Core/BlackoutDistrictGame.swift",
+        "VeilLink/Core/RainlineLastTrainGame.swift",
+        "VeilLink/Core/SignalDiveGame.swift",
+        "VeilLink/Core/VeilMessageForge.swift",
+        "VeilLink/Core/VeilRuntimeEnvironment.swift",
+        "VeilLink/Entertainment/VeilStoryEngine.swift",
+        "VeilLink/Storage/VeilBackupPreflightPolicy.swift"
+      ],
+      "VeilForgeMotionCore": [
+        "VeilLink/Core/VeilForgeMotionCore.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilGomokuMatchArchive.swift",
+    "references": {
+      "Status": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmRenderCache.swift"
+      ],
+      "Move": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLink/UI/VeilOpponentAvatarView.swift",
+    "references": {
+      "Coordinator": [
+        "VeilLink/Entertainment/Rendering/VeilRhythmNativeScene.swift",
+        "VeilLink/Narrative/VeilMonogatariGameView.swift",
+        "VeilLink/UI/ConversationViews.swift",
+        "VeilLink/UI/LegalConsentGateView.swift",
+        "VeilLink/UI/RemotePairingView.swift",
+        "VeilLink/UI/VeilFileInboxPreview.swift",
+        "VeilLink/UI/VeilMonogatariHostView.swift"
+      ],
+      "State": [
+        "VeilLink/Entertainment/VeilEntertainmentFeatureGate.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/BLETransportSafetyTests.swift",
+    "references": {
+      "VeilRuntimeMaintenanceTuning": [
+        "VeilLink/Core/RuntimeMaintenanceTuning.swift"
+      ],
+      "VeilConcurrentFabricPolicy": [
+        "VeilLink/Core/RuntimeMaintenanceTuning.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/EclipseHorizonR12Tests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/EclipseIncrementalThreatIndexR13Tests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/EclipseR14UnifiedTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/GlobalAppearanceModeTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/GomokuBotTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/GomokuBundledNativeSeedTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/GomokuFormationLearningTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/GomokuSevenTierIntegrationTests.swift",
+    "references": {
+      "XiangqiBotBudget": [
+        "VeilLink/Agent/Games/XiangqiBot.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/MiniGameTests.swift",
+    "references": {
+      "TacticalBotDifficulty": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ],
+      "TacticalBot": [
+        "VeilLink/Agent/Games/TacticalBot.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ],
+      "TacticalState": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "TacticalUnit": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "TacticalFaction": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "TacticalDailyChallenge": [
+        "VeilLink/Core/TacticalSoloFeatures.swift"
+      ],
+      "TacticalTerrain": [
+        "VeilLink/Core/TacticalGame.swift"
+      ],
+      "TacticalLocalRenderCache": [
+        "VeilLink/UI/TacticalLocalRenderCache.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/NativeGomokuSelfPlayTests.swift",
+    "references": {
+      "Export": [
+        "VeilLink/Diagnostics/VeilPreConsentBlackBox.swift"
+      ],
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  },
+  {
+    "source": "VeilLinkTests/VeilOfflineGomokuEngineTests.swift",
+    "references": {
+      "var": [
+        "VeilLink/UI/AgentVideoChatView.swift"
+      ]
+    },
+    "status": "STATIC_CANDIDATES_NOT_COMPILE_VERIFIED"
+  }
+]

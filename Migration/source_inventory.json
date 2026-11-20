@@ -426,6 +426,42 @@
       "category": "legacy-tests",
       "critical": true,
       "reason": "Use original regression test logic; tests may initially reference old app and require adapted test-host shims"
+    },
+    {
+      "path": "LICENSE",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
+    },
+    {
+      "path": "VeilLink/Agent/Games/AgentGameAdapter.swift",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
+    },
+    {
+      "path": "VeilLink/Agent/Games/TrainedGamePolicyRuntime.swift",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
+    },
+    {
+      "path": "VeilLink/Agent/Games/AgentGameRegistry.swift",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
+    },
+    {
+      "path": "docs/GOMOKU_NATIVE_SELFPLAY_R3_20261031.md",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
+    },
+    {
+      "path": "docs/GOMOKU_FORMATION_LAB_R1_20261031.md",
+      "category": "dependency-and-license-reference",
+      "critical": true,
+      "reason": "Supplement original missing shared adapter/runtime, license and Gomoku operating documentation; stage only"
     }
   ]
 }
