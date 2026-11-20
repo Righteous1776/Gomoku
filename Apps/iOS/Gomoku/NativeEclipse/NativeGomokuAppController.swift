@@ -23,6 +23,8 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var trainedGames = 0
     @Published private(set) var isNativeTraining = false
     @Published private(set) var trainingWarning: String?
+    @Published private(set) var legacyImportStatus: String?
+    @Published private(set) var isImportingLegacyLearning = false
     @Published private(set) var trainingAttempted = 0
     @Published private(set) var trainingTarget = 0
     @Published private(set) var trainingRejected = 0
@@ -263,6 +265,27 @@ final class NativeGomokuAppController: ObservableObject {
         guard isCurrentTrainingSession(token) else { return }
         isNativeTraining = false
         trainingTask = nil
+    }
+
+    func importLegacyLearning(from url: URL) {
+        guard !isImportingLegacyLearning else { return }
+        isImportingLegacyLearning = true
+        legacyImportStatus = nil
+        Task.detached(priority: .userInitiated) { [weak self] in
+            do {
+                let report = try GomokuLegacyLearningImporter().importPackage(from: url)
+                await self?.finishLegacyImport(
+                    message: "原版训练已验证导入 \(report.imported) 局；重复 \(report.duplicate) 局；跳过中国象棋 \(report.ignoredNonGomoku) 项。"
+                )
+            } catch {
+                await self?.finishLegacyImport(message: error.localizedDescription)
+            }
+        }
+    }
+
+    private func finishLegacyImport(message: String) {
+        legacyImportStatus = message
+        isImportingLegacyLearning = false
     }
 
     func exportRecentMatch() -> URL? {
