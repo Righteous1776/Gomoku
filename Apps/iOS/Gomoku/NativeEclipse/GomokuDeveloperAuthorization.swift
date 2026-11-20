@@ -9,6 +9,11 @@ import LocalAuthentication
 final class GomokuDeveloperAuthorization: ObservableObject {
     @Published private(set) var authorizedUntil: Date?
     @Published private(set) var failure: String?
+    private let permit = GomokuDeveloperPermit()
+
+    var importPermit: GomokuDeveloperPermit.Authorization? {
+        isAuthorized ? permit.currentAuthorization() : nil
+    }
 
     var isAuthorized: Bool {
         guard let authorizedUntil, authorizedUntil > Date() else { return false }
@@ -32,7 +37,9 @@ final class GomokuDeveloperAuthorization: ObservableObject {
                 failure = "未通过设备身份验证。"
                 return false
             }
-            authorizedUntil = Date().addingTimeInterval(10 * 60)
+            let expiry = Date().addingTimeInterval(10 * 60)
+            authorizedUntil = expiry
+            _ = permit.grant(until: expiry)
             failure = nil
             return true
         } catch {
@@ -42,6 +49,7 @@ final class GomokuDeveloperAuthorization: ObservableObject {
     }
 
     func revoke() {
+        permit.revoke()
         authorizedUntil = nil
         failure = nil
     }
