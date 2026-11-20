@@ -34,10 +34,14 @@ def replay(actions: list[str]) -> str:
     winner, turn = 0, 1
     if not isinstance(actions, list) or not (1 <= len(actions) <= 225):
         raise ValueError("Invalid action count")
+    if actions[0][:1] not in ("a", "h"):
+        raise ValueError("Unknown first player in actual match")
+    black_tag = actions[0][:1]
+    other_tag = "h" if black_tag == "a" else "a"
     for ply in actions:
         if not isinstance(ply, str) or len(ply) < 2:
             raise ValueError("Malformed action")
-        actor = {"h": 1, "a": 2}.get(ply[:1])
+        actor = {black_tag: 1, other_tag: 2}.get(ply[:1])
         try:
             point = int(ply[1:])
         except ValueError as exc:
@@ -58,9 +62,10 @@ def replay(actions: list[str]) -> str:
                 winner = actor
                 break
         turn = 3 - actor
-    return ("humanWon" if winner == 1 else
-            "aiWon" if winner == 2 else
-            "draw" if len(actions) == 225 else "unfinished")
+    if not winner:
+        return "draw" if len(actions) == 225 else "unfinished"
+    winner_tag = black_tag if winner == 1 else other_tag
+    return "humanWon" if winner_tag == "h" else "aiWon"
 
 
 def audit_bytes(data: bytes, *, enforce_blob: bool = True) -> dict:
@@ -108,6 +113,81 @@ def audit_bytes(data: bytes, *, enforce_blob: bool = True) -> dict:
             "fnv1a64": canonical_fingerprint}
 
 
+# Exact original 2026-11-13 exports, verified independently from the Library
+# by a complete SHA-256 on raw bytes BEFORE GitHub ingestion. The labels of five
+# partial restore fragments are not trustworthy even though the envelope is.
+NOVEMBER_EXPORTS = (
+    {
+        "name": "VeilLink-GomokuLearning-20261113-172016-404-27774F62.vltrain.json",
+        "sha256": "d5cf13940bbb84dc937783700aa129303c4ec1d54a781992099675c3e6325d8b",
+        "fnv": "93dcccb56c4ec952",
+        "recent": 107, "positions": 1611, "valid": 48, "unique": 44,
+        "unfinished": 56, "quarantined_ordinals": (11, 17, 64),
+    },
+    {
+        "name": "VeilLink-GomokuLearning-20261113-181938-942-EB7990D0.vltrain.json",
+        "sha256": "050f5abbac2c3f7991db5dbcad4b4d1bd33f49eb1aeeacb5025b17d0696ce325",
+        "fnv": "a9737700c7cd421f",
+        "recent": 78, "positions": 1140, "valid": 57, "unique": 48,
+        "unfinished": 19, "quarantined_ordinals": (28, 32),
+    },
+)
+
+
+def november_path(entry: dict) -> Path:
+    return ROOT / "Migration/OwnerEvidence/20261113" / entry["name"]
+
+
+def audit_november_export(data: bytes, entry: dict) -> dict:
+    if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+        raise ValueError("Original November owner training SHA256 mismatch")
+    source = json.loads(data)
+    if (source.get("format") != "veillink.board-learning.export.v1" or
+            source.get("checksumAlgorithm") != "fnv1a64-canonical-json"):
+        raise ValueError("Unexpected November training format")
+    payload = source["payload"]
+    if (fnv1a64(canonical_bytes(payload)) != entry["fnv"] or
+            source["payloadChecksum"] != entry["fnv"] or
+            payload["schema"] != 1):
+        raise ValueError("Original November training FNV mismatch")
+    games = payload["recentGames"]
+    if len(games) != entry["recent"] or len(payload["positions"]) != entry["positions"]:
+        raise ValueError("Original November game or aggregate count changed")
+    complete = incomplete = 0
+    unique = set()
+    quarantine = []
+    for ordinal, match in enumerate(games):
+        if match.get("game") != "gomoku":
+            raise ValueError("Unexpected non-Gomoku November record")
+        actual = replay(match["actions"])
+        claimed = match["result"]
+        if actual != claimed:
+            if (actual == "unfinished" and claimed != "unfinished" and
+                    ordinal in entry["quarantined_ordinals"]):
+                quarantine.append(ordinal)
+                continue
+            raise ValueError("Unexpected historical owner training result mismatch")
+        if actual == "unfinished":
+            incomplete += 1
+            continue
+        complete += 1
+        unique.add(tuple(int(m[1:]) for m in match["actions"]))
+    if (complete != entry["valid"] or
+            len(unique) != entry["unique"] or
+            incomplete != entry["unfinished"] or
+            tuple(quarantine) != entry["quarantined_ordinals"]):
+        raise ValueError("Original November matches altered or incorrectly classified")
+    return {
+        "sha256": entry["sha256"],
+        "validTerminal": complete,
+        "independentGames": len(unique),
+        "legalIncomplete": incomplete,
+        "quarantinedOrdinals": quarantine,
+        "hashOnlyPositions": len(payload["positions"]),
+    }
+
+
+
 def audit_native_seed(data: bytes) -> dict:
     if blob_sha1(data) != NATIVE_SEED_BLOB:
         raise ValueError("Original native game seed bytes changed")
@@ -153,6 +233,9 @@ def audit_native_seed(data: bytes) -> dict:
 
 def main() -> None:
     report = audit_bytes(ARCHIVE.read_bytes())
+    for entry in NOVEMBER_EXPORTS:
+        real = audit_november_export(november_path(entry).read_bytes(), entry)
+        print("Verified original November owner training:", json.dumps(real, sort_keys=True))
     native_path = ROOT / "Apps/iOS/Gomoku/Resources/GomokuNativeTrainingSeed.json"
     seed = audit_native_seed(native_path.read_bytes())
     print("Native self-play deduplicated:", json.dumps(seed, sort_keys=True))

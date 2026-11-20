@@ -19,6 +19,21 @@ class OwnerTrainingEvidenceTests(unittest.TestCase):
         self.assertEqual(report["hashedPositionAggregates"], 1205)
         self.assertEqual(report["uniqueComplete"], 10)
 
+    def test_original_november_archives_including_white_owner(self):
+        for entry in evidence.NOVEMBER_EXPORTS:
+            raw = evidence.november_path(entry).read_bytes()
+            report = evidence.audit_november_export(raw, entry)
+            self.assertEqual(report["validTerminal"], entry["valid"])
+            self.assertEqual(report["independentGames"], entry["unique"])
+            self.assertEqual(tuple(report["quarantinedOrdinals"]),
+                             entry["quarantined_ordinals"])
+
+    def test_modified_november_file_is_not_exempt_from_strict_labels(self):
+        entry = evidence.NOVEMBER_EXPORTS[0]
+        raw = evidence.november_path(entry).read_bytes() + b" "
+        with self.assertRaisesRegex(ValueError, "SHA256 mismatch"):
+            evidence.audit_november_export(raw, entry)
+
     def test_native_seed_has_236_real_unique_games(self):
         data = (evidence.ROOT / "Apps/iOS/Gomoku/Resources/GomokuNativeTrainingSeed.json").read_bytes()
         report = evidence.audit_native_seed(data)

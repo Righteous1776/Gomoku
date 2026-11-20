@@ -12,16 +12,28 @@ struct GomokuDeveloperLearningLabView: View {
     @State private var purpose = ""
     @State private var objective = ""
 
-    /// Non-nil only in an explicitly prepared owner-personal build.
-    /// General/release app targets never ship this owner game history.
-    private var bundledOwnerTraining: URL? {
-        Bundle.main.url(
-            forResource: "VeilLink-Gomoku-OwnerTraining-20261031.vltrain",
-            withExtension: "json"
-        ) ?? Bundle.main.url(
-            forResource: "VeilLink-Gomoku-OwnerTraining-20261031.vltrain",
-            withExtension: "json", subdirectory: "OwnerPrivate"
-        )
+    private struct OwnerTrainingPackage: Identifiable {
+        let id: String
+        let title: String
+        let url: URL
+    }
+
+    /// Ordinary shared builds never contain private owner archives.
+    private var bundledOwnerTraining: [OwnerTrainingPackage] {
+        let candidates: [(String, String)] = [
+            ("10 月 31 日原始棋谱", "VeilLink-Gomoku-OwnerTraining-20261031.vltrain"),
+            ("11 月 13 日第一份", "VeilLink-GomokuLearning-20261113-172016-404-27774F62.vltrain"),
+            ("11 月 13 日第二份", "VeilLink-GomokuLearning-20261113-181938-942-EB7990D0.vltrain")
+        ]
+        return candidates.compactMap { title, basename in
+            guard let url = Bundle.main.url(
+                forResource: basename, withExtension: "json",
+                subdirectory: "OwnerPrivate"
+            ) ?? Bundle.main.url(
+                forResource: basename, withExtension: "json"
+            ) else { return nil }
+            return OwnerTrainingPackage(id: basename, title: title, url: url)
+        }
     }
 
     var body: some View {
@@ -86,19 +98,26 @@ struct GomokuDeveloperLearningLabView: View {
                         Text("原版私有训练数据库")
                             .font(.subheadline.weight(.semibold))
 
-                        if let bundledOwnerTraining {
-                            Button {
-                                engine.importLegacyLearning(from: bundledOwnerTraining)
-                            } label: {
-                                Label("导入本机私有构建内的原版真实训练",
-                                      systemImage: "checkmark.shield")
+                        if !bundledOwnerTraining.isEmpty {
+                            Text("已发现私有构建中的原版真实棋谱。请逐份导入。")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            ForEach(bundledOwnerTraining) { source in
+                                Button {
+                                    engine.importLegacyLearning(from: source.url)
+                                } label: {
+                                    Label("验证并导入 · " + source.title,
+                                          systemImage: "checkmark.shield")
+                                }
+                                .disabled(engine.isImportingLegacyLearning ||
+                                          engine.isNativeTraining ||
+                                          engine.isBootstrappingSeed)
+                                .buttonStyle(.bordered)
+                                .accessibilityIdentifier(
+                                    "gomoku.training.owner-bundled-import." + source.id
+                                )
                             }
-                            .disabled(engine.isImportingLegacyLearning ||
-                                      engine.isNativeTraining ||
-                                      engine.isBootstrappingSeed)
-                            .buttonStyle(.bordered)
-                            .accessibilityIdentifier("gomoku.training.owner-bundled-import")
-                            Text("原始 28 局完整保留；只有复验通过的 10 局已完成棋谱可计入训练。")
+                            Text("原件完整保存；仅合法终局去重后学习，异常截断记录隔离。")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }

@@ -616,7 +616,7 @@ final class NativeGomokuAppController: ObservableObject {
                     from: url, authorization: permit
                 )
                 await self?.finishLegacyImport(
-                    message: "原版训练导入 \(report.imported) 局，重复 \(report.duplicate) 局；完整保留 \(report.preservedPartialGames) 局未完成棋谱、\(report.preservedHashedPositions) 条局面统计；排除象棋 \(report.ignoredNonGomoku) 项。",
+                    message: "原版训练导入 \(report.imported) 局，重复 \(report.duplicate) 局；完整保留 \(report.preservedPartialGames) 局未完成棋谱、\(report.preservedHashedPositions) 条局面统计；隔离 \(report.quarantinedFragments) 条原版截断记录；排除象棋 \(report.ignoredNonGomoku) 项。",
                     updatedLearning: report.imported > 0
                 )
             } catch {
