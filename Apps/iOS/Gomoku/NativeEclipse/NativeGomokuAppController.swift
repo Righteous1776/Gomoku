@@ -24,6 +24,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var isNativeTraining = false
     @Published private(set) var trainingWarning: String?
     @Published private(set) var trainingAttempted = 0
+    @Published private(set) var trainingTarget = 0
     @Published private(set) var trainingRejected = 0
     @Published var selfPlayLearningEnabled = UserDefaults.standard.object(forKey: "gomoku.eclipse.selfplay-feedback") as? Bool ?? true {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
@@ -219,6 +220,7 @@ final class NativeGomokuAppController: ObservableObject {
         trainingWarning = nil
         trainingAttempted = 0
         trainingRejected = 0
+        trainingTarget = games
         let starting = trainedGames
         trainingTask = Task.detached(priority: .utility) { [weak self] in
             for batch in 0..<games {
