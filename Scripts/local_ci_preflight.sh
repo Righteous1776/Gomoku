@@ -22,6 +22,7 @@ inbox() {
   python3 -m unittest discover -s Scripts/tests -v
 }
 provenance() {
+  python3 Scripts/check_private_bundle.py
   python3 Scripts/verify_package.py
   python3 Scripts/audit_git_blobs.py
   python3 Scripts/audit_migration.py
@@ -37,12 +38,14 @@ ios() {
   command -v xcodegen >/dev/null || { echo 'BLOCKED: XcodeGen missing' >&2; exit 3; }
   xcodebuild -version
   xcrun --sdk iphonesimulator --show-sdk-version
+  python3 Scripts/check_private_bundle.py
   xcodegen generate --spec project.yml
   xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
   local phone_id
   phone_id="$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in reversed(sorted(d)) if ".iOS-" in runtime for x in d[runtime] if x["name"].startswith("iPhone")))')"
   xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" -derivedDataPath DerivedData -parallel-testing-enabled NO -resultBundlePath GomokuTests.xcresult CODE_SIGNING_ALLOWED=NO test
   xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+  python3 Scripts/check_private_bundle.py --app DerivedData/Build/Products/Debug-iphonesimulator/Gomoku.app --app DerivedData/Build/Products/Release-iphonesimulator/Gomoku.app --manifest DerivedData/Privacy/public-build.json
 }
 case "$MODE" in
   core) core ;;
