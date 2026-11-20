@@ -28,6 +28,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published var formationMode: GomokuFormationMode = .automatic
     @Published private(set) var archiveWarning: String?
     @Published private(set) var trainedGames = 0
+    @Published private(set) var isInitialTrainingAuditRunning = true
     @Published private(set) var isNativeTraining = false
     @Published private(set) var isBootstrappingSeed = false
     @Published private(set) var trainingWarning: String?
@@ -72,15 +73,30 @@ final class NativeGomokuAppController: ObservableObject {
         localMatchEvidence = GomokuLocalMatchEvidence(
             directory: root.appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
         )
-        trainedGames = trainingJournal.count()
         archivedGames = (try? archive.page(limit: 1).totalFiles) ?? 0
         recoveryAvailable = latestRestorableMatch() != nil
         savedDeveloperLessons = developerLessons.lessons.count
-        // Seed bootstrap runs only for the production sandbox; injected test
-        // directories never silently receive fixture or bundled data.
-        if archiveDirectory == nil && trainingDirectory == nil {
-            beginSeedBootstrap()
+        let journalFolder = trainingJournal.directory
+        let production = archiveDirectory == nil && trainingDirectory == nil
+        // The full historical replay pass can be huge and must never block
+        // the initial board render or interactive scrolling on MainActor.
+        Task.detached(priority: .utility) { [weak self] in
+            let report = GomokuNativeTrainingJournal(directory: journalFolder).inspect()
+            await self?.finishInitialTrainingAudit(report, production: production)
         }
+    }
+
+    private func finishInitialTrainingAudit(
+        _ report: GomokuNativeTrainingJournal.VerificationReport,
+        production: Bool
+    ) {
+        trainedGames = report.accepted
+        isInitialTrainingAuditRunning = false
+        if report.invalid > 0 || report.duplicates > 0 {
+            trainingWarning = "训练库复验发现损坏 \(report.invalid) 项、重复 \(report.duplicates) 项；原文件已保留。"
+        }
+        // No bootstrap overlap with the initial audit or a newly started batch.
+        if production && !isNativeTraining { beginSeedBootstrap() }
     }
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
@@ -466,6 +482,7 @@ final class NativeGomokuAppController: ObservableObject {
 
     func beginNativeSelfPlay(games: Int = 10) {
         guard !isNativeTraining, !isBootstrappingSeed,
+              !isInitialTrainingAuditRunning,
               [1, 10, 100, 1000].contains(games) else { return }
         trainingGeneration = UUID()
         let token = trainingGeneration
