@@ -71,8 +71,8 @@ final class GomokuLegacyLearningImporter {
     }
 
     @discardableResult
-    func importPackage(from selectedURL: URL, authorizationExpiresAt: Date = .distantPast) throws -> ImportReport {
-        guard Date() < authorizationExpiresAt else { throw ImportError.unauthorized }
+    func importPackage(from selectedURL: URL, authorization: GomokuDeveloperPermit.Authorization? = nil) throws -> ImportReport {
+        guard let authorization, authorization.isValid else { throw ImportError.unauthorized }
         let scoped = selectedURL.startAccessingSecurityScopedResource()
         defer { if scoped { selectedURL.stopAccessingSecurityScopedResource() } }
         guard selectedURL.lastPathComponent.lowercased().hasSuffix(".vltrain.json") else {
@@ -187,24 +187,30 @@ final class GomokuLegacyLearningImporter {
         guard validated.accepted == oldReport.accepted + imported else {
             throw ImportError.invalidHistory
         }
-        // Revalidate the time-bound device-owner permit at the actual write boundary.
-        guard Date() < authorizationExpiresAt else { throw ImportError.unauthorized }
-        let backup: URL? = manager.fileExists(atPath: directory.path)
-            ? parent.appendingPathComponent("ImportedLegacyLearningV1.backup-" + UUID().uuidString)
-            : nil
-        if let backup { try manager.moveItem(at: directory, to: backup) }
-        do {
-            try manager.moveItem(at: stage, to: directory)
-            needsCleanup = false
-        } catch {
-            if let backup { try? manager.moveItem(at: backup, to: directory) }
-            throw error
+        // The privileged directory swap is atomic with permit validation:
+        // revoking the developer session prevents a stale detached importer
+        // from modifying the training knowledge base.
+        guard let committed = try authorization.commit({
+            let backup: URL? = manager.fileExists(atPath: directory.path)
+                ? parent.appendingPathComponent("ImportedLegacyLearningV1.backup-" + UUID().uuidString)
+                : nil
+            if let backup { try manager.moveItem(at: directory, to: backup) }
+            do {
+                try manager.moveItem(at: stage, to: directory)
+                needsCleanup = false
+            } catch {
+                if let backup { try? manager.moveItem(at: backup, to: directory) }
+                throw error
+            }
+            return ImportReport(
+                imported: imported, duplicate: duplicated,
+                ignoredNonGomoku: ignored, totalUnique: validated.accepted,
+                backup: backup
+            )
+        }) else {
+            throw ImportError.unauthorized
         }
-        return ImportReport(
-            imported: imported, duplicate: duplicated,
-            ignoredNonGomoku: ignored, totalUnique: validated.accepted,
-            backup: backup
-        )
+        return committed
     }
 
     private static func fnv(_ data: Data) -> String {
