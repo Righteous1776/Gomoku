@@ -32,7 +32,8 @@ final class GomokuNativeTrainingResourceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let journal = GomokuNativeTrainingJournal(directory: directory)
         let first = try GomokuBundledSeedBootstrap.importVerifiedSeed(from: url, into: journal)
-        XCTAssertGreaterThan(first.accepted, 0)
+        XCTAssertEqual(first.accepted, 236, "Original seed is not 2000 independent games")
+        XCTAssertEqual(first.duplicate, 1_764)
         XCTAssertEqual(first.rejected, 0)
         let second = try GomokuBundledSeedBootstrap.importVerifiedSeed(from: url, into: journal)
         XCTAssertEqual(second.accepted, 0)

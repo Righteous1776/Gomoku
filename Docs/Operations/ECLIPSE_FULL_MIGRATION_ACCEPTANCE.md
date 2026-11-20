@@ -87,6 +87,13 @@ Changes staged in PR #13 only:
 
 Current runner check at `9e6b6f5`: iOS Actions `44785011256`, C++/Python `44785011290`, Inbox Lite `44785011337` all show **failure before any job steps / assigned runner evidence**. These are not verified compiler/test failures nor passing checks. Do not mark the UI TESTED or promote this PR.
 
+## Authentic personal training archive and seed replay · 2026-11-21
+
+- Source original file 285,074 bytes preserved in `Migration/OwnerEvidence/VeilLink-Gomoku-OwnerTraining-20261031.vltrain.json`, byte-for-byte blob SHA `811255cc73f3d79ef2aa4c768a2b5ed1679ba8a4`. Payload checksum `c52154f68a0cb20c`: 28 legal original games, 10 completed and mutually unique, 18 incomplete and legally replayed, 1,205 aggregate hash-only positions retained but not promoted.
+- Original native seed 2,000 records is already byte-identical. Independent source replay confirmed 2,000/2,000 legal, **236 unique, 1,764 duplicates**; FNV `29e9808a4a69618b`. Python and XCTest regression assertions newly written; executing the tests is blocked by GitHub Actions no-runner state.
+- Owner-only, nondefault bundle staging script and authenticated developer import are wired. Follow-on integration retains full raw input inside `ImportedLegacyLearningV1/RawSources` after user selection; real on-device ingestion remains NOT VERIFIED.
+- Historical source R6/R8 5,141-game raw private bundles, 62,500 surrogate experiment log, shared VLPOL model and 224 MB three-game dataset are NOT additional native ECLIPSE training evidence present in GitHub. See `Docs/Operations/REAL_TRAINING_DATA_MIGRATION.md`.
+
 ## Owner decision and rollback
 
 **Decision: NOT MERGEABLE / NOT RELEASABLE** pending iOS CI, above P0 gates, parity review and Owner approval. All work stays in `integration/veillink-migration-consolidated` attached to PR #13. Revert individual new commits if regressions surface; never mutate `Legacy/Original/` bytes or the source `VeilLink` repository.

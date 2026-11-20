@@ -19,6 +19,13 @@ class OwnerTrainingEvidenceTests(unittest.TestCase):
         self.assertEqual(report["hashedPositionAggregates"], 1205)
         self.assertEqual(report["uniqueComplete"], 10)
 
+    def test_native_seed_has_236_real_unique_games(self):
+        data = (evidence.ROOT / "Apps/iOS/Gomoku/Resources/GomokuNativeTrainingSeed.json").read_bytes()
+        report = evidence.audit_native_seed(data)
+        self.assertEqual(report["legalTerminalRecords"], 2000)
+        self.assertEqual(report["distinctCompletedGames"], 236)
+        self.assertEqual(report["duplicateGames"], 1764)
+
     def test_raw_bytes_must_remain_exact(self):
         mutated = evidence.ARCHIVE.read_bytes() + b" "
         with self.assertRaisesRegex(ValueError, "blob changed"):
