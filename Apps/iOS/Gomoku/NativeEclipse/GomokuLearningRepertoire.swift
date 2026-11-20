@@ -52,7 +52,8 @@ enum GomokuLearningRepertoire {
         currentMoves: [VeilGomokuMatchArchive.Move],
         humanStone: UInt8,
         includeNativeSelfPlay: Bool = true,
-        importedLegacyDirectory: URL? = nil
+        importedLegacyDirectory: URL? = nil,
+        localEvidence: GomokuLocalMatchEvidence? = nil
     ) -> BuildReport {
         var humanStats: [String: [String: Stat]] = [:]
         var nativeStats: [String: [String: Stat]] = [:]
@@ -61,11 +62,19 @@ enum GomokuLearningRepertoire {
         var replies: [String: [String: Int]] = [:]
 
         let archive = VeilGomokuMatchArchive(directory: archiveDirectory)
+        let proof = localEvidence ?? GomokuLocalMatchEvidence(
+            directory: archiveDirectory.deletingLastPathComponent()
+                .appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
+        )
         var offset = 0
         // The archive validates each game before returning it; never treat an
         // interrupted game as a completed outcome or training evidence.
         while let page = try? archive.page(offset: offset, limit: 50) {
             for match in page.matches {
+                // Files-imported reference matches may be replayable but are
+                // not evidence that the player actually completed the game.
+                // Only HMAC-attested *local* records influence search weights.
+                guard proof.isVerifiedLocal(match) else { continue }
                 let result: AdaptiveBoardGameResult
                 switch match.status {
                 case .aiWon: result = .aiWon
