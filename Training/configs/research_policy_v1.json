@@ -1,0 +1,10 @@
+{
+  "schema": "eclipse.experiment.v1",
+  "status": "research-not-promoted",
+  "rules": "freestyle-15",
+  "training_source": "C++ prototype self-play only until verified legacy migration",
+  "seed": 42,
+  "model": "research-policy-conv3-32-64-1",
+  "evaluation": "paired side-swap matches and equal time/hardware budget",
+  "deployment": "disabled pending model export and strength regression"
+}

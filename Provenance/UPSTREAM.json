@@ -1,0 +1,12 @@
+{
+  "schema": "gomoku.upstream.v1",
+  "upstream_repo": "Righteous1776/VeilLink",
+  "upstream_url": "https://github.com/Righteous1776/VeilLink",
+  "base_commit": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "inspected_on": "2026-11-20",
+  "source_license": "MIT License, Copyright 2026 ZeoStudio",
+  "license_requirement": "Preserve original license and independently audit transitive third-party resources",
+  "extraction": "Run Scripts/migrate_from_veillink.py against a clean checkout at base_commit",
+  "source_identical_criteria": "Exact-byte SHA256 stage for files under Legacy/Original; all adapted copies have explicit diff and test evidence",
+  "exclusions": ["personally identifiable match history", "unverified NPZ archives", "signing credentials", "unrelated VeilFly media weights", "compiled IPA artifacts"]
+}

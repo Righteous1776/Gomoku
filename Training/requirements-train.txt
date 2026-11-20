@@ -1,0 +1,2 @@
+# Optional and isolated from iOS app. Freeze a reproducible lockfile during Work integration.
+torch>=2.2,<3

@@ -1,0 +1,13 @@
+给 ChatGPT Work 的任务（请连同 Gomoku_Repository_Engineering_Package.zip 一起发送）：
+
+请直接执行压缩包根目录 WORK_HANDOFF.md 的全部工程任务，不要只复述规划。
+
+我要求新建独立的 GitHub 私有仓库 Righteous1776/Gomoku，产品名称 Gomoku，Bundle ID studio.zeo.gomoku，AI 引擎 ECLIPSE，界面固定使用 VeilLink 原版“拟物仪器”（instrumentAuto）主题。原始 VeilLink 仓库保持只读，不能修改其 main、版本、源码、签名和发布流程。
+
+务必以已经核实的 VeilLink commit 0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32 作为固定迁移基线，执行 Scripts/migrate_from_veillink.py 的真实源码提取、SHA256 审计及 Swift 源码实际集成。项目应保留原版 ECLIPSE 的棋力、七档难度、天元 6×、训练/自对弈、棋谱/历史、轨迹可视化、数据导入导出，并独立实现五子棋双机蓝牙加密对局；不得改成玩具级 AI。将临时 iOS 壳替换为真实 VeilLink 组件，确保拟物仪器主题完全一致。
+
+同时保留可移植的 C++20 AI 核心、C ABI、Python/PyTorch 训练框架、自动评测竞技场和 GitHub CI。C++ 原型须在完成与原版 ECLIPSE 的战术/棋力等价与强度评测之前保持实验状态，原版 Swift 引擎作为正式默认引擎。
+
+请在同一次 Work 执行中尽可能完成建库、提取、迁移、编译、测试、CI、打包，并给出新仓库真实链接、提交、PR、测试日志、可用构建物。只有具备有效签名条件、设备验收和发布授权时才可认定正式 IPA 完成。不能做的项目请标明 BLOCKED 或 NOT RUN，不要宣称已经完成。禁止把私人棋谱、聊天、签名证书、未验证的 NPZ 权重推送到 GitHub。
+
+必须执行验收表 Docs/QA/RELEASE_GATES.md，最终按 WORK_HANDOFF.md 第 10 节格式汇报。

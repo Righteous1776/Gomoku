@@ -1,0 +1,32 @@
+name: Developer-only unsigned IPA (manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dev-ipa:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate --spec project.yml
+      - name: Build unsigned generic device app
+        run: xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned device app for development investigation only
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release-iphoneos/Gomoku.app"
+          test -d "$APP"
+          mkdir -p artifacts/Payload
+          ditto "$APP" artifacts/Payload/Gomoku.app
+          cd artifacts
+          zip -qr Gomoku-UNSIGNED-DEV-ONLY.ipa Payload
+          shasum -a 256 Gomoku-UNSIGNED-DEV-ONLY.ipa > Gomoku-UNSIGNED-DEV-ONLY.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gomoku-unsigned-dev-ipa-not-installable-by-default
+          path: |
+            artifacts/Gomoku-UNSIGNED-DEV-ONLY.ipa
+            artifacts/Gomoku-UNSIGNED-DEV-ONLY.sha256
+          retention-days: 7
