@@ -132,6 +132,9 @@ struct GomokuDeveloperLearningLabView: View {
                         if let report = engine.legacyImportStatus {
                             Text(report).font(.caption).foregroundStyle(.secondary)
                         }
+                        GomokuRetainedLegacyEvidenceView(
+                            engine: engine, authorization: authorization
+                        )
                         Button("锁定开发者会话", role: .destructive) {
                             if engine.developerTeachingMode { engine.stopDeveloperTeaching() }
                             authorization.revoke()
