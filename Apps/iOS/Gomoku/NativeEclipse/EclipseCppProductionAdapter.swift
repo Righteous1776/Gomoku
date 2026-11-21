@@ -248,20 +248,24 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         // Owner-authorized V3 stopping governs ONLY adaptive timing.
         // Trainer-selected depth, candidate widths and verified model SHA
         // remain intact; legacy budgeted/V2 and maxDepth=1 are untouched.
-        let useAdaptiveV3 = policy.mode == .adaptive && policy.maxDepth >= 2
+        // Both verified trainer modes can use the owner-approved adaptive
+        // stopping algorithm. Budgeted mode RETAINS its approved hard cap.
+        // Depth below 5 keeps its historical short-depth V2 behavior.
+        let useAdaptiveV3 = policy.maxDepth >= 5
         guard !useAdaptiveV3 || eg_adaptive_stop_abi_version() == 3 else {
             return nil // Never silently fall back to unbounded thinking.
         }
         var stopping = EGAdaptiveStopConfigV3()
         stopping.size_bytes = UInt32(MemoryLayout<EGAdaptiveStopConfigV3>.size)
-        stopping.minimum_depth = Int32(min(3, policy.maxDepth))
-        stopping.stable_rounds = Int32(min(3, policy.maxDepth))
+        stopping.minimum_depth = Int32(min(5, policy.maxDepth))
+        stopping.stable_rounds = Int32(min(4, policy.maxDepth))
         stopping.minimum_score_gap = 1800
-        // Finite ceilings, not fixed per-move think times: safe early
-        // convergence is faster, an ambiguous/tactical board gets longer.
-        stopping.clear_budget_ms = 1200
-        stopping.uncertain_budget_ms = 6000
-        stopping.complex_budget_ms = 45000
+        // Owner policy defines the absolute ceiling. No hidden extra 45s.
+        // Calm boards may still finish well before even the clear ceiling.
+        let trainerHardCap = Int64(policy.maxWallTimeMilliseconds ?? 45000)
+        stopping.clear_budget_ms = min(1200, trainerHardCap)
+        stopping.uncertain_budget_ms = min(6000, trainerHardCap)
+        stopping.complex_budget_ms = min(45000, trainerHardCap)
 
         var adaptiveRun = EGAdaptiveRunV3()
         adaptiveRun.size_bytes = UInt32(MemoryLayout<EGAdaptiveRunV3>.size)
