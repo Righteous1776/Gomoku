@@ -17,7 +17,7 @@ final class EclipseGeneration3ResearchCatalogTests: XCTestCase {
         XCTAssertEqual(catalog.applicationVersion, "2.0.0")
         XCTAssertEqual(catalog.label, "ECLIPSE 3.0")
         XCTAssertEqual(catalog.generation, "3.0")
-        XCTAssertEqual(catalog.flagshipAliasName, "Astra 3.0")
+        XCTAssertEqual(catalog.flagshipAliasName, "3.0 Astra")
         XCTAssertEqual(catalog.flagshipAliasId, "eclipse-3.0-astra")
         XCTAssertEqual(catalog.flagshipCheckpointId, "eclipse-3.0-r07-249")
         XCTAssertEqual(catalog.checkpoints.map(\.trees), [244, 249, 259, 274, 289])
