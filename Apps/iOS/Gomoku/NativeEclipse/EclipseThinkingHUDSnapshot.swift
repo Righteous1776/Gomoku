@@ -41,6 +41,9 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Its native engine snapshot has finished and remains reviewable until
     /// the board, model or developer authorization changes.
     var hasTeachingReview: Bool = false
+    /// A completed V3 search's real convergence and compute-cost evidence;
+    /// hidden until the move finishes or authorized teaching review begins.
+    var adaptiveEvidence: EclipseAdaptiveStopEvidence? = nil
     var nativeRootRanks: [Int] = []
     /// A validated *prefix*, not a guaranteed full-depth PV or proof tree.
     /// Caller has replayed every move on the actual 15×15 board.
