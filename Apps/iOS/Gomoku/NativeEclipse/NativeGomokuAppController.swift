@@ -528,12 +528,31 @@ final class NativeGomokuAppController: ObservableObject {
         )
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
+            // Preserve the original ECLIPSE local learning and owner-defined
+            // formation on BOTH Swift and C++ routes. Only verified local
+            // evidence influences the C++ root bonuses; no private training
+            // history is copied into the model or emitted over the ABI.
+            let learning = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: existingMoves,
+                humanStone: humanStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot.applying(lessonInfluence)
+            guard !Task.isCancelled else { return }
             // The official architecture first dispatches a verified trained
             // model through native C++ V2. This is the same production worker
             // path as original Swift, not a separate developer-only game.
             if let cppRuntime, let verifiedTrainer {
+                let rooted = EclipseCppRootLearningPolicy.build(
+                    state: boardAtStart,
+                    player: boardAtStart.currentPlayer,
+                    learning: learning,
+                    formation: activeFormation
+                )
                 let cppDecision = cppRuntime.decide(
-                    policy: verifiedTrainer.computePolicy
+                    policy: verifiedTrainer.computePolicy,
+                    rootPolicy: rooted
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
@@ -548,16 +567,8 @@ final class NativeGomokuAppController: ObservableObject {
                 // success. Continue through the trusted original Swift route
                 // only if the user has not cancelled the session.
             }
-            // Construct from verified records off the main/UI actor. The exact
-            // immutable snapshot is used for this decision, not display only.
-            let learning = GomokuLearningRepertoire.build(
-                journalDirectory: journalDirectory,
-                archiveDirectory: archiveDirectory,
-                currentMoves: existingMoves,
-                humanStone: humanStone,
-                includeNativeSelfPlay: useNativeTraining
-            ).snapshot.applying(lessonInfluence)
-            guard !Task.isCancelled else { return }
+            // The SAME already-validated local snapshot feeds the original
+            // Swift fallback, preserving exact provenance and game semantics.
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
