@@ -107,6 +107,8 @@ struct VeilMachinedRim: View {
 /// Small sunken, slotted fastener; under the board's existing UIKit tap
 /// surface. Geometry and search overlays remain entirely untouched.
 /// Recessed smoke-glass cover in the metal frame. Purely a background.
+/// Subtle optical inset only on display panels. No sweeping lights,
+/// stacked chrome bevels, heavy transparency or animations.
 struct VeilGlassPanel: View {
     var cornerRadius: CGFloat = 14
     @ObservedObject private var appearance = VeilAppearanceController.shared
@@ -114,49 +116,23 @@ struct VeilGlassPanel: View {
     var body: some View {
         let dark = appearance.isDarkAppearance
         let shape = RoundedRectangle(cornerRadius: cornerRadius,
-                                      style: .continuous)
+                                     style: .continuous)
         shape
             .fill(LinearGradient(
                 colors: dark
-                    ? [Color(red: 0.15, green: 0.17, blue: 0.19).opacity(0.81),
-                       Color(red: 0.052, green: 0.061, blue: 0.074).opacity(0.76)]
-                    : [Color.white.opacity(0.56),
-                       Color(red: 0.86, green: 0.88, blue: 0.89).opacity(0.33)],
-                startPoint: .topLeading, endPoint: .bottomTrailing
+                    ? [Color(red: 0.12, green: 0.14, blue: 0.16).opacity(0.42),
+                       Color.black.opacity(0.24)]
+                    : [Color.white.opacity(0.40),
+                       Color(red: 0.81, green: 0.83, blue: 0.86).opacity(0.20)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
             ))
             .overlay {
-                shape.fill(LinearGradient(
-                    stops: [
-                        .init(color: Color.white.opacity(dark ? 0.14 : 0.37),
-                              location: 0),
-                        .init(color: Color.white.opacity(dark ? 0.035 : 0.08),
-                              location: 0.23),
-                        .init(color: .clear, location: 0.40),
-                        .init(color: Color.black.opacity(dark ? 0.15 : 0.025),
-                              location: 1)
-                    ],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-            }
-            .overlay {
                 shape.strokeBorder(
-                    LinearGradient(colors: [
-                        Color.white.opacity(dark ? 0.32 : 0.80),
-                        Color.white.opacity(0.055),
-                        Color.black.opacity(dark ? 0.65 : 0.22)
-                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: 1
+                    dark ? Color.white.opacity(0.14)
+                         : Color.white.opacity(0.46),
+                    lineWidth: 0.75
                 )
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: max(1, cornerRadius - 3),
-                                 style: .continuous)
-                    .strokeBorder(
-                        dark ? Color.black.opacity(0.50)
-                             : Color.white.opacity(0.39),
-                        lineWidth: 0.8
-                    )
-                    .padding(3)
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)

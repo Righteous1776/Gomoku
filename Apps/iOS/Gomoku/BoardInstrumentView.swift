@@ -49,10 +49,7 @@ private struct VeilBoardTapSurface: UIViewRepresentable {
 }
 
 struct GomokuBoardView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var appearance = VeilAppearanceController.shared
-    @State private var impactIndex: Int?
-    @State private var impactScale: CGFloat = 1
     let state: GomokuState
     let localPlayer: MiniGamePlayer
     let enabled: Bool
@@ -76,25 +73,6 @@ struct GomokuBoardView: View {
                 let step = (side - margin * 2) / CGFloat(GomokuState.size - 1)
                 boardCanvas(side: side, dark: dark, margin: margin, step: step)
                     .frame(width: side, height: side)
-                    .animation(
-                        VeilMotionPolicy.animation(
-                            .resolve, reduceMotionRequested: reduceMotion
-                        ),
-                        value: state.moveCount
-                    )
-                    .onChange(of: state.lastMove) { index in
-                        guard !eclipseSessionID.isEmpty, !reduceMotion,
-                              let index else {
-                            impactIndex = nil
-                            impactScale = 1
-                            return
-                        }
-                        impactIndex = index
-                        impactScale = 0
-                        withAnimation(.easeOut(duration: 0.65)) {
-                            impactScale = 1
-                        }
-                    }
             }
             .aspectRatio(1, contentMode: .fit)
             HStack {
@@ -169,21 +147,7 @@ struct GomokuBoardView: View {
                     .position(gomokuPoint(index: last, margin: margin, step: step))
                     .allowsHitTesting(false)
             }
-            // Original VeilLink R17: a single event-bound impact pulse.
-            // Its overlay cannot intercept a native board gesture.
-            if !eclipseSessionID.isEmpty && !reduceMotion,
-               let index = impactIndex, state.lastMove == index {
-                Circle()
-                    .stroke(
-                        VeilTheme.goldBright.opacity(Double(1 - impactScale)),
-                        lineWidth: 2
-                    )
-                    .frame(width: step * (0.7 + 1.5 * impactScale),
-                           height: step * (0.7 + 1.5 * impactScale))
-                    .position(gomokuPoint(index: index, margin: margin, step: step))
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
+            // The last committed stone has a static gold dot; no ripple.
             boardTapLayer(margin: margin, step: step)
         }
     }
@@ -276,7 +240,6 @@ struct GomokuBoardView: View {
                     .shadow(color: Color.black.opacity(0.28),
                             radius: 1.4, x: 0, y: 1)
                     .position(gomokuPoint(index: index, margin: margin, step: step))
-                    .transition(.scale.combined(with: .opacity))
             }
         }
         .allowsHitTesting(false)

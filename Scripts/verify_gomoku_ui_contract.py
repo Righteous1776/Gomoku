@@ -17,6 +17,8 @@ PATHS = {
     "appearance": "DesignSystem/AppearanceTheme.swift",
     "runtime": "Visualization/VeilEclipseRuntimeInstruments.swift",
     "materials": "DesignSystem/InstrumentComponents.swift",
+    "console": "Visualization/VeilEclipseComputeConsole.swift",
+    "thought": "Visualization/VeilEclipseBoardThoughtField.swift",
 }
 
 
@@ -33,6 +35,8 @@ def evaluate_sources(sources):
     appearance = sources["appearance"]
     runtime = sources["runtime"]
     materials = sources["materials"]
+    console = sources["console"]
+    thought = sources["thought"]
 
     # Compare complete layout rows, not substring positions: "board" is
     # also a prefix of "boardQuickControls".
@@ -44,14 +48,8 @@ def evaluate_sources(sources):
         "liveSearchRibbon", "advancedPanel"
     }]
 
-    # Scope the gesture assertion to the genuine move-impact effect only.
-    # Other static decorations must not accidentally satisfy this check.
-    pulse_section = board.split(
-        "// Original VeilLink R17: a single event-bound impact pulse.", 1
-    )
-    pulse = pulse_section[1].split("VeilBoardTapSurface(enabled:", 1)[0] \
-        if len(pulse_section) == 2 else ""
-
+    # The committed last stone is marked statically. No pulsing visual
+    # effect is allowed to cause large board redraws or compete with taps.
     board_view_section = home.split("    private var board: some View {", 1)
     board_view = board_view_section[1].split(
         "    private var resultCard: some View {", 1
@@ -76,9 +74,21 @@ def evaluate_sources(sources):
         "native board tap surface":
             "GomokuBoardView(" in home
             and "VeilBoardTapSurface(enabled: enabled)" in board,
-        "impact respects reduced motion and cannot intercept taps":
-            "!eclipseSessionID.isEmpty && !reduceMotion" in pulse
-            and ".allowsHitTesting(false)" in pulse,
+        "static last-move marker replaces board impact animation":
+            "// The last committed stone has a static gold dot" in board
+            and "withAnimation(" not in board
+            and ".animation(" not in board
+            and "impactScale" not in board,
+        "no fake animated console, only native measured values":
+            "VeilEclipseConsoleStream.lines" not in console
+            and "TimelineView(" not in console
+            and "liveMetrics?.visitedNodes" in console
+            and "nodesPerSecond" in console,
+        "optional quiet board trace stays disabled by default":
+            '?? false' in controller
+            and 'by: 0.5' in thought
+            and 'searchTrace.snapshot(' in thought
+            and "ProcessInfo.processInfo.systemUptime" not in thought,
         "source-aligned game hierarchy":
             hierarchy == ["eclipseIdentity", "boardQuickControls", "board",
                           "liveSearchRibbon", "statusCard", "advancedPanel"],
@@ -123,7 +133,7 @@ def evaluate_sources(sources):
             and materials.count(".allowsHitTesting(false)") >= 3
             and "VeilMachinedRivet(" in board
             and "VeilMachinedRim(" in board
-            and "VeilMachinedRim(" in home
+            and "VeilInstrumentPlate(" in home
             and "let margin = side * 0.055" in board
             and "hypot(dx, dy) <= step * 0.52" in board,
         "day/night board material is adaptive without changing tap geometry":

@@ -261,15 +261,11 @@ struct InstrumentHomeView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-        .background {
-            ZStack {
-                VeilInstrumentPlate(
-                    shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                )
-                VeilGlassPanel(cornerRadius: 11).padding(4)
-            }
-        }
-        .overlay(VeilMachinedRim(cornerRadius: 14, width: 1.35))
+        .background(
+            VeilInstrumentPlate(
+                shape: RoundedRectangle(cornerRadius: 12, style: .continuous)
+            )
+        )
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
@@ -543,13 +539,9 @@ struct InstrumentHomeView: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
             .background(
-                ZStack {
-                    VeilInstrumentPlate(
-                        shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
-                    VeilGlassPanel(cornerRadius: 11).padding(4)
-                }
-                .overlay(VeilMachinedRim(cornerRadius: 14, width: 1.2))
+                VeilInstrumentPlate(
+                    shape: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
             )
         }
         .accessibilityIdentifier("gomoku.eclipse.live-telemetry")

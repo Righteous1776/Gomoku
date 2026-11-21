@@ -62,7 +62,7 @@ final class NativeGomokuAppController: ObservableObject {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
 
-    @Published var eclipseVisualizationEnabled = (UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace") as? Bool ?? true) {
+    @Published var eclipseVisualizationEnabled = (UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace") as? Bool ?? false) {
         didSet {
             UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
             if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }

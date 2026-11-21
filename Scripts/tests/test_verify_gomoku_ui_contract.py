@@ -46,14 +46,27 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(checks["original runtime instrument stays folded"])
 
-    def test_ungated_stone_impact_is_rejected(self):
-        self.sources["board"] = self.sources["board"].replace(
-            "!eclipseSessionID.isEmpty && !reduceMotion",
-            "!eclipseSessionID.isEmpty", 1
+    def test_automatic_board_pulses_are_rejected(self):
+        self.sources["board"] += "\nwithAnimation(.easeOut(duration: 1)) {}"
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(
+            checks["static last-move marker replaces board impact animation"]
+        )
+
+    def test_decorative_console_stream_is_rejected(self):
+        self.sources["console"] += "\nVeilEclipseConsoleStream.lines"
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(
+            checks["no fake animated console, only native measured values"]
+        )
+
+    def test_live_board_trace_default_must_be_off(self):
+        self.sources["controller"] = self.sources["controller"].replace(
+            '?? false', '?? true', 1
         )
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(
-            checks["impact respects reduced motion and cannot intercept taps"]
+            checks["optional quiet board trace stays disabled by default"]
         )
 
     def test_wide_ipad_cockpit_must_retain_responsive_breakpoint(self):
