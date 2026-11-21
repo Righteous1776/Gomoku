@@ -181,14 +181,24 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertEqual(teaching.visibleTeachingPV.count, 3)
         teaching.nativeCompletedPV = [113, 112]
         XCTAssertTrue(teaching.visibleTeachingPV.isEmpty) // wrong root
-        teaching.nativeCompletedPV = [112, 113, 98]
-        teaching.isSearching = false
-        XCTAssertTrue(teaching.visibleTeachingPV.isEmpty)
-        teaching.isSearching = true
-        teaching.context = .formal
-        XCTAssertTrue(teaching.visibleTeachingPV.isEmpty)
-        teaching.context = .postgame
-        XCTAssertTrue(teaching.visibleTeachingPV.isEmpty)
+        func fixture(
+            _ context: EclipseThinkingHUDSnapshot.Context,
+            searching: Bool
+        ) -> EclipseThinkingHUDSnapshot {
+            var result = EclipseThinkingHUDSnapshot(
+                searchID: UUID(), positionRevision: 2, context: context,
+                isSearching: searching, backend: "C++20 V2",
+                executedModel: "ECLIPSE 2.0 Astra", checkpointSHA256: nil,
+                computePolicySHA256: nil, elapsedMilliseconds: 1000,
+                visitedNodes: 4500, completedDepth: 3, stopReason: nil
+            )
+            result.verifiedTeachingCandidate = 112
+            result.nativeCompletedPV = [112, 113, 98]
+            return result
+        }
+        XCTAssertTrue(fixture(.teaching, searching: false).visibleTeachingPV.isEmpty)
+        XCTAssertTrue(fixture(.formal, searching: true).visibleTeachingPV.isEmpty)
+        XCTAssertTrue(fixture(.postgame, searching: true).visibleTeachingPV.isEmpty)
     }
 
     @MainActor
