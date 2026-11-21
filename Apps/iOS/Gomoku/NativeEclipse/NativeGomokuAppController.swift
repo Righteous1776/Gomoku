@@ -606,8 +606,13 @@ final class NativeGomokuAppController: ObservableObject {
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
+            // A failed 2.0 C++ dispatch must not inherit an implicitly
+            // persisted Swift economy selection from 2.0 onboarding.
+            // Preserve the historical FULL Swift search as comparison.
+            let fallbackMode: BoardSearchMode = model.requiresVerifiedCheckpoint
+                ? .full : selectedMode
             let budget = GomokuBotBudget.forDifficulty(
-                    selectedTier, profileLabel: selectedMode.budgetProfileLabel
+                    selectedTier, profileLabel: fallbackMode.budgetProfileLabel
                 ).reinforced(by: learning.trainingLevel)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,

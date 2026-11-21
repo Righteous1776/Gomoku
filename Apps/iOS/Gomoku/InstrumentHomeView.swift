@@ -325,6 +325,15 @@ struct InstrumentHomeView: View {
                                         .font(.caption)
                                         .foregroundColor(VeilTheme.secondaryText)
                                         .multilineTextAlignment(.leading)
+                                    if model == .astra10 {
+                                        Text("经典 Swift 搜索 · 可作为旧版棋力对照")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundColor(VeilTheme.goldBright)
+                                    } else if model.requiresVerifiedCheckpoint {
+                                        Text("2.0 C++ 搜索 · 实战棋力回归验证中")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundColor(VeilTheme.secondaryText)
+                                    }
                                     Text(model.backendDescription)
                                         .font(.caption2.monospaced())
                                         .foregroundColor(VeilTheme.goldBright)
@@ -353,7 +362,7 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("Gomoku 的 ECLIPSE 2.0 依据局面威胁和多轮搜索是否收敛决定何时落子；Astra 最多 30 秒、Sol 最多 8 秒是安全预算上限，不是固定倒计时。深入分析会采用更严格的收敛判据。")
+                    Text("棋力回归保护已开启：ECLIPSE 2.0 正式对局停用未经实战验证的浅层提前落子；保留必胜、必防的快速判断与完整逐层搜索。Astra 最多 30 秒，Sol 最多 8 秒是搜索上限，并不代表棋力已经超过经典 Swift。你可以选择旧版 Astra 进行对照。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
