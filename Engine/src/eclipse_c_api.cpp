@@ -110,7 +110,13 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
     *out_status = reference.outcome;
     return 1;
 }
-EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
+EGEngine *eg_create(void){
+    EGEngine *engine = new(std::nothrow) EGEngine{};
+    // Preserve serial=0 on first use while ensuring every unused rank/PV
+    // slot obeys the documented -1 sentinel on idle readers.
+    if (engine) clear_live(engine);
+    return engine;
+}
 void eg_destroy(EGEngine *e){delete e;}
 void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; clear_live(e);}}
 int eg_play(EGEngine *e,int index){if(!e||!e->board.play(index))return 0;clear_live(e);return 1;}
