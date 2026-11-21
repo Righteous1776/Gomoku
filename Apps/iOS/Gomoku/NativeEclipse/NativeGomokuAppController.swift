@@ -77,28 +77,38 @@ final class NativeGomokuAppController: ObservableObject {
     private var activeCppSearch: EclipseCppProductionAdapter?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
-    private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
+    private let verifiedTrainerExecutions:
+        [EclipseModelID: EclipseVerifiedTrainerExecution]
+    private var verifiedTrainerExecution: EclipseVerifiedTrainerExecution? {
+        verifiedTrainerExecutions[selectedModel]
+    }
 
-    /// The new 2.x model library is not selectable just because its research
-    /// weights exist in GitHub. We must see its real checkpoint loaded by the
-    /// live C++ scorer, identical to the training Agent's approved identity.
+    /// Each 2.0 forest is independently compiled, attested and selectable.
+    /// A manifest entry alone never enables the model.
+    var verifiedSelectableModels: [EclipseModelID] {
+        [.astra20, .sol20].filter { model in
+            guard let trainer = verifiedTrainerExecutions[model] else {
+                return false
+            }
+            return EclipseCppProductionAdapter.loadedCheckpointSHA256(
+                for: model, expectedSHA256: trainer.checkpointSHA256
+            ) == trainer.checkpointSHA256
+        }
+    }
+
+    /// Compatibility with single-checkpoint inspection surfaces.
     var verifiedSelectableModel: EclipseModelID? {
-        guard let trainer = verifiedTrainerExecution,
-              trainer.model.requiresVerifiedCheckpoint,
-              EclipseCppProductionAdapter.loadedCheckpointSHA256()
-                  == trainer.checkpointSHA256
-        else { return nil }
-        return trainer.model
+        verifiedSelectableModels.first
     }
 
     var availableModels: [EclipseModelID] {
-        EclipseModelID.featuredIncludingVerified(verifiedSelectableModel)
+        EclipseModelID.featuredIncludingVerified(verifiedSelectableModels)
     }
 
     var trainerControlsCompute: Bool {
-        verifiedTrainerExecution?.model == selectedModel
-            && (!selectedModel.requiresVerifiedCheckpoint
-                || verifiedSelectableModel == selectedModel)
+        selectedModel.requiresVerifiedCheckpoint
+            && verifiedTrainerExecution != nil
+            && verifiedSelectableModels.contains(selectedModel)
     }
     private let localMatchEvidence: GomokuLocalMatchEvidence
     private var sessionHasLocalProvenance = true
@@ -119,9 +129,14 @@ final class NativeGomokuAppController: ObservableObject {
         // binding at launch, without requiring DEBUG tools or a manual
         // injection. Isolated XCTest archive roots remain deterministic.
         let productionInstall = archiveDirectory == nil && trainingDirectory == nil
-        self.verifiedTrainerExecution = verifiedTrainerExecution
-            ?? (productionInstall
-                ? EclipseTrainerProductionRegistry.loadFromBundle() : nil)
+        if let explicit = verifiedTrainerExecution {
+            self.verifiedTrainerExecutions = [explicit.model: explicit]
+        } else if productionInstall {
+            self.verifiedTrainerExecutions =
+                EclipseTrainerProductionRegistry.loadAllFromBundle()
+        } else {
+            self.verifiedTrainerExecutions = [:]
+        }
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         let root = archive.directory.deletingLastPathComponent()
@@ -138,15 +153,18 @@ final class NativeGomokuAppController: ObservableObject {
             // explicit user choices always override this default.
             if UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
-            ) == nil, let trained = self.verifiedTrainerExecution {
-                selectedModel = trained.model
-                computeTier = trained.model.defaultComputeTier
+            ) == nil,
+                let first = [EclipseModelID.astra20, .sol20].first(
+                    where: { self.verifiedSelectableModels.contains($0) }
+                ) {
+                selectedModel = first
+                computeTier = first.defaultComputeTier
             }
             if let stored = UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
                 if !saved.model.requiresVerifiedCheckpoint
-                    || verifiedSelectableModel == saved.model {
+                    || verifiedSelectableModels.contains(saved.model) {
                     selectedModel = saved.model
                     computeTier = saved.compute
                 } else {
@@ -190,7 +208,7 @@ final class NativeGomokuAppController: ObservableObject {
     /// match and avoids misattributing its result to the wrong model.
     func selectModel(_ model: EclipseModelID) {
         guard model != selectedModel else { return }
-        if model.requiresVerifiedCheckpoint && verifiedSelectableModel != model {
+        if model.requiresVerifiedCheckpoint && !verifiedSelectableModels.contains(model) {
             fallbackWarning = "\(model.name) 尚无通过核验的实际 C++ 训练检查点，不能冒充已上线模型。"
             return
         }
