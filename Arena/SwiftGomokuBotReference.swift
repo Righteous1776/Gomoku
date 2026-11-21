@@ -30,7 +30,7 @@ struct OriginalGomokuBotReference {
         let args = Array(CommandLine.arguments.dropFirst())
         guard (args.count == 4 || args.count == 6),
               args[0] == "--best", args[2] == "--ms",
-              let ms = Int(args[3]), (1...20_000).contains(ms)
+              let ms = Int(args[3]), ms >= 0
         else { throw ErrorCode.arguments }
         let tier: BoardBotDifficulty?
         if args.count == 6 {
@@ -54,6 +54,9 @@ struct OriginalGomokuBotReference {
             return
         }
 
+        // The research Arena can request any nonnegative trainer-selected ms;
+        // zero means no fixed wall deadline. Legacy --tier cases remain exact
+        // historical references, not ceilings for new model checkpoints.
         // The research Arena controls the same ms budget on both engines.
         // The other native strength / tier configurations are tested later
         // with original seven-tier budgets on matched CPU/device classes.
