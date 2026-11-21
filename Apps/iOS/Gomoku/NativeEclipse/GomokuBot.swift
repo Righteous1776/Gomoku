@@ -6,6 +6,9 @@ struct GomokuBotMove: Equatable, Sendable {
     let nodes: Int
     let elapsedMilliseconds: Int
     var engineLabel: String? = nil
+    /// C++ V2 emits measured completed depth; original Swift may provide
+    /// depth separately through its search-trace metrics pipeline.
+    var completedDepth: Int? = nil
 }
 
 struct GomokuBotBudget: Equatable, Sendable {
