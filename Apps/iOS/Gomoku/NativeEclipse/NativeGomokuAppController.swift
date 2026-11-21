@@ -19,11 +19,18 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
-    /// Compatibility surface for existing seven-tier callers and tests.
-    /// The UI and runtime use selectedModel's immutable identity instead.
+    @Published private(set) var computeTier: EclipseComputeTier = .standard
+    var currentModelSelection: EclipseModelSelection {
+        EclipseModelSelection(model: selectedModel, compute: computeTier)
+    }
+    /// Compatibility with original Swift tests and seven-tier history.
     var difficulty: BoardBotDifficulty {
-        get { selectedModel.legacyDifficulty }
-        set { selectedModel = .fromLegacyDifficulty(newValue) }
+        get { currentModelSelection.legacyDifficulty }
+        set {
+            let restored = EclipseModelSelection.fromLegacyDifficulty(newValue)
+            selectedModel = restored.model
+            computeTier = restored.compute
+        }
     }
     @Published var searchMode: BoardSearchMode = .full
     @Published private(set) var archivedGames = 0
@@ -89,11 +96,21 @@ final class NativeGomokuAppController: ObservableObject {
         savedDeveloperLessons = developerLessons.lessons.count
         let journalFolder = trainingJournal.directory
         let production = archiveDirectory == nil && trainingDirectory == nil
-        if production,
-           let stored = EclipseModelID.fromStoredIdentifier(
-               UserDefaults.standard.string(forKey: EclipseModelID.selectionKey)
-           ) {
-            selectedModel = stored
+        if production {
+            if let stored = EclipseModelID.fromStoredIdentifier(
+                UserDefaults.standard.string(forKey: EclipseModelID.selectionKey)
+            ) {
+                selectedModel = stored
+            }
+            if let storedCompute = EclipseComputeTier(
+                rawValue: UserDefaults.standard.string(
+                    forKey: EclipseComputeTier.selectionKey
+                ) ?? ""
+            ) {
+                computeTier = storedCompute
+            } else {
+                computeTier = selectedModel.defaultComputeTier
+            }
         }
         // The full historical replay pass can be huge and must never block
         // the initial board render or interactive scrolling on MainActor.
@@ -125,7 +142,18 @@ final class NativeGomokuAppController: ObservableObject {
     func selectModel(_ model: EclipseModelID) {
         guard model != selectedModel else { return }
         selectedModel = model
+        computeTier = model.defaultComputeTier
         UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)
+        UserDefaults.standard.set(computeTier.rawValue, forKey: EclipseComputeTier.selectionKey)
+        reset()
+    }
+
+    /// Compute is independent of model generation, but changes the *actual*
+    /// internal original Swift search tier and therefore starts a new game.
+    func selectComputeTier(_ tier: EclipseComputeTier) {
+        guard tier != computeTier else { return }
+        computeTier = tier
+        UserDefaults.standard.set(tier.rawValue, forKey: EclipseComputeTier.selectionKey)
         reset()
     }
 
@@ -161,7 +189,7 @@ final class NativeGomokuAppController: ObservableObject {
         _ record: VeilGomokuMatchArchive.Match
     ) -> GomokuState? {
         guard record.status == .playing, record.completedAt == nil,
-              EclipseModelID.fromArchiveValue(record.difficulty) != nil else { return nil }
+              EclipseModelSelection.fromArchiveValue(record.difficulty) != nil else { return nil }
         var restored = GomokuState()
         for move in record.moves {
             let expected: UInt8 = restored.currentPlayer == .host ? 1 : 2
@@ -180,7 +208,7 @@ final class NativeGomokuAppController: ObservableObject {
     func restoreLastPlayingSession() -> Bool {
         guard let previous = latestRestorableMatch(),
               let resumed = Self.replayIncompleteMatch(previous),
-              let restoredModel = EclipseModelID.fromArchiveValue(previous.difficulty) else {
+              let restored = EclipseModelSelection.fromArchiveValue(previous.difficulty) else {
             recoveryAvailable = false
             return false
         }
@@ -194,8 +222,10 @@ final class NativeGomokuAppController: ObservableObject {
         sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
         sessionHumanStone = previous.humanStone
         humanIsBlack = previous.humanStone == 1
-        selectedModel = restoredModel
-        UserDefaults.standard.set(restoredModel.rawValue, forKey: EclipseModelID.selectionKey)
+        selectedModel = restored.model
+        computeTier = restored.compute
+        UserDefaults.standard.set(restored.model.rawValue, forKey: EclipseModelID.selectionKey)
+        UserDefaults.standard.set(restored.compute.rawValue, forKey: EclipseComputeTier.selectionKey)
         archivedMoves = previous.moves
         isThinking = false
         searchStartedAt = nil
@@ -360,7 +390,7 @@ final class NativeGomokuAppController: ObservableObject {
         let token = generation
         let boardAtStart = state
         let model = selectedModel
-        let selectedTier = model.legacyDifficulty
+        let selectedTier = currentModelSelection.legacyDifficulty
         let selectedMode = searchMode
         isThinking = true
         searchStartedAt = Date()
@@ -488,7 +518,7 @@ final class NativeGomokuAppController: ObservableObject {
         do {
             let committed = try archive.save(
                 sessionID: sessionID, moves: archivedMoves,
-                difficulty: selectedModel.rawValue,
+                difficulty: currentModelSelection.archiveValue,
                 humanStone: sessionHumanStone, status: state
             )
             // Only actual play may create the device-keyed evidence receipt.
