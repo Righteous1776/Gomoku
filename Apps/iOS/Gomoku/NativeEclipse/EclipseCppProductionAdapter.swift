@@ -265,7 +265,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
               policy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
-              Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
+              Self.activeCheckpointSHA256(of: engine, model: model) == checkpointSHA256
         else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
