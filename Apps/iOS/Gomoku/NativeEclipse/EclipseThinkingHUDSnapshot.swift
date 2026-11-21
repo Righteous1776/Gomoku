@@ -35,6 +35,14 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Actual best move of a COMPLETED native depth, not a proven win.
     /// Never populated from speculative or partially searched root branches.
     var verifiedTeachingCandidate: Int? = nil
+    /// Actual ranked C++ root shortlist, truncated to 16. Only authorized
+    /// teaching may render it and the board controller rechecks legality.
+    var nativeRootRanks: [Int] = []
+
+    var visibleTeachingRanks: [Int] {
+        guard context == .teaching, isSearching else { return [] }
+        return nativeRootRanks
+    }
 
     /// Defense in depth: a formal-game caller cannot accidentally reveal an
     /// unplayed move even if an invalid fixture sets the underlying field.
