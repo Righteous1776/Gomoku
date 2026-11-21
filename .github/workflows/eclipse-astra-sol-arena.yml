@@ -26,28 +26,24 @@ jobs:
         run: |
           python3 Engine/tests/validate_v9_arena.py \
             Arena/evidence/astra-sol-v9-full-games.jsonl
-      - name: Write results to run summary
+      - name: Play 24 additional full games at deeper equal-compute setting
+        run: |
+          build/Engine/eclipse_v9_arena --ms 250 --depth 5 --nodes 75000 --openings 4 \
+            | tee Arena/evidence/astra-sol-v9-deep-games.jsonl
+      - name: Independently replay deeper matches and verify complete terminal states
+        run: |
+          python3 Engine/tests/validate_v9_arena.py \
+            Arena/evidence/astra-sol-v9-deep-games.jsonl
+      - name: Render BOTH match tiers and color-bias statistics in Actions summary
         if: success()
         run: |
-          python3 - <<'PY'
-          import json, os
-          from pathlib import Path
-          data=[json.loads(t) for t in Path('Arena/evidence/astra-sol-v9-full-games.jsonl').read_text().splitlines()]
-          summaries=[x for x in data if x.get('type')=='summary']
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
-              f.write('## Actual full-game Gomoku: Astra / Sol / R10 (V9 weights)\n\n')
-              f.write('24 games, four synthetic openings, every pair color-swapped; 70ms maximum per move, identical node/depth/root budgets.\n\n')
-              f.write('| Contender | Opponent | Wins | Losses | Draws | Games | Score % |\n')
-              f.write('|---|---|---:|---:|---:|---:|---:|\n')
-              for x in summaries:
-                  score=100*(x['wins']+x['draws']/2)/x['games']
-                  f.write(f"| {x['model']} | {x['opponent']} | {x['wins']} | {x['losses']} | {x['draws']} | {x['games']} | {score:.1f}% |\n")
-              f.write('\n**Exploratory only** — no statistical confidence, original Swift 6x parity, or production checkpoint attestation.\n')
-          PY
+          python3 Engine/tests/render_v9_arena_summary.py \
+            Arena/evidence/astra-sol-v9-full-games.jsonl \
+            Arena/evidence/astra-sol-v9-deep-games.jsonl >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve public synthetic game-level JSONL (no player training histories)
-        if: always() && hashFiles('Arena/evidence/astra-sol-v9-full-games.jsonl') != ''
+        if: always() && hashFiles('Arena/evidence/astra-sol-v9-*.jsonl') != ''
         uses: actions/upload-artifact@v4
         with:
           name: ECLIPSE-Astra-Sol-R10-Actual-Paired-Full-Games
-          path: Arena/evidence/astra-sol-v9-full-games.jsonl
+          path: Arena/evidence/astra-sol-v9-*.jsonl
           retention-days: 30
