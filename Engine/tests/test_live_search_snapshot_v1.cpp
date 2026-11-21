@@ -152,10 +152,32 @@ int main() {
     }
     for (unsigned i=ranks.count; i<EG_LIVE_RANKED_ROOTS_MAX; ++i)
         CHECK(ranks.moves[i] == -1);
+
+    EGPVPrefixSnapshotV1 pv{};
+    pv.size_bytes = sizeof(pv);
+    CHECK(eg_read_pv_prefix_v1(e.get(), &pv) == 1);
+    CHECK(pv.search_serial == ranks.search_serial);
+    CHECK(pv.completed_depth == ranking_run.search.completed_depth);
+    CHECK(pv.count >= 1 && pv.count <= EG_LIVE_PV_PREFIX_MAX);
+    CHECK(pv.count <= static_cast<unsigned>(pv.completed_depth));
+    CHECK(pv.moves[0] == ranking_run.search.move);
+    std::array<bool,225> used{};
+    used[112] = true;
+    used[97] = true;
+    for (unsigned i=0; i<pv.count; ++i) {
+        CHECK(pv.moves[i] >= 0 && pv.moves[i] < 225);
+        CHECK(!used[pv.moves[i]]);
+        used[pv.moves[i]] = true;
+    }
+    for (unsigned i=pv.count; i<EG_LIVE_PV_PREFIX_MAX; ++i)
+        CHECK(pv.moves[i] == -1);
     eg_reset(e.get());
     ranks.size_bytes = sizeof(ranks);
     CHECK(eg_read_ranked_roots_v1(e.get(), &ranks) == 1);
     CHECK(ranks.count == 0);
-    std::cout << "ECLIPSE Stage B/C2 live ABI: atomic polling, rank legality, serial, invalidation, "
+    pv.size_bytes = sizeof(pv);
+    CHECK(eg_read_pv_prefix_v1(e.get(), &pv) == 1);
+    CHECK(pv.count == 0 && pv.completed_depth == 0);
+    std::cout << "ECLIPSE Stage B/C2/C3 live ABI: atomic polling, rank legality, serial, invalidation, "
                  "native proof and cancellation PASS\n";
 }
