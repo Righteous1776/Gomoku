@@ -31,7 +31,7 @@ struct VeilEclipseIdentityCard: View {
                     Text(isThinking ? "正在思考" : matchFinished ? "本局结束 · 可查看回放" : "等待落子")
                         .font(.caption)
                         .foregroundColor(isThinking ? VeilTheme.goldBright : VeilTheme.secondaryText)
-                    Text("Gomoku Native Intelligence")
+                    Text("VeilLink Native Intelligence")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.tertiaryText)
                         .lineLimit(1)
@@ -45,8 +45,8 @@ struct VeilEclipseIdentityCard: View {
                         .font(.caption2.weight(.medium))
                         .lineLimit(1)
                     if isThinking, let started = actualSearchStartedAt {
-                        TimelineView(.periodic(from: .now, by: reduceMotion ? 1.0 : 0.1)) { clock in
-                            Text(String(format: "REAL CLOCK  T+%.1fs", max(0, clock.date.timeIntervalSince(started))))
+                        TimelineView(.periodic(from: .now, by: 0.1)) { clock in
+                            Text(String(format: "%.1fs", max(0, clock.date.timeIntervalSince(started))))
                                 .font(.caption2.monospacedDigit())
                         }
                     } else if let ms = lastCompletedMilliseconds, ms >= 0 {
@@ -306,7 +306,7 @@ struct VeilEclipseTraceSheet: View {
                         .buttonStyle(.bordered)
                     } else {
                         Text(matchFinished ? "本局的已验证走子记录暂不可用。"
-                             : "对局结束后可回放实际棋步。")
+                             : "为保证公平，对局进行时不会显示棋盘推演、推荐点、对方威胁位置或主变路线。赛后才能查看实际棋步。")
                             .font(.subheadline)
                             .foregroundColor(VeilTheme.secondaryText)
                             .padding(.vertical, 12)

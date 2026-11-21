@@ -115,7 +115,7 @@ struct EclipseVerifiedTrainerExecution: Sendable {
         loadedComputePolicySHA256: String
     ) {
         let hex = CharacterSet(charactersIn: "0123456789abcdef")
-        guard trainingRevision.first == "R",
+        guard trainingRevision.first == "R" || trainingRevision.first == "V",
               trainingRevision.dropFirst().allSatisfy({ $0.isNumber }),
               !trainingRevision.dropFirst().isEmpty,
               checkpointSHA256.count == 64,

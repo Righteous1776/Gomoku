@@ -2,14 +2,91 @@
 #include "board.hpp"
 #include "search.hpp"
 #include <algorithm>
+#include <array>
 #include <atomic>
+#include <chrono>
+#include <cstring>
 #include <limits>
 #include <new>
 
 struct EGEngine {
     eclipse::Board board;
     std::atomic<bool> cancelled{false};
+    // Sequence-protected atomics: C++ search owns all writes, UI only reads.
+    // No personal board state or speculative score is stored here.
+    std::atomic<std::uint64_t> live_sequence{0};
+    std::atomic<std::uint64_t> live_serial{0};
+    std::atomic<std::uint64_t> live_nodes{0};
+    std::atomic<std::uint32_t> live_state{EG_LIVE_SEARCH_IDLE};
+    std::atomic<std::int32_t> live_depth{0};
+    std::atomic<std::int32_t> live_best{-1};
+    std::atomic<std::int32_t> live_reason{-1};
+    std::atomic<std::int64_t> live_started_ns{0};
+    std::atomic<std::int64_t> live_elapsed_ms{0};
+    std::atomic<std::uint32_t> live_rank_count{0};
+    std::array<std::atomic<std::int32_t>, EG_LIVE_RANKED_ROOTS_MAX> live_rank_moves{};
+    std::atomic<std::uint32_t> live_pv_count{0};
+    std::atomic<std::int32_t> live_pv_depth{0};
+    std::array<std::atomic<std::int32_t>, EG_LIVE_PV_PREFIX_MAX> live_pv_moves{};
+    // Explicit research-only V2 ranking selection (default R10).
+    int research_ranker = EG_RESEARCH_RANKER_LEGACY;
+    int verified_v9_model = 0;
 };
+
+namespace {
+std::int64_t steady_now_ns() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+// One writer (the search call, or an idle mutator). Every payload field is
+// atomic, so the reader's bounded seqlock retry has no C++ data race.
+void publish_live(EGEngine *e, std::uint32_t state,
+                  std::uint64_t nodes, std::int32_t depth,
+                  std::int32_t best, std::int32_t reason,
+                  std::int64_t elapsed_ms) {
+    e->live_sequence.fetch_add(1);
+    e->live_state.store(state);
+    e->live_nodes.store(nodes);
+    e->live_depth.store(depth);
+    e->live_best.store(best);
+    e->live_reason.store(reason);
+    e->live_elapsed_ms.store(elapsed_ms);
+    e->live_sequence.fetch_add(1);
+}
+void clear_live(EGEngine *e) {
+    e->live_sequence.fetch_add(1);
+    e->live_state.store(EG_LIVE_SEARCH_IDLE);
+    e->live_nodes.store(0);
+    e->live_depth.store(0);
+    e->live_best.store(-1);
+    e->live_reason.store(-1);
+    e->live_elapsed_ms.store(0);
+    e->live_rank_count.store(0);
+    for (auto &index : e->live_rank_moves) index.store(-1);
+    e->live_pv_count.store(0);
+    e->live_pv_depth.store(0);
+    for (auto &index : e->live_pv_moves) index.store(-1);
+    e->live_sequence.fetch_add(1);
+}
+void publish_ranked(EGEngine *e, const std::vector<int> &ranked) {
+    const auto count = std::min<std::size_t>(ranked.size(),
+                                            EG_LIVE_RANKED_ROOTS_MAX);
+    e->live_sequence.fetch_add(1);
+    for (std::size_t i = 0; i < EG_LIVE_RANKED_ROOTS_MAX; ++i)
+        e->live_rank_moves[i].store(i < count ? ranked[i] : -1);
+    e->live_rank_count.store(static_cast<std::uint32_t>(count));
+    e->live_sequence.fetch_add(1);
+}
+void publish_pv(EGEngine *e, int depth, const std::vector<int> &pv) {
+    const auto count = std::min<std::size_t>(pv.size(), EG_LIVE_PV_PREFIX_MAX);
+    e->live_sequence.fetch_add(1);
+    for (std::size_t i=0; i<EG_LIVE_PV_PREFIX_MAX; ++i)
+        e->live_pv_moves[i].store(i < count ? pv[i] : -1);
+    e->live_pv_depth.store(depth);
+    e->live_pv_count.store(static_cast<std::uint32_t>(count));
+    e->live_sequence.fetch_add(1);
+}
+} // namespace
 
 extern "C" {
 int eg_rules_abi_version(void){return EG_RULES_ABI_VERSION;}
@@ -32,11 +109,15 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
     *out_status = reference.outcome;
     return 1;
 }
-EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
+EGEngine *eg_create(void){
+    auto *e = new(std::nothrow) EGEngine{};
+    if (e) clear_live(e); // empty array entries must be -1 even on initial read
+    return e;
+}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e)e->board.reset();}
-int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
-int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; clear_live(e);}}
+int eg_play(EGEngine *e,int index){if(!e||!e->board.play(index))return 0;clear_live(e);return 1;}
+int eg_undo(EGEngine *e){if(!e||!e->board.undo())return 0;clear_live(e);return 1;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
 int eg_best_move_diagnostics_v1(const EGEngine *e, int ms,
                                  EGSearchDiagnosticsV1 *out) {
@@ -88,16 +169,133 @@ int eg_active_trained_checkpoint_sha256_v2(char *out, int capacity) {
     (void)capacity;
     return 0;
 }
+int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
+    if (!e || ranker < EG_RESEARCH_RANKER_LEGACY ||
+        ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
+    e->research_ranker = ranker;
+    e->verified_v9_model = 0; // Research selection never inherits production attestation.
+    clear_live(e);
+    return 1;
+}
+int eg_research_ranker_v3(const EGEngine *e) {
+    return e ? e->research_ranker : -1;
+}
+// These are source-model SHA256 pins. The full C++ tree export is verified
+// against the raw files in mandatory CI, not inferred from a model label.
+static constexpr char kAstraV9LightGBMSHA[] =
+    "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d";
+static constexpr char kSolV9LightGBMSHA[] =
+    "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd";
+static const char *compiled_v9_sha(int model) {
+    if (model == EG_RESEARCH_RANKER_V9_ASTRA) return kAstraV9LightGBMSHA;
+    if (model == EG_RESEARCH_RANKER_V9_SOL) return kSolV9LightGBMSHA;
+    return nullptr;
+}
+int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
+                                    const char *expected_sha256) {
+    const char *actual = compiled_v9_sha(model);
+    if (!e || !actual || !expected_sha256 ||
+        std::strncmp(actual, expected_sha256, 65) != 0) return 0;
+    e->research_ranker = model;
+    e->verified_v9_model = model;
+    clear_live(e);
+    return 1;
+}
+int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
+                                    char *out, int32_t capacity) {
+    if (!e || !out || capacity < 65 ||
+        e->verified_v9_model != e->research_ranker) return 0;
+    const char *actual = compiled_v9_sha(e->verified_v9_model);
+    if (!actual) return 0;
+    std::memcpy(out, actual, 65);
+    return 64;
+}
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
 }
 
-int eg_analyze_compute_policy_v2(
+int eg_read_live_search_v1(const EGEngine *e, EGSearchLiveSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGSearchLiveSnapshotV1))
+        return 0;
+    // A writer never waits for a reader. If the writer is interrupted while
+    // the sequence is odd, fail closed without altering the caller's buffer.
+    for (int tries = 0; tries < 32; ++tries) {
+        const auto before = e->live_sequence.load();
+        if (before & 1) continue;
+        EGSearchLiveSnapshotV1 snapshot{};
+        snapshot.size_bytes = sizeof(snapshot);
+        snapshot.state = e->live_state.load();
+        snapshot.search_serial = e->live_serial.load();
+        snapshot.visited_nodes = e->live_nodes.load();
+        snapshot.completed_depth = e->live_depth.load();
+        snapshot.best_move = e->live_best.load();
+        snapshot.reason = e->live_reason.load();
+        const auto started_ns = e->live_started_ns.load();
+        snapshot.elapsed_ms = snapshot.state == EG_LIVE_SEARCH_RUNNING
+            && started_ns > 0
+            ? std::max<std::int64_t>(0, (steady_now_ns() - started_ns) / 1000000)
+            : e->live_elapsed_ms.load();
+        const auto after = e->live_sequence.load();
+        if (before == after && !(after & 1)) {
+            *out = snapshot;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int eg_read_pv_prefix_v1(const EGEngine *e, EGPVPrefixSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGPVPrefixSnapshotV1))
+        return 0;
+    for (int tries=0; tries<32; ++tries) {
+        const auto before = e->live_sequence.load();
+        if (before & 1) continue;
+        EGPVPrefixSnapshotV1 reading{};
+        reading.size_bytes = sizeof(reading);
+        reading.search_serial = e->live_serial.load();
+        reading.count = e->live_pv_count.load();
+        reading.completed_depth = e->live_pv_depth.load();
+        if (reading.count > EG_LIVE_PV_PREFIX_MAX) return 0;
+        for (std::size_t i=0; i<EG_LIVE_PV_PREFIX_MAX; ++i)
+            reading.moves[i] = e->live_pv_moves[i].load();
+        const auto after = e->live_sequence.load();
+        if (before == after && !(after & 1)) {
+            *out = reading;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int eg_read_ranked_roots_v1(const EGEngine *e, EGRankedRootsSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGRankedRootsSnapshotV1))
+        return 0;
+    for (int tries = 0; tries < 32; ++tries) {
+        const auto before = e->live_sequence.load();
+        if (before & 1) continue;
+        EGRankedRootsSnapshotV1 reading{};
+        reading.size_bytes = sizeof(reading);
+        reading.search_serial = e->live_serial.load();
+        reading.count = e->live_rank_count.load();
+        if (reading.count > EG_LIVE_RANKED_ROOTS_MAX) return 0;
+        for (std::size_t i=0; i<EG_LIVE_RANKED_ROOTS_MAX; ++i)
+            reading.moves[i] = e->live_rank_moves[i].load();
+        const auto after = e->live_sequence.load();
+        if (before == after && !(after & 1)) {
+            *out = reading;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int analyze_compute_impl(
     EGEngine *e, const EGComputePolicyV2 *policy,
     const uint8_t *allowed, int32_t allowed_capacity,
     const int32_t *bonuses, int32_t bonus_capacity,
-    EGComputeRunV2 *out) {
+    EGComputeRunV2 *out, const EGAdaptiveStopConfigV3 *stop,
+    eclipse::AdaptiveStopEvidence *out_evidence) {
     if (!e || !policy || !out ||
         policy->size_bytes != sizeof(EGComputePolicyV2) ||
         out->size_bytes != sizeof(EGComputeRunV2) ||
@@ -116,6 +314,22 @@ int eg_analyze_compute_policy_v2(
         policy->forced_line_depth > eclipse::kCells ||
         policy->candidate_radius < 1 ||
         policy->candidate_radius >= eclipse::kSide)
+        return 0;
+    // V3 is explicit opt-in for both trainer modes. A BUDGETED V3 keeps
+    // its original trainer wall-time as an absolute ceiling, while using
+    // the separate stopping profile to avoid waste. Original V2 is unchanged.
+    if (stop &&
+        (stop->size_bytes != sizeof(EGAdaptiveStopConfigV3) ||
+         stop->reserved != 0 || stop->reserved2 != 0 ||
+         stop->minimum_depth < 1 || stop->minimum_depth > policy->max_depth ||
+         stop->stable_rounds < 2 || stop->stable_rounds > policy->max_depth ||
+         stop->minimum_score_gap < 1 || stop->minimum_score_gap > 100000 ||
+         stop->clear_budget_ms < 1 ||
+         stop->uncertain_budget_ms < stop->clear_budget_ms ||
+         stop->complex_budget_ms < stop->uncertain_budget_ms ||
+         stop->complex_budget_ms > 120000 ||
+         (policy->mode == EG_COMPUTE_MODE_BUDGETED &&
+          stop->complex_budget_ms > policy->max_wall_time_ms)))
         return 0;
     if ((!allowed || !bonuses) ?
         (allowed != nullptr || bonuses != nullptr ||
@@ -145,14 +359,57 @@ int eg_analyze_compute_policy_v2(
     chosen.continuation_width = policy->continuation_width;
     chosen.forced_line_depth = policy->forced_line_depth;
     chosen.candidate_radius = policy->candidate_radius;
+    eclipse::AdaptiveStopPolicy adaptive{};
+    if (stop) {
+        adaptive.minimum_depth = stop->minimum_depth;
+        adaptive.stable_rounds = stop->stable_rounds;
+        adaptive.min_score_gap = stop->minimum_score_gap;
+        adaptive.clear_budget_ms = stop->clear_budget_ms;
+        adaptive.uncertain_budget_ms = stop->uncertain_budget_ms;
+        adaptive.complex_budget_ms = stop->complex_budget_ms;
+    }
     try {
         e->cancelled.store(false, std::memory_order_release);
+        // Each VALID native execution gets a fresh serial. The engine is
+        // never mutated concurrently except atomic cancellation or reads.
+        e->live_sequence.fetch_add(1);
+        e->live_serial.fetch_add(1);
+        e->live_started_ns.store(steady_now_ns());
+        e->live_nodes.store(0);
+        e->live_depth.store(0);
+        e->live_best.store(-1);
+        e->live_reason.store(-1);
+        e->live_elapsed_ms.store(0);
+        e->live_rank_count.store(0);
+        for (auto &index : e->live_rank_moves) index.store(-1);
+        e->live_pv_count.store(0);
+        e->live_pv_depth.store(0);
+        for (auto &index : e->live_pv_moves) index.store(-1);
+        e->live_state.store(EG_LIVE_SEARCH_RUNNING);
+        e->live_sequence.fetch_add(1);
+        const auto observer = [e](std::uint64_t nodes, int depth, int move) {
+            publish_live(e, EG_LIVE_SEARCH_RUNNING, nodes, depth, move, -1, 0);
+        };
+        const auto root_observer = [e](const std::vector<int> &ranked) {
+            publish_ranked(e, ranked);
+        };
+        const auto pv_observer = [e](int depth, const std::vector<int> &pv) {
+            publish_pv(e, depth, pv);
+        };
         // No game history or training source escapes through this telemetry.
-        const auto found = eclipse::Search{}.analyze(
-            e->board, 0, root_pointer, &chosen, &e->cancelled);
+        const auto found = eclipse::Search{
+            static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
+            e->board, 0, root_pointer, &chosen, &e->cancelled,
+            observer, root_observer, pv_observer,
+            stop ? &adaptive : nullptr);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
-            (found.move < 0 && e->board.outcome == 0))
+            (found.move < 0 && e->board.outcome == 0)) {
+            publish_live(e, found.reason == eclipse::SearchStopReason::cancelled
+                ? EG_LIVE_SEARCH_CANCELLED : EG_LIVE_SEARCH_FAILED,
+                found.nodes, found.completed_depth, -1,
+                static_cast<int32_t>(found.reason), found.elapsed_ms);
             return 0;
+        }
         EGComputeRunV2 snapshot{};
         snapshot.size_bytes = sizeof(EGComputeRunV2);
         snapshot.search.size_bytes = sizeof(EGSearchDiagnosticsV1);
@@ -163,12 +420,54 @@ int eg_analyze_compute_policy_v2(
         snapshot.search.reason = static_cast<int32_t>(found.reason);
         snapshot.applied_policy = *policy; // exact caller-owned config echo
         *out = snapshot; // commit only on full success
+        if (out_evidence) *out_evidence = found.adaptive;
+        publish_live(e, EG_LIVE_SEARCH_COMPLETE, found.nodes,
+                     found.completed_depth, found.move,
+                     static_cast<int32_t>(found.reason), found.elapsed_ms);
         return 1;
     } catch (...) {
         // Never allow a C++ exception to cross the ABI boundary.
+        publish_live(e, EG_LIVE_SEARCH_FAILED, e->live_nodes.load(),
+                     e->live_depth.load(), -1, -1, 0);
         return 0;
     }
 }
+int eg_analyze_compute_policy_v2(
+    EGEngine *e, const EGComputePolicyV2 *policy,
+    const uint8_t *allowed, int32_t allowed_capacity,
+    const int32_t *bonuses, int32_t bonus_capacity,
+    EGComputeRunV2 *out) {
+    return analyze_compute_impl(e, policy, allowed, allowed_capacity,
+                                bonuses, bonus_capacity, out, nullptr, nullptr);
+}
+int eg_adaptive_stop_abi_version(void) { return EG_ADAPTIVE_STOP_ABI_VERSION; }
+int eg_analyze_compute_policy_v3(
+    EGEngine *e, const EGComputePolicyV2 *policy,
+    const EGAdaptiveStopConfigV3 *stop,
+    const uint8_t *allowed, int32_t allowed_capacity,
+    const int32_t *bonuses, int32_t bonus_capacity,
+    EGAdaptiveRunV3 *out) {
+    if (!out || !stop || out->size_bytes != sizeof(EGAdaptiveRunV3) ||
+        out->reserved != 0 || out->reserved2 != 0)
+        return 0;
+    EGComputeRunV2 base{};
+    base.size_bytes = sizeof(base);
+    eclipse::AdaptiveStopEvidence evidence{};
+    if (!analyze_compute_impl(e, policy, allowed, allowed_capacity,
+                              bonuses, bonus_capacity, &base, stop, &evidence))
+        return 0;
+    EGAdaptiveRunV3 snapshot{};
+    snapshot.size_bytes = sizeof(snapshot);
+    snapshot.base = base;
+    snapshot.applied_stopping = *stop;
+    snapshot.stable_rounds_observed = evidence.stable_rounds;
+    snapshot.native_score_gap = evidence.score_gap;
+    snapshot.complexity_tier = evidence.complexity;
+    snapshot.predicted_next_depth_ms = evidence.predicted_next_ms;
+    *out = snapshot;
+    return 1;
+}
+
 int eg_copy_board(const EGEngine *e,std::uint8_t *out225,int capacity){
     if(!e||!out225||capacity<eclipse::kCells)return -1;
     std::copy(e->board.cells.begin(),e->board.cells.end(),out225);

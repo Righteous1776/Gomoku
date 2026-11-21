@@ -62,6 +62,14 @@ struct GomokuBoardView: View {
     var eclipseSessionID = ""
     var eclipseBoardTurn = 0
     var eclipseMatchPlaying = true
+    /// Optional real C++ completed-depth candidate provider. Only the
+    /// developer-authorized teaching path supplies a non-nil value.
+    /// Keep native rank/PV review visible after the read-only teaching
+    /// analysis completes, until the board or authorization changes.
+    var eclipseTeachingReviewAvailable = false
+    var eclipseTeachingCandidate: (() -> Int?)? = nil
+    var eclipseTeachingRootRanks: (() -> [Int])? = nil
+    var eclipseTeachingPVPrefix: (() -> [Int])? = nil
     let onMove: (Int) -> Void
 
     private let starPoints = [48, 56, 112, 168, 176]
@@ -101,6 +109,117 @@ struct GomokuBoardView: View {
                         )
                         .frame(width: side, height: side)
                         .allowsHitTesting(false)
+                    }
+
+                    // Real native root shortlist in rank order, cap 16.
+                    // This is NOT a probability heatmap: ordinal intensity
+                    // merely reflects which roots the search considered first.
+                    // Rate-limited to the HUD budget; never intercepts touches.
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
+                       let ranksProvider = eclipseTeachingRootRanks {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            let ranked = ranksProvider()
+                            Canvas(opaque: false, rendersAsynchronously: false) { context, _ in
+                                for (rank, index) in ranked.prefix(16).enumerated() {
+                                    guard (0..<225).contains(index),
+                                          state.value(at: index) == 0 else { continue }
+                                    let point = gomokuPoint(
+                                        index: index, margin: margin, step: step
+                                    )
+                                    let intensity = 1.0 - Double(rank) / 16.0
+                                    let radius = step * 0.36
+                                    let halo = Path(ellipseIn: CGRect(
+                                        x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2
+                                    ))
+                                    context.fill(halo, with: .color(
+                                        VeilTheme.goldBright.opacity(0.08 + 0.35 * intensity)
+                                    ))
+                                }
+                            }
+                            .frame(width: side, height: side)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+
+                    // Real, board-replayed native exact-TT principal
+                    // variation PREFIX. Every hop is hypothetical, never
+                    // presented as a forced win or an actual played stone.
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
+                       let pvProvider = eclipseTeachingPVPrefix {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            let pv = pvProvider()
+                            Canvas(opaque: false, rendersAsynchronously: false) { context, _ in
+                                let verified = Array(pv.prefix(16).filter {
+                                    (0..<225).contains($0) && state.value(at: $0) == 0
+                                })
+                                guard !verified.isEmpty else { return }
+                                var path = Path()
+                                for (offset, index) in verified.enumerated() {
+                                    let point = gomokuPoint(
+                                        index: index, margin: margin, step: step
+                                    )
+                                    if offset == 0 { path.move(to: point) }
+                                    else { path.addLine(to: point) }
+                                    let radius = step * 0.22
+                                    let ring = Path(ellipseIn: CGRect(
+                                        x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2
+                                    ))
+                                    context.stroke(ring, with: .color(
+                                        VeilTheme.paleMetal.opacity(0.9)
+                                    ), lineWidth: 1.5)
+                                }
+                                context.stroke(path, with: .color(
+                                    VeilTheme.paleMetal.opacity(0.6)
+                                ), style: StrokeStyle(
+                                    lineWidth: 1, lineCap: .round, dash: [2, 3]
+                                ))
+                            }
+                            .frame(width: side, height: side)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+
+                    // Lightweight, NON-interactive teaching hint on the
+                    // original wood board. The formal match never enables
+                    // this provider. Do not invent a best move when C++ has
+                    // not completed one full depth.
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
+                       let candidateProvider = eclipseTeachingCandidate {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            if let index = candidateProvider(),
+                               (0..<225).contains(index),
+                               state.value(at: index) == 0 {
+                                let point = gomokuPoint(
+                                    index: index, margin: margin, step: step
+                                )
+                                Circle()
+                                    .stroke(
+                                        VeilTheme.goldBright.opacity(0.85),
+                                        style: StrokeStyle(lineWidth: 1.3, dash: [3, 3])
+                                    )
+                                    .frame(width: step * 0.9, height: step * 0.9)
+                                    .position(point)
+                                    .accessibilityLabel("教学：完整搜索深度的最佳候选落点")
+                            }
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                     }
 
                     if state.winningLine.count >= 5,

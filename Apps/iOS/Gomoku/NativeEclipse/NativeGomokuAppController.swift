@@ -19,6 +19,17 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastExecutedTrainerRevision: String?
     @Published private(set) var lastExecutionBackend: String?
     @Published private(set) var fallbackWarning: String?
+    // Versioned, read-only HUD identity. A model label alone is never proof
+    // the corresponding C++ forest was actually loaded.
+    @Published private(set) var activeThinkingRun: EclipseThinkingRunIdentity?
+    @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
+    @Published private(set) var lastThinkingStopReason: String?
+    @Published private(set) var lastAdaptiveSearchEvidence: EclipseAdaptiveStopEvidence?
+    private var searchStartedUptime: TimeInterval?
+    // Ephemeral measured latencies only: isolated by executed SHA/policy,
+    // bounded to 16 signatures x 128 samples, no private game records.
+    private var nativeLatencyBySignature: [String: [Int]] = [:]
+    private var nativeLatencyOrder: [String] = []
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
     @Published private(set) var computeTier: EclipseComputeTier = .standard
@@ -77,10 +88,36 @@ final class NativeGomokuAppController: ObservableObject {
     private var activeCppSearch: EclipseCppProductionAdapter?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
-    private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
+    private let verifiedTrainerExecutions:
+        [EclipseModelID: EclipseVerifiedTrainerExecution]
+    private var verifiedTrainerExecution: EclipseVerifiedTrainerExecution? {
+        verifiedTrainerExecutions[selectedModel]
+    }
+
+    /// Each 2.0 forest is independently compiled, attested and selectable.
+    /// A manifest entry alone never enables the model.
+    var verifiedSelectableModels: [EclipseModelID] {
+        // loadAllFromBundle has ALREADY verified each exact C++ forest during
+        // app initialization. Do not create extra native engines on each
+        // SwiftUI redraw; C++ make()/decide() re-attest active bytes per turn.
+        [.astra20, .sol20].filter {
+            verifiedTrainerExecutions[$0] != nil
+        }
+    }
+
+    /// Compatibility with single-checkpoint inspection surfaces.
+    var verifiedSelectableModel: EclipseModelID? {
+        verifiedSelectableModels.first
+    }
+
+    var availableModels: [EclipseModelID] {
+        EclipseModelID.featuredIncludingVerified(verifiedSelectableModels)
+    }
 
     var trainerControlsCompute: Bool {
-        verifiedTrainerExecution?.model == selectedModel
+        selectedModel.requiresVerifiedCheckpoint
+            && verifiedTrainerExecution != nil
+            && verifiedSelectableModels.contains(selectedModel)
     }
     private let localMatchEvidence: GomokuLocalMatchEvidence
     private var sessionHasLocalProvenance = true
@@ -101,9 +138,14 @@ final class NativeGomokuAppController: ObservableObject {
         // binding at launch, without requiring DEBUG tools or a manual
         // injection. Isolated XCTest archive roots remain deterministic.
         let productionInstall = archiveDirectory == nil && trainingDirectory == nil
-        self.verifiedTrainerExecution = verifiedTrainerExecution
-            ?? (productionInstall
-                ? EclipseTrainerProductionRegistry.loadFromBundle() : nil)
+        if let explicit = verifiedTrainerExecution {
+            self.verifiedTrainerExecutions = [explicit.model: explicit]
+        } else if productionInstall {
+            self.verifiedTrainerExecutions =
+                EclipseTrainerProductionRegistry.loadAllFromBundle()
+        } else {
+            self.verifiedTrainerExecutions = [:]
+        }
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         let root = archive.directory.deletingLastPathComponent()
@@ -120,15 +162,23 @@ final class NativeGomokuAppController: ObservableObject {
             // explicit user choices always override this default.
             if UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
-            ) == nil, let trained = self.verifiedTrainerExecution {
-                selectedModel = trained.model
-                computeTier = trained.model.defaultComputeTier
+            ) == nil,
+                let first = [EclipseModelID.astra20, .sol20].first(
+                    where: { self.verifiedSelectableModels.contains($0) }
+                ) {
+                selectedModel = first
+                computeTier = first.defaultComputeTier
             }
             if let stored = UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
-                selectedModel = saved.model
-                computeTier = saved.compute
+                if !saved.model.requiresVerifiedCheckpoint
+                    || verifiedSelectableModels.contains(saved.model) {
+                    selectedModel = saved.model
+                    computeTier = saved.compute
+                } else {
+                    fallbackWarning = "此前选择的 \(saved.model.name) 尚未在 C++ 中完成加载核验；当前暂用原版 Swift。"
+                }
             }
             if let explicitlySelectedCompute = EclipseComputeTier(
                 rawValue: UserDefaults.standard.string(
@@ -167,6 +217,10 @@ final class NativeGomokuAppController: ObservableObject {
     /// match and avoids misattributing its result to the wrong model.
     func selectModel(_ model: EclipseModelID) {
         guard model != selectedModel else { return }
+        if model.requiresVerifiedCheckpoint && !verifiedSelectableModels.contains(model) {
+            fallbackWarning = "\(model.name) 尚无通过核验的实际 C++ 训练检查点，不能冒充已上线模型。"
+            return
+        }
         selectedModel = model
         computeTier = model.defaultComputeTier
         UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)
@@ -185,6 +239,15 @@ final class NativeGomokuAppController: ObservableObject {
 
     var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
         if isThinking {
+            if activeThinkingRun?.backend.hasPrefix("C++20 V") == true {
+                guard let native = activeCppSearch?.liveSearchSnapshot() else {
+                    return nil
+                }
+                return VeilEclipseTracePolicy.LiveMetrics(
+                    completedDepth: native.completedDepth,
+                    visitedNodes: native.nodes
+                )
+            }
             return eclipseMetricsStore.snapshot(
                 sessionID: sessionID, turn: state.moveCount, isThinking: true
             )
@@ -196,6 +259,121 @@ final class NativeGomokuAppController: ObservableObject {
             )
         }
         return nil
+    }
+
+    /// No invented positions, likelihoods, PV, or progress percentage.
+    /// The additive C++ live ABI samples genuine native nodes and fully
+    /// completed iterations. Swift metrics remain session-gated. An idle or
+    /// unverifiable native reader never inherits unrelated Swift metrics.
+    func thinkingHUDSnapshot(
+        uptime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> EclipseThinkingHUDSnapshot {
+        let identity = isThinking ? activeThinkingRun : lastThinkingRun
+        let metrics = isThinking ? realSearchMetrics : nil
+        // The adapter and its engine are owned by this actor until the run
+        // resolves. The C++ snapshot function is explicitly concurrent-read
+        // safe; generation/reset clears activeCppSearch before a new board.
+        // An explicitly requested teaching analysis keeps its completed
+        // idle native handle for review, but ONLY at the unchanged position
+        // and while the device-owner authorization is still valid.
+        let teachingReview = !isThinking && developerTeachingMode
+            && developerAuthorization.isAuthorized
+            && lastThinkingRun?.positionRevision == state.moveCount
+            && lastThinkingRun?.backend.hasPrefix("C++20 V") == true
+            && activeCppSearch != nil
+        let nativeRun = (isThinking || teachingReview)
+            && identity?.backend.hasPrefix("C++20 V") == true
+        let nativeLive = nativeRun ? activeCppSearch?.liveSearchSnapshot() : nil
+        let liveElapsed: Int? = searchStartedUptime.map {
+            Int(max(0, uptime - $0) * 1000)
+        }
+        let live = isThinking && activeThinkingRun != nil
+        let context: EclipseThinkingHUDSnapshot.Context =
+            developerTeachingMode && developerAuthorization.isAuthorized
+                ? .teaching : (status == 0 ? .formal : .postgame)
+        var snapshot = EclipseThinkingHUDSnapshot(
+            searchID: identity?.id,
+            positionRevision: identity?.positionRevision ?? state.moveCount,
+            context: context,
+            isSearching: live,
+            backend: identity?.backend
+                ?? (lastExecutionBackend ?? "未提供"),
+            executedModel: identity?.modelName
+                ?? (live ? nil : lastExecutedModel?.name),
+            checkpointSHA256: identity?.checkpointSHA256,
+            computePolicySHA256: identity?.computePolicySHA256,
+            elapsedMilliseconds: live ? liveElapsed : lastDecisionMilliseconds,
+            visitedNodes: live
+                ? (nativeRun ? nativeLive?.nodes : metrics?.visitedNodes)
+                : lastDecisionNodes,
+            completedDepth: live
+                ? (nativeRun ? nativeLive?.completedDepth : metrics?.completedDepth)
+                : lastDecisionDepth,
+            stopReason: live ? nil : lastThinkingStopReason
+        )
+        snapshot.hasTeachingReview = teachingReview
+        snapshot.adaptiveEvidence = live ? nil : lastAdaptiveSearchEvidence
+        // The native engine may publish a best move for a FULLY completed
+        // iteration. Only authenticated developer teaching may observe it.
+        // Formally played matches do not store this move in the HUD.
+        if (live || teachingReview) && context == .teaching && nativeRun,
+           let candidate = nativeLive?.bestMoveForAuthorizedReview,
+           nativeLive?.completedDepth != nil,
+           state.value(at: candidate) == 0 {
+            snapshot.verifiedTeachingCandidate = candidate
+        }
+        if (live || teachingReview) && context == .teaching && nativeRun,
+           let serial = nativeLive?.searchSerial,
+           let ranks = activeCppSearch?.liveRankedRootMoves(),
+           ranks.serial == serial {
+            // Validate all coordinates against the ACTUAL current board.
+            // No duplicate or occupied position reaches the visualization.
+            snapshot.nativeRootRanks = ranks.moves.filter {
+                state.value(at: $0) == 0
+            }
+        }
+        if (live || teachingReview) && context == .teaching && nativeRun,
+           let serial = nativeLive?.searchSerial,
+           let nativePV = activeCppSearch?.livePVPrefix(),
+           nativePV.serial == serial,
+           nativePV.depth == nativeLive?.completedDepth,
+           nativePV.moves.first == nativeLive?.bestMoveForAuthorizedReview {
+            // Replay every actual TT-sourced move with alternating player
+            // identity and original freestyle win/terminal rules. Never
+            // render a PV that collides, skips a turn or crosses game end.
+            var replay = state
+            var accepted = true
+            for index in nativePV.moves {
+                let actor = replay.currentPlayer
+                guard (0..<225).contains(index),
+                      replay.value(at: index) == 0,
+                      replay.winner == nil, !replay.isDraw,
+                      replay.apply(index: index, actor: actor)
+                else {
+                    accepted = false
+                    break
+                }
+            }
+            if accepted {
+                snapshot.nativePVDepth = nativePV.depth
+                snapshot.nativePVPrefix = nativePV.moves
+            }
+        }
+        return snapshot
+    }
+
+    /// P50/P95 are only valid for >=20 completed native runs with the same
+    /// verified model and trainer-authorized compute policy.
+    func currentNativeLatencySummary() -> EclipseNativeLatencyStatistics.Summary? {
+        guard !isThinking, let id = lastThinkingRun,
+              let checkpoint = id.checkpointSHA256,
+              let policy = id.computePolicySHA256,
+              let execution = lastExecutionBackend else { return nil }
+        // V2 and V3 can share a model/checkpoint SHA and the trainer's
+        // geometric compute SHA while having DIFFERENT termination rules.
+        return EclipseNativeLatencyStatistics.summarize(
+            nativeLatencyBySignature[checkpoint + ":" + policy + ":" + execution] ?? []
+        )
     }
 
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
@@ -245,6 +423,11 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
+        searchStartedUptime = nil
         state = resumed
         sessionID = previous.id
         sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
@@ -287,6 +470,11 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
+        searchStartedUptime = nil
         state = GomokuState()
         sessionID = UUID().uuidString
         sessionHasLocalProvenance = true
@@ -320,6 +508,16 @@ final class NativeGomokuAppController: ObservableObject {
             let stone: UInt8 = state.currentPlayer == .host ? 1 : 2
             guard state.apply(index: index, actor: state.currentPlayer) else { return }
             archivedMoves.append(.init(index: index, stone: stone))
+            // All native ranked/PV evidence belongs to the PREVIOUS board.
+            activeCppSearch = nil
+            lastThinkingRun = nil
+            lastThinkingStopReason = nil
+            lastAdaptiveSearchEvidence = nil
+            lastDecisionNodes = nil
+            lastDecisionDepth = nil
+            lastDecisionMilliseconds = nil
+            lastExecutedModel = nil
+            lastExecutionBackend = nil
             refresh()
             return
         }
@@ -383,6 +581,13 @@ final class NativeGomokuAppController: ObservableObject {
         activeCppSearch = nil
         searchTask?.cancel()
         searchTask = nil
+        eclipseTraceStore.clear()
+        eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
+        searchStartedUptime = nil
         state = GomokuState()
         archivedMoves.removeAll()
         sessionID = UUID().uuidString
@@ -421,6 +626,143 @@ final class NativeGomokuAppController: ObservableObject {
         }
     }
 
+    /// Run native ECLIPSE at the current manually staged teaching position.
+    /// IMPORTANT: this does NOT place a stone, archive a match, train a model
+    /// or alter the original automatic gameplay path. A compiled, attested
+    /// 2.0 Astra/Sol backend is required for live ranked/PV evidence.
+    func analyzeTeachingPosition() {
+        guard developerTeachingMode, developerAuthorization.isAuthorized,
+              !isThinking, !isNativeTraining, !isBootstrappingSeed,
+              status == 0 else { return }
+        guard let trainer = verifiedTrainerExecution,
+              let runtime = EclipseCppProductionAdapter.make(
+                history: archivedMoves.map(\.index), trainer: trainer
+              ) else {
+            developerMessage = "当前模型没有完成 C++ 原生加载核验，不能产生真实候选/PV。"
+            return
+        }
+        let boardAtStart = state
+        let token = generation
+        let model = selectedModel
+        // Release previously reviewed engine before beginning a fresh run.
+        activeCppSearch = runtime
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
+        lastDecisionNodes = nil
+        lastDecisionDepth = nil
+        lastDecisionMilliseconds = nil
+        lastExecutedModel = nil
+        lastExecutionBackend = nil
+        isThinking = true
+        searchStartedAt = Date()
+        searchStartedUptime = ProcessInfo.processInfo.systemUptime
+        activeThinkingRun = EclipseThinkingRunIdentity(
+            id: UUID(), positionRevision: boardAtStart.moveCount,
+            backend: trainer.computePolicy.maxDepth >= 5
+                ? "C++20 V3 adaptive" : "C++20 V2",
+            modelName: model.name,
+            checkpointSHA256: trainer.checkpointSHA256,
+            computePolicySHA256: trainer.computePolicy.sha256
+        )
+        developerMessage = nil
+
+        let moves = archivedMoves
+        let journalDirectory = trainingJournal.directory
+        let archiveDirectory = archive.directory
+        let useNativeTraining = selfPlayLearningEnabled
+        // The teaching analysis player is whichever color is to move.
+        let toMoveStone: UInt8 = boardAtStart.currentPlayer == .host ? 1 : 2
+        let otherStone: UInt8 = toMoveStone == 1 ? 2 : 1
+        let lessonInfluence = developerLessons.influence(
+            for: moves.map { .init(index: $0.index, stone: $0.stone) },
+            aiStone: toMoveStone
+        )
+        let aiMoves = moves.filter { $0.stone == toMoveStone }.map(\.index)
+        let opponentMoves = moves.filter { $0.stone == otherStone }.map(\.index)
+        let formation = GomokuFormationPreference(
+            mode: formationMode, aiHistory: aiMoves,
+            opponentHistory: opponentMoves, discovered: []
+        )
+        searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard !Task.isCancelled else { return }
+            let learned = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: moves,
+                humanStone: otherStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot.applying(lessonInfluence)
+            guard !Task.isCancelled else { return }
+            let rooted = EclipseCppRootLearningPolicy.build(
+                state: boardAtStart,
+                player: boardAtStart.currentPlayer,
+                learning: learned,
+                formation: formation
+            )
+            let result = runtime.decide(
+                policy: trainer.computePolicy, rootPolicy: rooted
+            )
+            guard !Task.isCancelled else { return }
+            await self?.finishTeachingAnalysis(
+                result, on: boardAtStart, token: token,
+                model: model, runtime: runtime
+            )
+        }
+    }
+
+    private func finishTeachingAnalysis(
+        _ decision: GomokuBotMove?,
+        on original: GomokuState,
+        token: UUID,
+        model: EclipseModelID,
+        runtime: EclipseCppProductionAdapter
+    ) {
+        guard token == generation, state == original,
+              activeCppSearch === runtime else { return }
+        // Authorization can expire during a long native search. It must
+        // terminate the HUD without retaining a candidate or PV.
+        guard developerTeachingMode, developerAuthorization.isAuthorized else {
+            activeCppSearch = nil
+            activeThinkingRun = nil
+            lastThinkingRun = nil
+            isThinking = false
+            searchStartedAt = nil
+            searchStartedUptime = nil
+            searchTask = nil
+            developerMessage = "开发者验证已过期；本次分析证据已丢弃。"
+            return
+        }
+        lastThinkingRun = activeThinkingRun
+        activeThinkingRun = nil
+        searchStartedUptime = nil
+        searchStartedAt = nil
+        isThinking = false
+        searchTask = nil
+        guard let decision,
+              (0..<225).contains(decision.index),
+              original.value(at: decision.index) == 0,
+              decision.nativeStopReason != nil else {
+            activeCppSearch = nil
+            lastThinkingRun = nil
+            lastThinkingStopReason = "原生教学分析未获得合法结果"
+            developerMessage = "本局原生分析失败，未落子、未写入训练或对局记录。"
+            return
+        }
+        // Keep this completed, idle native handle only for read-only review.
+        // A manually staged move or reset immediately drops its evidence.
+        lastAdaptiveSearchEvidence = decision.adaptiveEvidence
+        lastDecisionNodes = decision.nodes
+        lastDecisionDepth = decision.completedDepth
+        lastDecisionMilliseconds = decision.elapsedMilliseconds
+        lastExecutedModel = model
+        lastExecutedTrainerRevision = nil
+        lastExecutionBackend = decision.engineLabel ?? "C++20 V2"
+        lastThinkingStopReason =
+            EclipseThinkingHUDSnapshot.nativeStopReason(decision.nativeStopReason)
+        developerMessage = "原生搜索完成；当前棋盘未变化，候选与 PV 仅供教学研判。"
+    }
+
     private func scheduleAI() {
         guard !isThinking, status == 0 else { return }
         let token = generation
@@ -446,6 +788,26 @@ final class NativeGomokuAppController: ObservableObject {
         }
         isThinking = true
         searchStartedAt = Date()
+        searchStartedUptime = ProcessInfo.processInfo.systemUptime
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
+        // The native runtime has been freshly created and attested at this
+        // exact position. If that failed, do NOT claim selected Astra/Sol.
+        let usingCpp = cppRuntime != nil && verifiedTrainer != nil
+        activeThinkingRun = EclipseThinkingRunIdentity(
+            id: UUID(),
+            positionRevision: boardAtStart.moveCount,
+            backend: usingCpp
+                ? ((verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 5
+                    ? "C++20 V3 adaptive" : "C++20 V2") :
+                (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
+            modelName: usingCpp || !model.requiresVerifiedCheckpoint
+                ? model.name : nil,
+            checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil,
+            computePolicySHA256: usingCpp
+                ? verifiedTrainer?.computePolicy.sha256 : nil
+        )
         if verifiedTrainer == nil || cppRuntime != nil {
             fallbackWarning = nil
         }
@@ -458,7 +820,8 @@ final class NativeGomokuAppController: ObservableObject {
             _ = metricSink.record(trace, token: metricToken)
         }
         let observer: (@Sendable ([Int], Int) -> Void)?
-        if eclipseVisualizationEnabled, let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
+        if eclipseVisualizationEnabled && developerTeachingMode,
+           let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
             observer = { indices, nodes in
                 _ = traceStore.record(indices, nodes: nodes, token: traceToken)
             }
@@ -483,12 +846,31 @@ final class NativeGomokuAppController: ObservableObject {
         )
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
+            // Preserve the original ECLIPSE local learning and owner-defined
+            // formation on BOTH Swift and C++ routes. Only verified local
+            // evidence influences the C++ root bonuses; no private training
+            // history is copied into the model or emitted over the ABI.
+            let learning = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: existingMoves,
+                humanStone: humanStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot.applying(lessonInfluence)
+            guard !Task.isCancelled else { return }
             // The official architecture first dispatches a verified trained
             // model through native C++ V2. This is the same production worker
             // path as original Swift, not a separate developer-only game.
             if let cppRuntime, let verifiedTrainer {
+                let rooted = EclipseCppRootLearningPolicy.build(
+                    state: boardAtStart,
+                    player: boardAtStart.currentPlayer,
+                    learning: learning,
+                    formation: activeFormation
+                )
                 let cppDecision = cppRuntime.decide(
-                    policy: verifiedTrainer.computePolicy
+                    policy: verifiedTrainer.computePolicy,
+                    rootPolicy: rooted
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
@@ -503,16 +885,8 @@ final class NativeGomokuAppController: ObservableObject {
                 // success. Continue through the trusted original Swift route
                 // only if the user has not cancelled the session.
             }
-            // Construct from verified records off the main/UI actor. The exact
-            // immutable snapshot is used for this decision, not display only.
-            let learning = GomokuLearningRepertoire.build(
-                journalDirectory: journalDirectory,
-                archiveDirectory: archiveDirectory,
-                currentMoves: existingMoves,
-                humanStone: humanStone,
-                includeNativeSelfPlay: useNativeTraining
-            ).snapshot.applying(lessonInfluence)
-            guard !Task.isCancelled else { return }
+            // The SAME already-validated local snapshot feeds the original
+            // Swift fallback, preserving exact provenance and game semantics.
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
@@ -557,10 +931,21 @@ final class NativeGomokuAppController: ObservableObject {
             )?.completedDepth
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        // Preserve the ID and exact revision of the completed search only.
+        // Subsequent reset/model switch clears this last-run context.
+        lastThinkingRun = activeThinkingRun
+        activeThinkingRun = nil
+        searchStartedUptime = nil
         isThinking = false
         searchStartedAt = nil
         searchTask = nil
         activeCppSearch = nil
+        lastThinkingStopReason = cppFailed
+            ? "C++ 搜索未返回有效结果，Swift 接管"
+            : EclipseThinkingHUDSnapshot.nativeStopReason(
+                trainerRevision != nil ? decision?.nativeStopReason : nil
+            )
+        lastAdaptiveSearchEvidence = cppFailed ? nil : decision?.adaptiveEvidence
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
@@ -573,12 +958,55 @@ final class NativeGomokuAppController: ObservableObject {
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
-            lastExecutedModel = executedModel
+            // Never claim "2.0 Astra/Sol" actually played when a missing or
+            // failed native C++ V9 scorer forced the original Swift fallback.
+            let verifiedV9Played = !executedModel.requiresVerifiedCheckpoint
+                || trainerRevision != nil
+            lastExecutedModel = verifiedV9Played ? executedModel : nil
             lastExecutedTrainerRevision = trainerRevision
             lastExecutionBackend = decision.engineLabel ?? "ECLIPSE Swift"
+            if let previous = lastThinkingRun {
+                lastThinkingRun = EclipseThinkingRunIdentity(
+                    id: previous.id, positionRevision: previous.positionRevision,
+                    backend: lastExecutionBackend ?? "未提供",
+                    modelName: lastExecutedModel?.name,
+                    checkpointSHA256: verifiedV9Played
+                        && executedModel.requiresVerifiedCheckpoint
+                        ? previous.checkpointSHA256 : nil,
+                    computePolicySHA256: verifiedV9Played
+                        && executedModel.requiresVerifiedCheckpoint
+                        ? previous.computePolicySHA256 : nil
+                )
+            }
+            if !verifiedV9Played {
+                fallbackWarning = "本手实际由原版 Swift 接管，尚未执行验证的 2.0 训练模型；不能计入 Astra/Sol 棋力。"
+            }
+            if !cppFailed, trainerRevision != nil,
+               decision.nativeStopReason != nil,
+               decision.elapsedMilliseconds > 0,
+               let verified = lastThinkingRun,
+               let checkpoint = verified.checkpointSHA256,
+               let policy = verified.computePolicySHA256 {
+                let signature = checkpoint + ":" + policy + ":" +
+                    (decision.engineLabel ?? "C++20 unknown")
+                if nativeLatencyBySignature[signature] == nil {
+                    nativeLatencyOrder.append(signature)
+                    if nativeLatencyOrder.count > 16 {
+                        nativeLatencyBySignature.removeValue(
+                            forKey: nativeLatencyOrder.removeFirst()
+                        )
+                    }
+                }
+                var samples = nativeLatencyBySignature[signature] ?? []
+                samples.append(decision.elapsedMilliseconds)
+                if samples.count > 128 { samples.removeFirst(samples.count - 128) }
+                nativeLatencyBySignature[signature] = samples
+            }
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
+            lastThinkingStopReason = "搜索失败：使用合法性保底"
+            lastThinkingRun = nil
         } else {
             refresh()
             return

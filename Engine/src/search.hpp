@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -17,7 +18,18 @@ enum class SearchStopReason : int {
     only_move = 3,
     no_move = 4,
     time_limit = 5,
-    cancelled = 6
+    cancelled = 6,
+    // Adaptive V3 only: evidence-based, not mathematical certainty.
+    adaptive_converged = 7,
+    adaptive_effort_cap = 8,
+    adaptive_next_depth_cost = 9
+};
+
+struct AdaptiveStopEvidence {
+    int stable_rounds = 0;
+    int score_gap = 0;      // native search score units; NOT win probability
+    int complexity = 0;     // 0 clear / 1 uncertain / 2 tactical or ambiguous
+    std::int64_t predicted_next_ms = 0; // measured node growth estimate
 };
 
 struct SearchResult {
@@ -26,6 +38,7 @@ struct SearchResult {
     int completed_depth = 0;
     int elapsed_ms = 0;
     SearchStopReason reason = SearchStopReason::no_move;
+    AdaptiveStopEvidence adaptive{};
 };
 
 // V1 bounded root policy from the unchanged Swift learning/formation layer.
@@ -48,15 +61,45 @@ struct ComputePolicy {
     int candidate_radius = 2;
 };
 
+// Versioned opt-in termination policy. It never changes move ordering,
+// tactical rules, trained weights or trainer-owned search geometry. The
+// three time values are CEILINGS, not mandatory think durations. Adaptive
+// decisions can finish earlier when conservative convergence is observed.
+struct AdaptiveStopPolicy {
+    int minimum_depth = 3;
+    int stable_rounds = 3;
+    int min_score_gap = 1800; // native static search units, uncalibrated
+    std::int64_t clear_budget_ms = 1200;
+    std::int64_t uncertain_budget_ms = 5000;
+    std::int64_t complex_budget_ms = 20000;
+};
+
+// An explicit research-only selection; legacy remains the default for all
+// previously supported callers and original Swift/C++ parity benchmarks.
+enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
+
 class Search {
 public:
+    explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
+        : ranker_(ranker) {}
+    // Optional per-search, read-only diagnostics sink. It must never choose a
+    // move or change any search limit. Values describe completed iterations.
+    using ProgressSink = std::function<void(std::uint64_t, int, int)>;
+    using RankedRootsSink = std::function<void(const std::vector<int> &)>;
+    using PVSink = std::function<void(int, const std::vector<int> &)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
-                         const std::atomic<bool> *cancel = nullptr);
+                         const std::atomic<bool> *cancel = nullptr,
+                         const ProgressSink &progress = {},
+                         const RankedRootsSink &ranked_roots = {},
+                         const PVSink &pv = {},
+                         const AdaptiveStopPolicy *adaptive = nullptr);
     int best_move(const Board &root, int milliseconds);
 
 private:
+    ResearchRanker ranker_ = ResearchRanker::legacy;
+    int move_rank(int index, int side) const;
     using Clock = std::chrono::steady_clock;
     static constexpr int kMate = 10'000'000;
     static constexpr int kInf = kMate + 100'000;
@@ -74,6 +117,10 @@ private:
     bool timed_out_ = false;
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
+    ProgressSink progress_{};
+    int last_completed_depth_ = 0;
+    int last_best_move_ = -1;
+    std::uint64_t last_progress_nodes_ = 0;
     int candidate_radius_ = 2;
     int root_width_ = 18;
     int proof_width_ = 28;
@@ -109,5 +156,9 @@ private:
                     std::vector<int> &variation);
     int tactical_leaf(int side, int ply, int remaining_forced);
     int negamax(int side, int depth, int alpha, int beta, int last, int ply);
+    // Build only a real principal-variation PREFIX: exact TT entries that
+    // were stored by the finished search, never a hypothetical filler line.
+    std::vector<int> extract_verified_pv_prefix(int first, int side,
+                                                 int completed_depth);
 };
 }

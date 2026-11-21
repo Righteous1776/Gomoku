@@ -8,14 +8,40 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
     case terra10 = "eclipse-1.0-terra"
     case sol10 = "eclipse-1.0-sol"
     case astra10 = "eclipse-1.0-astra"
+    // V9-trained 26D candidate rankers are a NEW generation, not aliases
+    // for legacy 1.0/1.1/1.2 compute budgets. Keep their IDs independently.
+    case astra20 = "eclipse-2.0-astra"
+    case sol20 = "eclipse-2.0-sol"
 
     static let currentDefault: Self = .terra10
     static let selectionKey = "gomoku.eclipse.selected-model-id.v1"
+    // 1.x keeps the previously released historical Swift model library.
+    // 2.0 becomes selectable ONLY after a real matching trained checkpoint
+    // has been loaded, not simply because a V9 research file exists.
     static let featured: [Self] = [.astra10, .sol10, .terra10, .luna10]
+
+    var requiresVerifiedCheckpoint: Bool {
+        self == .astra20 || self == .sol20
+    }
+
+    static func featuredIncludingVerified(_ verified: Self?) -> [Self] {
+        guard let verified, verified.requiresVerifiedCheckpoint else {
+            return featured
+        }
+        return [verified] + featured
+    }
+
+    /// Both independently attested 2.0 generations must be presented together.
+    /// Keep the single-model overload above for older history and test clients.
+    static func featuredIncludingVerified(_ verified: [Self]) -> [Self] {
+        let candidates: [Self] = [.astra20, .sol20]
+        return candidates.filter { verified.contains($0) } + featured
+    }
 
     enum Backend: String, Sendable {
         case classicSwift = "classic-swift"
         case trainedUnifiedSwift = "trained-unified-swift"
+        case verifiedTrainedCpp = "verified-trained-cpp"
     }
 
     var id: String { rawValue }
@@ -25,22 +51,28 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .terra10: return "1.0 Terra"
         case .sol10: return "1.0 Sol"
         case .astra10: return "1.0 Astra"
+        case .astra20: return "2.0 Astra"
+        case .sol20: return "2.0 Sol"
         }
     }
     var family: String {
         switch self {
         case .luna10: return "Luna"
         case .terra10: return "Terra"
-        case .sol10: return "Sol"
-        case .astra10: return "Astra"
+        case .sol10, .sol20: return "Sol"
+        case .astra10, .astra20: return "Astra"
         }
     }
     var backend: Backend {
-        self == .luna10 ? .classicSwift : .trainedUnifiedSwift
+        switch self {
+        case .luna10: return .classicSwift
+        case .terra10, .sol10, .astra10: return .trainedUnifiedSwift
+        case .astra20, .sol20: return .verifiedTrainedCpp
+        }
     }
     var usesTrainedUnifiedSearch: Bool { backend == .trainedUnifiedSwift }
     var defaultComputeTier: EclipseComputeTier {
-        self == .astra10 ? .extreme : .standard
+        self == .astra10 || self == .astra20 ? .extreme : .standard
     }
     var description: String {
         switch self {
@@ -48,17 +80,23 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .terra10: return "均衡型 · 训练排序与稳定攻防"
         case .sol10: return "策略型 · 强迫搜索与中盘对抗"
         case .astra10: return "旗舰算力型 · 深层组合与强迫搜索"
+        case .astra20: return "第二代旗舰 · V9 314 树训练检查点"
+        case .sol20: return "第二代蒸馏型 · V9 160 树独立权重"
         }
     }
     var backendDescription: String {
-        backend == .classicSwift
-            ? "Swift Classic · 经典启发式"
-            : "Swift Unified · 原生 R10/R12/R13"
+        switch backend {
+        case .classicSwift: return "Swift Classic · 经典启发式"
+        case .trainedUnifiedSwift: return "Swift Unified · 原生 R10/R12/R13"
+        case .verifiedTrainedCpp: return "C++20 V2 · 必须验证已加载模型"
+        }
     }
     var artifactKind: String {
-        backend == .classicSwift
-            ? "native-classic-policy-v1"
-            : "native-unified-r10-policy-v1"
+        switch backend {
+        case .classicSwift: return "native-classic-policy-v1"
+        case .trainedUnifiedSwift: return "native-unified-r10-policy-v1"
+        case .verifiedTrainedCpp: return "cpp-lightgbm-ranker-26d-v9"
+        }
     }
     var recommendedBudgetMilliseconds: Int {
         GomokuBotBudget.forDifficulty(
@@ -116,14 +154,14 @@ struct EclipseModelSelection: Equatable, Sendable {
             case .high: return .advanced
             case .extreme: return .master
             }
-        case .sol10:
+        case .sol10, .sol20:
             switch compute {
             case .light: return .balanced
             case .standard: return .advanced
             case .high: return .master
             case .extreme: return .grandmaster
             }
-        case .astra10:
+        case .astra10, .astra20:
             switch compute {
             case .light: return .master
             case .standard: return .grandmaster

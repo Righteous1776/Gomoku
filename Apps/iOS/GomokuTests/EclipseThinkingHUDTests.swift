@@ -1,0 +1,300 @@
+import XCTest
+@testable import Gomoku
+
+final class EclipseThinkingHUDTests: XCTestCase {
+    func testNativeP50P95UsesRealSamePolicySamplesAndMinimumTwenty() {
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize([1, 2, 3]))
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize(
+            [Int](repeating: 100, count: 19)
+        ))
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize(
+            [Int](repeating: 0, count: 20)
+        ))
+        let measured = Array((1...20).reversed())
+        let summary = EclipseNativeLatencyStatistics.summarize(measured)
+        XCTAssertEqual(summary?.count, 20)
+        XCTAssertEqual(summary?.p50Milliseconds, 10)
+        XCTAssertEqual(summary?.p95Milliseconds, 19)
+    }
+
+    func testNativeLiveSnapshotUsesVersionedReadOnlyABI() {
+        guard let engine = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(engine) }
+        var snapshot = EGSearchLiveSnapshotV1()
+        snapshot.size_bytes = UInt32(MemoryLayout<EGSearchLiveSnapshotV1>.size)
+        XCTAssertEqual(eg_read_live_search_v1(engine, &snapshot), 1)
+        XCTAssertEqual(snapshot.state, UInt32(EG_LIVE_SEARCH_IDLE))
+        XCTAssertEqual(snapshot.search_serial, 0)
+        XCTAssertEqual(snapshot.best_move, -1)
+        XCTAssertEqual(snapshot.reason, -1)
+        snapshot.size_bytes = 0
+        snapshot.reason = 876
+        XCTAssertEqual(eg_read_live_search_v1(engine, &snapshot), 0)
+        XCTAssertEqual(snapshot.reason, 876)
+    }
+
+    func testNativePVPrefixSnapshotIsVersionedAndEmptyAtIdle() {
+        guard let handle = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(handle) }
+        var reading = EGPVPrefixSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGPVPrefixSnapshotV1>.size)
+        XCTAssertEqual(eg_read_pv_prefix_v1(handle, &reading), 1)
+        XCTAssertEqual(reading.search_serial, 0)
+        XCTAssertEqual(reading.count, 0)
+        XCTAssertEqual(reading.completed_depth, 0)
+        reading.size_bytes = 0
+        reading.count = 123
+        XCTAssertEqual(eg_read_pv_prefix_v1(handle, &reading), 0)
+        XCTAssertEqual(reading.count, 123)
+    }
+
+    func testNativeRankSnapshotIsVersionedAndEmptyWhileIdle() {
+        guard let handle = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(handle) }
+        var reading = EGRankedRootsSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGRankedRootsSnapshotV1>.size)
+        XCTAssertEqual(eg_read_ranked_roots_v1(handle, &reading), 1)
+        XCTAssertEqual(reading.search_serial, 0)
+        XCTAssertEqual(reading.count, 0)
+        reading.size_bytes = 0
+        reading.count = 999
+        XCTAssertEqual(eg_read_ranked_roots_v1(handle, &reading), 0)
+        XCTAssertEqual(reading.count, 999)
+    }
+
+    func testTeachingRankListRejectsFormalAndMalformedCandidates() {
+        var view = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 9, context: .formal,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 800,
+            visitedNodes: 4096, completedDepth: 1, stopReason: nil
+        )
+        view.nativeRootRanks = [111, 112, 113]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 9, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 800,
+            visitedNodes: 4096, completedDepth: nil, stopReason: nil
+        )
+        view.nativeRootRanks = [111, 112, 113]
+        XCTAssertEqual(view.visibleTeachingRanks, [111, 112, 113])
+        view.nativeRootRanks = [111, 111]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view.nativeRootRanks = [225]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view.nativeRootRanks = Array(0..<17)
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+    }
+
+    @MainActor
+    func testUnauthorizedTeachingAnalysisCannotMoveOrStartSearch() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let controller = NativeGomokuAppController(
+            archiveDirectory: root.appendingPathComponent("archive"),
+            trainingDirectory: root.appendingPathComponent("training")
+        )
+        let prior = controller.state
+        controller.analyzeTeachingPosition()
+        XCTAssertEqual(controller.state, prior)
+        XCTAssertFalse(controller.isThinking)
+        XCTAssertNil(controller.thinkingHUDSnapshot().searchID)
+    }
+
+    func testTeachingReviewRequiresMatchingContextEvenAfterNativeSearch() {
+        var snapshot = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 6, context: .formal,
+            isSearching: false, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 900,
+            visitedNodes: 5000, completedDepth: 2, stopReason: nil
+        )
+        snapshot.hasTeachingReview = true
+        snapshot.verifiedTeachingCandidate = 112
+        snapshot.nativeRootRanks = [112, 113]
+        snapshot.nativePVDepth = 2
+        snapshot.nativePVPrefix = [112, 113]
+        XCTAssertNil(snapshot.visibleTeachingCandidate)
+        XCTAssertTrue(snapshot.visibleTeachingRanks.isEmpty)
+        XCTAssertTrue(snapshot.visibleTeachingPVPrefix.isEmpty)
+        snapshot = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 6, context: .teaching,
+            isSearching: false, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 900,
+            visitedNodes: 5000, completedDepth: 2, stopReason: nil
+        )
+        snapshot.hasTeachingReview = true
+        snapshot.verifiedTeachingCandidate = 112
+        snapshot.nativeRootRanks = [112, 113]
+        snapshot.nativePVDepth = 2
+        snapshot.nativePVPrefix = [112, 113]
+        XCTAssertEqual(snapshot.visibleTeachingCandidate, 112)
+        XCTAssertEqual(snapshot.visibleTeachingRanks, [112, 113])
+        XCTAssertEqual(snapshot.visibleTeachingPVPrefix, [112, 113])
+        XCTAssertEqual(snapshot.shortStatus, "教学分析已完成 · 未落子")
+    }
+
+    func testAdaptiveV3StopReasonsAreNotMisreportedAsMathematicalProof() {
+        XCTAssertEqual(eg_adaptive_stop_abi_version(), 3)
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_CONVERGED)
+            ),
+            "启发式稳定收敛 · 非必胜证明"
+        )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_NEXT_DEPTH_COST)
+            ),
+            "预计下一完整深度收益不足以抵消计算成本"
+        )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_EFFORT_CAP)
+            ),
+            "自适应有效算力预算已达到"
+        )
+    }
+
+    func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_FORCED_WIN)),
+            "直接获胜落点 / 强制终结"
+        )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_TIME_LIMIT)),
+            "搜索预算耗尽（时间或节点）"
+        )
+        XCTAssertNil(EclipseThinkingHUDSnapshot.nativeStopReason(nil))
+        XCTAssertNil(EclipseThinkingHUDSnapshot.nativeStopReason(-27))
+    }
+
+    func testUnsetEngineMeasurementsNeverBecomeZeroOrPercent() {
+        let fixture = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 7, context: .formal,
+            isSearching: true, backend: "C++20 V2", executedModel: "2.0 Astra",
+            checkpointSHA256: nil, computePolicySHA256: nil,
+            elapsedMilliseconds: 1400, visitedNodes: nil,
+            completedDepth: nil, stopReason: nil
+        )
+        XCTAssertNil(fixture.visitedNodes)
+        XCTAssertNil(fixture.completedDepth)
+        XCTAssertNil(fixture.averageNPS)
+        XCTAssertNil(fixture.stopReason)
+        XCTAssertEqual(fixture.shortStatus, "搜索中 · 阶段未提供")
+        XCTAssertEqual(EclipseThinkingHUDSnapshot.version, 1)
+    }
+
+    func testRealAverageNPSNeedsValidElapsedAndNodes() {
+        let fixture = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 3, context: .formal,
+            isSearching: true, backend: "Swift",
+            executedModel: "1.0 Terra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2000,
+            visitedNodes: 8000, completedDepth: 4, stopReason: nil
+        )
+        XCTAssertEqual(fixture.averageNPS, 4000)
+        let tooEarly = EclipseThinkingHUDSnapshot(
+            searchID: nil, positionRevision: 3, context: .formal,
+            isSearching: true, backend: "Swift",
+            executedModel: nil, checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 10,
+            visitedNodes: 1, completedDepth: nil, stopReason: nil
+        )
+        XCTAssertNil(tooEarly.averageNPS)
+    }
+
+    func testCompletedRootCandidateNeverLeaksIntoFormalOrPostgameUI() {
+        var formal = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .formal,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: 3, stopReason: nil
+        )
+        formal.verifiedTeachingCandidate = 112 // malicious fixture
+        formal.nativeRootRanks = [112, 113, 98]
+        formal.nativePVPrefix = [112, 113]
+        formal.nativePVDepth = 3
+        XCTAssertNil(formal.visibleTeachingCandidate)
+        XCTAssertTrue(formal.visibleTeachingRanks.isEmpty)
+        XCTAssertTrue(formal.visibleTeachingPVPrefix.isEmpty)
+
+        var teaching = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: nil, stopReason: nil
+        )
+        teaching.verifiedTeachingCandidate = 112
+        teaching.nativeRootRanks = [112, 113, 98]
+        teaching.nativePVPrefix = [112, 113]
+        teaching.nativePVDepth = nil
+        XCTAssertEqual(teaching.visibleTeachingRanks, [112, 113, 98])
+        XCTAssertTrue(teaching.visibleTeachingPVPrefix.isEmpty)
+        XCTAssertNil(teaching.visibleTeachingCandidate) // depth not completed
+        teaching = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: 3, stopReason: nil
+        )
+        teaching.verifiedTeachingCandidate = 112
+        teaching.nativePVPrefix = [112, 113]
+        teaching.nativePVDepth = 3
+        XCTAssertEqual(teaching.visibleTeachingCandidate, 112)
+        XCTAssertEqual(teaching.visibleTeachingPVPrefix, [112, 113])
+        teaching.nativePVPrefix = [112, 113, 114, 115]
+        XCTAssertTrue(teaching.visibleTeachingPVPrefix.isEmpty)
+        teaching.verifiedTeachingCandidate = 225
+        XCTAssertNil(teaching.visibleTeachingCandidate)
+    }
+
+    func testFormalCompetitionCannotLeakUncommittedCandidates() {
+        XCTAssertFalse(
+            EclipseThinkingHUDSnapshot.Context.formal.permitsUncommittedCandidates
+        )
+        XCTAssertTrue(
+            EclipseThinkingHUDSnapshot.Context.teaching.permitsUncommittedCandidates
+        )
+        XCTAssertTrue(
+            EclipseThinkingHUDSnapshot.Context.postgame.permitsUncommittedCandidates
+        )
+    }
+
+    @MainActor
+    func testResetClearsLastHUDAndPreventsOldRunAttribution() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let archive = root.appendingPathComponent("archive", isDirectory: true)
+        let training = root.appendingPathComponent("training", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let controller = NativeGomokuAppController(
+            archiveDirectory: archive, trainingDirectory: training
+        )
+        controller.reset()
+        let snapshot = controller.thinkingHUDSnapshot()
+        XCTAssertNil(snapshot.searchID)
+        XCTAssertNil(snapshot.checkpointSHA256)
+        XCTAssertNil(snapshot.computePolicySHA256)
+        XCTAssertNil(snapshot.stopReason)
+        XCTAssertFalse(snapshot.isSearching)
+        XCTAssertEqual(snapshot.positionRevision, 0)
+    }
+}

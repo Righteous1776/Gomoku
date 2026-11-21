@@ -1,0 +1,125 @@
+name: Gomoku V2.0.0 verified unsigned IPA and GitHub Release
+
+on:
+  pull_request:
+    paths:
+      - 'Apps/iOS/**'
+      - 'Engine/**'
+      - 'Training/**'
+      - 'project.yml'
+      - 'Scripts/**'
+      - 'Docs/Releases/GOMOKU_V2.0.0.md'
+      - '.github/workflows/gomoku-v2-release.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Apps/iOS/**'
+      - 'Engine/**'
+      - 'Training/**'
+      - 'project.yml'
+      - 'Scripts/**'
+      - 'Docs/Releases/GOMOKU_V2.0.0.md'
+      - '.github/workflows/gomoku-v2-release.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: gomoku-v2-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  verify-build-publish:
+    runs-on: macos-15
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public-model receipts and forbid private owner training archives
+        run: |
+          set -euo pipefail
+          python3 Scripts/check_private_bundle.py
+          python3 -m unittest discover -s Training/tests -p 'test_r07_public_evidence.py' -v
+          python3 Engine/tools/verify_v9_compiled_provenance.py
+      - name: Compile C++20 production core and run the complete CTest suite
+        run: |
+          set -euo pipefail
+          cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-release --parallel 3
+          ctest --test-dir build-release --output-on-failure
+      - name: Install iOS project generator
+        run: brew install xcodegen
+      - name: Generate V2.0.0 project
+        run: xcodegen generate --spec project.yml
+      - name: Compile and execute real iOS simulator XCTest
+        run: |
+          set -euo pipefail
+          phone_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in reversed(sorted(d)) if ".iOS-" in runtime for x in d[runtime] if x["name"].startswith("iPhone")))')
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug \
+            -destination "platform=iOS Simulator,id=$phone_id" \
+            -derivedDataPath DerivedData -parallel-testing-enabled NO \
+            -resultBundlePath GomokuV2Tests.xcresult CODE_SIGNING_ALLOWED=NO test
+      - name: Compile actual Release-iphoneos app without developer signatures
+        run: |
+          set -euo pipefail
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Verify app version, pinned ECLIPSE icon and privacy
+        run: |
+          set -euo pipefail
+          test "$(git hash-object Apps/iOS/Gomoku/Assets.xcassets/AppIcon.appiconset/AppIcon.png)" = 760087e995445b8da5ce82a5c272da2f757f2c44
+          APP=DerivedData/Build/Products/Release-iphoneos/Gomoku.app
+          python3 Scripts/check_gomoku_release_identity.py --app "$APP"
+          python3 Scripts/check_app_icon.py "$APP"
+          python3 Scripts/check_private_bundle.py --app "$APP"
+      - name: Package, checksum and audit real V2.0.0 unsigned IPA
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/Payload
+          ditto DerivedData/Build/Products/Release-iphoneos/Gomoku.app \
+            artifacts/Payload/Gomoku.app
+          (
+            cd artifacts
+            zip -qr Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa Payload
+            shasum -a 256 Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa \
+              > Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.sha256
+            unzip -tq Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa
+          )
+          python3 Scripts/check_private_bundle.py \
+            --ipa artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa
+          python3 Scripts/check_gomoku_release_identity.py \
+            --ipa artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa
+      - name: Attach unsigned V2.0.0 candidate and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-V2.0.0-Build200-UNSIGNED-IPHONEOS
+          path: |
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.sha256
+          retention-days: 30
+      - name: Attach simulator XCTest bundle if available
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-V2.0.0-simulator-XCTest
+          path: GomokuV2Tests.xcresult
+          if-no-files-found: ignore
+      - name: Publish V2.0.0 GitHub Release from verified main only
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v2.0.0 >/dev/null 2>&1; then
+            echo "V2.0.0 already exists: do not overwrite a published release."
+            exit 1
+          fi
+          gh release create v2.0.0 \
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.ipa \
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE-UNSIGNED.sha256 \
+            --target "$GITHUB_SHA" \
+            --title "Gomoku V2.0.0 · ECLIPSE × VeilLink" \
+            --notes-file Docs/Releases/GOMOKU_V2.0.0.md

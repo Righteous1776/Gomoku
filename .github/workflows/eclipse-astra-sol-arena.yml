@@ -1,0 +1,49 @@
+name: ECLIPSE Astra and Sol actual full-game arena
+on:
+  pull_request:
+    paths:
+      - 'Engine/**'
+      - '.github/workflows/eclipse-astra-sol-arena.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  astra-sol-match-arena:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile real C++ V2 Astra / Sol / R10 game arena
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2 --target eclipse_v9_arena
+      - name: Play 24 real complete games, pair each synthetic opening and swap colors
+        run: |
+          mkdir -p Arena/evidence
+          build/Engine/eclipse_v9_arena --ms 70 --openings 4 \
+            | tee Arena/evidence/astra-sol-v9-full-games.jsonl
+      - name: Independently replay all moves, verify terminal wins and balanced match results
+        run: |
+          python3 Engine/tests/validate_v9_arena.py \
+            Arena/evidence/astra-sol-v9-full-games.jsonl
+      - name: Play 24 additional full games at deeper equal-compute setting
+        run: |
+          build/Engine/eclipse_v9_arena --ms 250 --depth 5 --nodes 75000 --openings 4 \
+            | tee Arena/evidence/astra-sol-v9-deep-games.jsonl
+      - name: Independently replay deeper matches and verify complete terminal states
+        run: |
+          python3 Engine/tests/validate_v9_arena.py \
+            Arena/evidence/astra-sol-v9-deep-games.jsonl
+      - name: Render BOTH match tiers and color-bias statistics in Actions summary
+        if: success()
+        run: |
+          python3 Engine/tests/render_v9_arena_summary.py \
+            Arena/evidence/astra-sol-v9-full-games.jsonl \
+            Arena/evidence/astra-sol-v9-deep-games.jsonl >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve public synthetic game-level JSONL (no player training histories)
+        if: always() && hashFiles('Arena/evidence/astra-sol-v9-*.jsonl') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-Astra-Sol-R10-Actual-Paired-Full-Games
+          path: Arena/evidence/astra-sol-v9-*.jsonl
+          retention-days: 30

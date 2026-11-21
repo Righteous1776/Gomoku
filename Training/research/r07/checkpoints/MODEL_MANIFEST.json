@@ -1,0 +1,82 @@
+{
+  "schema": "eclipse.r07.model.checkpoints.public.v1",
+  "status": "RESEARCH_ONLY_NOT_PROMOTED",
+  "release_approved": false,
+  "active_in_native_v9": false,
+  "active_in_ios_gomoku": false,
+  "trained_with_private_user_game_records": true,
+  "source_archive_sha256": "6b00ca26b53a61d70c0cc1d69a2c35cce74fe253b5f968087839a17b78f5f51f",
+  "raw_private_games_in_repository": false,
+  "raw_private_board_fixtures_in_repository": false,
+  "checkpoint_count": 7,
+  "bytes_total": 4166924,
+  "format": "LightGBM 4.6.0 plain-text Booster model",
+  "model_files": [
+    {
+      "file": "eclipse_r04_research_lightgbm.txt",
+      "trees": 239,
+      "features": 26,
+      "bytes": 571711,
+      "sha256": "b462dfda45c4c4a357680a95c2cf641d99ce68e5f430113eb5f779592cf6f18a",
+      "git_blob_sha1": "4d49b18321a7384637d312502df8b437c26015ab",
+      "role": "R04 original baseline"
+    },
+    {
+      "file": "r04_239tree_34d_compatible_base.txt",
+      "trees": 239,
+      "features": 34,
+      "bytes": 571831,
+      "sha256": "19f7cef62d974b3c7733aebf748e0e8445162e5cedb4127e91928bcd158e29ec",
+      "git_blob_sha1": "8266638269ad451bd7dbe7bad9721d2ea6050d5d",
+      "role": "R04 lossless extended interface"
+    },
+    {
+      "file": "eclipse_r07_34d_244_trees.txt",
+      "trees": 244,
+      "features": 34,
+      "bytes": 578711,
+      "sha256": "4cb64cc6fa2e88b538523e77cc627e841af4e52c3d07d853ff167c074494e3f9",
+      "git_blob_sha1": "f70b5f7cd50d19fe660eb6367c79ad5c6ce64cea",
+      "role": "R07 checkpoint"
+    },
+    {
+      "file": "eclipse_r07_34d_249_trees.txt",
+      "trees": 249,
+      "features": 34,
+      "bytes": 585541,
+      "sha256": "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234",
+      "git_blob_sha1": "d5da365dbab2462fb831f84ae73ba62c5f4ab843",
+      "role": "R07 best exploratory checkpoint, gate 8/9"
+    },
+    {
+      "file": "eclipse_r07_34d_259_trees.txt",
+      "trees": 259,
+      "features": 34,
+      "bytes": 599209,
+      "sha256": "cafa6e2b0380521f175d857a9c4383251b7b45128a42c769ce43cc39e04f84bf",
+      "git_blob_sha1": "89f94172ac9fd7b4c9c20626e274bff88dca5662",
+      "role": "R07 checkpoint"
+    },
+    {
+      "file": "eclipse_r07_34d_274_trees.txt",
+      "trees": 274,
+      "features": 34,
+      "bytes": 619679,
+      "sha256": "ec0c246db24d1a9a76346c4975a70507d87d83abad1d711ba3907d284991197c",
+      "git_blob_sha1": "b915edd281c6c2ee6b893e59482d134e4c012e74",
+      "role": "R07 checkpoint"
+    },
+    {
+      "file": "eclipse_r07_34d_289_trees.txt",
+      "trees": 289,
+      "features": 34,
+      "bytes": 640242,
+      "sha256": "17d2c91dbaf8f93a950d7ad8ae038670d4d00f25914cde27fafda190f493343e",
+      "git_blob_sha1": "8cccef1eb9a4c0035f01364c4a41311b012b3294",
+      "role": "R07 checkpoint"
+    }
+  ],
+  "verification": "Git blob SHA-1 was checked against the original model bytes before committing; CI independently recomputes original SHA-256 from all 7 committed files.",
+  "promotion_gate": "R07-249 passed 8 of 9 evaluation gates and regressed from 22/40 to 21/40 historic-move Top1; these are research weights, not a claimed Elo-strength or production generation.",
+  "compatibility": "34D R07 weights are not compatible with the existing 26D native V9 scorer without explicit 34D features+ABI+independent evaluation."
+}

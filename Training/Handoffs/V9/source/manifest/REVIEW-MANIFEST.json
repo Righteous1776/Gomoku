@@ -1,0 +1,142 @@
+{
+  "benchmark": {
+    "astra_new_vs_old": {
+      "draws": 0,
+      "losses": 3,
+      "wins": 5
+    },
+    "astra_v9_vs_sol_v9": {
+      "astra_timeouts": 26,
+      "astra_total_search_ms": 6447,
+      "astra_wins": 4,
+      "draws": 0,
+      "sol_timeouts": 0,
+      "sol_total_search_ms": 3315,
+      "sol_wins": 4
+    },
+    "engine": "LOCAL C++ RESEARCH ARENA (NOT official R15, NOT Swift)",
+    "not_significant_or_elo_certification": true,
+    "paired_openings_per_comparison": 4,
+    "per_move_time_cap_ms": 120,
+    "real_games_total": 24,
+    "sol_new_vs_old": {
+      "draws": 0,
+      "losses": 3,
+      "wins": 5
+    }
+  },
+  "blocking_findings": [
+    "V9 Astra 314-tree ranking regression: unique mandatory block top1 249/250 vs 250/250 old Astra; official engine must still gate blocks",
+    "R15 or genuine Swift zenith 6x not played (0 games)",
+    "Real loaded checkpoint with R15 identity/CLI has not been wired; only research model rankers are available",
+    "iPhone memory and thermal/fallback safety not measured",
+    "Previous human repeat-position validation reused, not independent new blind human cohort"
+  ],
+  "bundle_scope": "RESEARCH_PRIVATE_NO_UPLOAD",
+  "fallback_recommendation": "Use Sol 160 as resource-constrained fallback CANDIDATE; preserve Astra 254 safe ranking baseline, never silent mid-game model switch under current R15 signed archive schema",
+  "model_files": {
+    "astra-v8-safe": {
+      "architecture": "LightGBM 26D candidate move ranking",
+      "bytes": 595365,
+      "checkpoint_path": "models/astra-v8-safe.lightgbm.txt",
+      "engine_integrated": "NO",
+      "family": "astra",
+      "gate_status": "SAFE_RANKING_RESEARCH_BASELINE_ONLY",
+      "n_features": 26,
+      "official_product_version": null,
+      "research_version": "V8",
+      "sha256": "44c1efcc2e35cd0dd264bda654e58b188ee0fe7a8de8f30fe45aaff9d7903685",
+      "tree_nodes": 9750,
+      "trees": 254
+    },
+    "astra-v9": {
+      "architecture": "LightGBM 26D candidate move ranking",
+      "bytes": 691578,
+      "checkpoint_path": "models/astra-v9.lightgbm.txt",
+      "engine_integrated": "NO",
+      "family": "astra",
+      "gate_status": "CANDIDATE_BLOCKED",
+      "n_features": 26,
+      "official_product_version": null,
+      "research_version": "V9",
+      "sha256": "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d",
+      "tree_nodes": 11250,
+      "trees": 314
+    },
+    "sol-v8": {
+      "architecture": "LightGBM 26D candidate move ranking",
+      "bytes": 203166,
+      "checkpoint_path": "models/sol-v8.lightgbm.txt",
+      "engine_integrated": "NO",
+      "family": "sol",
+      "gate_status": "HISTORICAL_RESEARCH_BASELINE_ONLY",
+      "n_features": 26,
+      "official_product_version": null,
+      "research_version": "V8",
+      "sha256": "3f31c7eca7b2b8b61997844a53eccb495daa3403e60356a5f581a9491d79d27d",
+      "tree_nodes": 3224,
+      "trees": 120
+    },
+    "sol-v9": {
+      "architecture": "LightGBM 26D candidate move ranking",
+      "bytes": 261150,
+      "checkpoint_path": "models/sol-v9.lightgbm.txt",
+      "engine_integrated": "NO",
+      "family": "sol",
+      "gate_status": "RESEARCH_REVIEW_ONLY",
+      "n_features": 26,
+      "official_product_version": null,
+      "research_version": "V9",
+      "sha256": "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd",
+      "tree_nodes": 4126,
+      "trees": 160
+    }
+  },
+  "node_c_authorized": false,
+  "official_swift_zenith_6x_matches": 0,
+  "private_weight_uploaded": false,
+  "production_approval": false,
+  "r15_contract_alignment": {
+    "additional_review": "training revision R ID / owner-approved generation / validated provenance digest / verified independent real game groups / true model-running search CLI / R15 Swift strength parity",
+    "families": [
+      "astra",
+      "sol"
+    ],
+    "training_handoff_schema_is_not_fabricated": true
+  },
+  "r15_strict_handoff_ready": false,
+  "r19_integration": {
+    "checkpoint_not_wired_to_R19": true,
+    "compute_policy_proposals": {
+      "astra-v9": {
+        "compute_policy_sha256": "ea6eebe73e69d66caefc3091e4670d44e0405f659d327edeafd452a73edba8d6",
+        "path": "policy_candidates/astra-v9.json"
+      },
+      "sol-v9": {
+        "compute_policy_sha256": "15ca5d87a2541c895f8b9d3a1ec853fb253c47cd0de536d782cd997a872acb43",
+        "path": "policy_candidates/sol-v9.json"
+      }
+    },
+    "current_R19_eg_active_trained_checkpoint_sha256_v2_returns_0": true,
+    "model_auto_fallback_must_respect_signed_match_attribution": true,
+    "production_registry_requires_real_loaded_cabi_checkpoint_sha": true,
+    "target_pr": "https://github.com/Righteous1776/Gomoku/pull/43",
+    "target_snapshot_commit": "b3106ca2f281a7e97414cc9720dbef4f22ce6bf9"
+  },
+  "repository_main_modified": false,
+  "schema": "eclipse.v9.private-review-summary.v1",
+  "source": {
+    "arena_report_sha256": "4dc7d24d39335f34216e3f70dc0d401115fdaade69ab46061961741ce34187cb",
+    "gomoku_project": "Righteous1776/Gomoku",
+    "governance_pr": "https://github.com/Righteous1776/Gomoku/pull/39",
+    "r15_branch_reference": "feature/eclipse-r15-model-generation-compute-parity-20261121",
+    "r15_commit_reference": "247432c6aa03588d1e2735995aed0f9b8bda468b"
+  },
+  "training_aggregates": {
+    "new_synthetic_games": 2600,
+    "new_synthetic_lockbox_games": 650,
+    "new_synthetic_training_games": 1500,
+    "real_human_validation_reused": true
+  },
+  "user_approved": "RESEARCH_BENCHMARK_ACCEPTED_FOR_PACKAGING_AND_REVIEW"
+}

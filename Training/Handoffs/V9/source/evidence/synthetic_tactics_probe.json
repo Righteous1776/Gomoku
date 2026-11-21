@@ -1,0 +1,57 @@
+{
+  "schema": "eclipse.v5.synthetic.tactical.ranking.probe.continued.v1",
+  "synthetic_positions": 500,
+  "distinct_real_matches": 0,
+  "black_to_move_only": true,
+  "notice": "Ranking-only probe; mandatory Swift/C++ win/block gates NOT tested",
+  "models": {
+    "Astra candidate": {
+      "forced_win": {
+        "n": 250,
+        "ranker_top1": 1.0,
+        "ranker_top5": 1.0
+      },
+      "unique_block": {
+        "n": 250,
+        "ranker_top1": 0.996,
+        "ranker_top5": 1.0
+      }
+    },
+    "Sol candidate": {
+      "forced_win": {
+        "n": 250,
+        "ranker_top1": 1.0,
+        "ranker_top5": 1.0
+      },
+      "unique_block": {
+        "n": 250,
+        "ranker_top1": 0.996,
+        "ranker_top5": 1.0
+      }
+    },
+    "Astra baseline": {
+      "forced_win": {
+        "n": 250,
+        "ranker_top1": 1.0,
+        "ranker_top5": 1.0
+      },
+      "unique_block": {
+        "n": 250,
+        "ranker_top1": 1.0,
+        "ranker_top5": 1.0
+      }
+    },
+    "Sol baseline": {
+      "forced_win": {
+        "n": 250,
+        "ranker_top1": 1.0,
+        "ranker_top5": 1.0
+      },
+      "unique_block": {
+        "n": 250,
+        "ranker_top1": 0.996,
+        "ranker_top5": 1.0
+      }
+    }
+  }
+}
