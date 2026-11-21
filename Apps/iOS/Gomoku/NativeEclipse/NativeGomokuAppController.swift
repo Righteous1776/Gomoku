@@ -777,8 +777,7 @@ final class NativeGomokuAppController: ObservableObject {
             }
             if !cppFailed, trainerRevision != nil,
                decision.nativeStopReason != nil,
-               let elapsed = decision.elapsedMilliseconds,
-               elapsed > 0,
+               decision.elapsedMilliseconds > 0,
                let verified = lastThinkingRun,
                let checkpoint = verified.checkpointSHA256,
                let policy = verified.computePolicySHA256 {
@@ -792,7 +791,7 @@ final class NativeGomokuAppController: ObservableObject {
                     }
                 }
                 var samples = nativeLatencyBySignature[signature] ?? []
-                samples.append(elapsed)
+                samples.append(decision.elapsedMilliseconds)
                 if samples.count > 128 { samples.removeFirst(samples.count - 128) }
                 nativeLatencyBySignature[signature] = samples
             }
