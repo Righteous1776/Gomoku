@@ -145,6 +145,7 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertEqual(snapshot.visibleTeachingCandidate, 112)
         XCTAssertEqual(snapshot.visibleTeachingRanks, [112, 113])
         XCTAssertEqual(snapshot.visibleTeachingPVPrefix, [112, 113])
+        XCTAssertEqual(snapshot.shortStatus, "教学分析已完成 · 未落子")
     }
 
     func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
