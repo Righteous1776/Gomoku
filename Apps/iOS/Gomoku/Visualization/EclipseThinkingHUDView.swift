@@ -176,7 +176,7 @@ struct EclipseThinkingHUDView: View {
                             // model/checkpoint actually shown below.
                             if let research = EclipseGeneration3ResearchCatalog.bundled,
                                let checkpoint = research.preferredResearchCandidate {
-                                item("ECLIPSE 3.0 · 新研究代",
+                                item("\(research.flagshipAliasName) · ECLIPSE 3.0",
                                      "\(checkpoint.researchRevision) · \(checkpoint.trees) 树 / \(checkpoint.features) 维")
                                 item("3.0 模型状态",
                                      "研究资产 · 8/9 门禁 · 未在 iOS 加载")
