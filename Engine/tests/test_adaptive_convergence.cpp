@@ -100,6 +100,16 @@ int main() {
         CHECK(decision.search.reason == EG_SEARCH_REASON_FORCED_WIN);
         CHECK(decision.search.move == 4);
     }
+    // Unique defensive square must never be replaced with a claimed
+    // "stable" shortcut, even when an unlimited adaptive policy is active.
+    eg_reset(e.get());
+    for (const int index : {112, 0, 143, 1, 125, 2, 151, 3})
+        CHECK(eg_play(e.get(), index) == 1);
+    for (auto p : {adaptive, budgeted}) {
+        const auto decision = run(e.get(), p);
+        CHECK(decision.search.reason == EG_SEARCH_REASON_FORCED_BLOCK);
+        CHECK(decision.search.move == 4);
+    }
     std::cout << "ECLIPSE adaptive convergence: pure tracker, native opt-in, "
                  "budgeted preservation and forced win PASS\n";
 }
