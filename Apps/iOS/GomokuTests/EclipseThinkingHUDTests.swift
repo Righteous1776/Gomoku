@@ -94,8 +94,11 @@ final class EclipseThinkingHUDTests: XCTestCase {
         )
         formal.verifiedTeachingCandidate = 112 // malicious fixture
         formal.nativeRootRanks = [112, 113, 98]
+        formal.nativePVPrefix = [112, 113]
+        formal.nativePVDepth = 3
         XCTAssertNil(formal.visibleTeachingCandidate)
         XCTAssertTrue(formal.visibleTeachingRanks.isEmpty)
+        XCTAssertTrue(formal.visibleTeachingPVPrefix.isEmpty)
 
         var teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
@@ -106,7 +109,10 @@ final class EclipseThinkingHUDTests: XCTestCase {
         )
         teaching.verifiedTeachingCandidate = 112
         teaching.nativeRootRanks = [112, 113, 98]
+        teaching.nativePVPrefix = [112, 113]
+        teaching.nativePVDepth = nil
         XCTAssertEqual(teaching.visibleTeachingRanks, [112, 113, 98])
+        XCTAssertTrue(teaching.visibleTeachingPVPrefix.isEmpty)
         XCTAssertNil(teaching.visibleTeachingCandidate) // depth not completed
         teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
@@ -116,7 +122,12 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: 3, stopReason: nil
         )
         teaching.verifiedTeachingCandidate = 112
+        teaching.nativePVPrefix = [112, 113]
+        teaching.nativePVDepth = 3
         XCTAssertEqual(teaching.visibleTeachingCandidate, 112)
+        XCTAssertEqual(teaching.visibleTeachingPVPrefix, [112, 113])
+        teaching.nativePVPrefix = [112, 113, 114, 115]
+        XCTAssertTrue(teaching.visibleTeachingPVPrefix.isEmpty)
         teaching.verifiedTeachingCandidate = 225
         XCTAssertNil(teaching.visibleTeachingCandidate)
     }
