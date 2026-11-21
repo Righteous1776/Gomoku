@@ -272,7 +272,16 @@ final class NativeGomokuAppController: ObservableObject {
         // The adapter and its engine are owned by this actor until the run
         // resolves. The C++ snapshot function is explicitly concurrent-read
         // safe; generation/reset clears activeCppSearch before a new board.
-        let nativeRun = isThinking && identity?.backend == "C++20 V2"
+        // An explicitly requested teaching analysis keeps its completed
+        // idle native handle for review, but ONLY at the unchanged position
+        // and while the device-owner authorization is still valid.
+        let teachingReview = !isThinking && developerTeachingMode
+            && developerAuthorization.isAuthorized
+            && lastThinkingRun?.positionRevision == state.moveCount
+            && lastThinkingRun?.backend == "C++20 V2"
+            && activeCppSearch != nil
+        let nativeRun = (isThinking || teachingReview)
+            && identity?.backend == "C++20 V2"
         let nativeLive = nativeRun ? activeCppSearch?.liveSearchSnapshot() : nil
         let liveElapsed: Int? = searchStartedUptime.map {
             Int(max(0, uptime - $0) * 1000)
@@ -301,16 +310,17 @@ final class NativeGomokuAppController: ObservableObject {
                 : lastDecisionDepth,
             stopReason: live ? nil : lastThinkingStopReason
         )
+        snapshot.hasTeachingReview = teachingReview
         // The native engine may publish a best move for a FULLY completed
         // iteration. Only authenticated developer teaching may observe it.
         // Formally played matches do not store this move in the HUD.
-        if live && context == .teaching && nativeRun,
+        if (live || teachingReview) && context == .teaching && nativeRun,
            let candidate = nativeLive?.bestMoveForAuthorizedReview,
            nativeLive?.completedDepth != nil,
            state.value(at: candidate) == 0 {
             snapshot.verifiedTeachingCandidate = candidate
         }
-        if live && context == .teaching && nativeRun,
+        if (live || teachingReview) && context == .teaching && nativeRun,
            let serial = nativeLive?.searchSerial,
            let ranks = activeCppSearch?.liveRankedRootMoves(),
            ranks.serial == serial {
@@ -320,7 +330,7 @@ final class NativeGomokuAppController: ObservableObject {
                 state.value(at: $0) == 0
             }
         }
-        if live && context == .teaching && nativeRun,
+        if (live || teachingReview) && context == .teaching && nativeRun,
            let serial = nativeLive?.searchSerial,
            let nativePV = activeCppSearch?.livePVPrefix(),
            nativePV.serial == serial,
@@ -491,6 +501,15 @@ final class NativeGomokuAppController: ObservableObject {
             let stone: UInt8 = state.currentPlayer == .host ? 1 : 2
             guard state.apply(index: index, actor: state.currentPlayer) else { return }
             archivedMoves.append(.init(index: index, stone: stone))
+            // All native ranked/PV evidence belongs to the PREVIOUS board.
+            activeCppSearch = nil
+            lastThinkingRun = nil
+            lastThinkingStopReason = nil
+            lastDecisionNodes = nil
+            lastDecisionDepth = nil
+            lastDecisionMilliseconds = nil
+            lastExecutedModel = nil
+            lastExecutionBackend = nil
             refresh()
             return
         }
