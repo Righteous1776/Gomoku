@@ -33,6 +33,8 @@ class Generation3ModelIdentityTests(unittest.TestCase):
         self.assertFalse(self.manifest["active_in_ios_gomoku"])
         self.assertFalse(self.manifest["active_in_native_v9"])
         self.assertFalse(self.manifest["release_approved"])
+        self.assertEqual(self.manifest["product_model_generation"], "3.0")
+        self.assertEqual(self.manifest["host_app_version"], "2.0.0")
 
     def test_five_3_0_checkpoints_match_actual_published_weight_bytes(self):
         c = self.catalog
