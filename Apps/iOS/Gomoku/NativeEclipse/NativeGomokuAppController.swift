@@ -17,7 +17,13 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastDecisionMilliseconds: Int?
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
-    @Published var difficulty: BoardBotDifficulty = .balanced
+    @Published private(set) var selectedModel: EclipseModelID = .currentDefault
+    /// Compatibility surface for existing seven-tier callers and tests.
+    /// The UI and runtime use selectedModel's immutable identity instead.
+    var difficulty: BoardBotDifficulty {
+        get { selectedModel.legacyDifficulty }
+        set { selectedModel = .fromLegacyDifficulty(newValue) }
+    }
     @Published var searchMode: BoardSearchMode = .full
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
@@ -82,6 +88,12 @@ final class NativeGomokuAppController: ObservableObject {
         savedDeveloperLessons = developerLessons.lessons.count
         let journalFolder = trainingJournal.directory
         let production = archiveDirectory == nil && trainingDirectory == nil
+        if production,
+           let stored = EclipseModelID.fromStoredIdentifier(
+               UserDefaults.standard.string(forKey: EclipseModelID.selectionKey)
+           ) {
+            selectedModel = stored
+        }
         // The full historical replay pass can be huge and must never block
         // the initial board render or interactive scrolling on MainActor.
         Task.detached(priority: .utility) { [weak self] in
@@ -104,6 +116,17 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     var humanColor: Int32 { humanIsBlack ? 1 : 2 }
+
+    /// A model change starts a new game: the archive records a stable model
+    /// identity per game and the in-flight async worker is invalidated.
+    /// This also prevents mixing different model strategies in one training
+    /// match and avoids misattributing its result to the wrong model.
+    func selectModel(_ model: EclipseModelID) {
+        guard model != selectedModel else { return }
+        selectedModel = model
+        UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)
+        reset()
+    }
 
     var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
         if isThinking {
@@ -137,7 +160,7 @@ final class NativeGomokuAppController: ObservableObject {
         _ record: VeilGomokuMatchArchive.Match
     ) -> GomokuState? {
         guard record.status == .playing, record.completedAt == nil,
-              BoardBotDifficulty(rawValue: record.difficulty) != nil else { return nil }
+              EclipseModelID.fromArchiveValue(record.difficulty) != nil else { return nil }
         var restored = GomokuState()
         for move in record.moves {
             let expected: UInt8 = restored.currentPlayer == .host ? 1 : 2
@@ -156,7 +179,7 @@ final class NativeGomokuAppController: ObservableObject {
     func restoreLastPlayingSession() -> Bool {
         guard let previous = latestRestorableMatch(),
               let resumed = Self.replayIncompleteMatch(previous),
-              let restoredTier = BoardBotDifficulty(rawValue: previous.difficulty) else {
+              let restoredModel = EclipseModelID.fromArchiveValue(previous.difficulty) else {
             recoveryAvailable = false
             return false
         }
@@ -170,7 +193,8 @@ final class NativeGomokuAppController: ObservableObject {
         sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
         sessionHumanStone = previous.humanStone
         humanIsBlack = previous.humanStone == 1
-        difficulty = restoredTier
+        selectedModel = restoredModel
+        UserDefaults.standard.set(restoredModel.rawValue, forKey: EclipseModelID.selectionKey)
         archivedMoves = previous.moves
         isThinking = false
         searchStartedAt = nil
@@ -332,7 +356,8 @@ final class NativeGomokuAppController: ObservableObject {
         guard !isThinking, status == 0 else { return }
         let token = generation
         let boardAtStart = state
-        let selectedTier = difficulty
+        let model = selectedModel
+        let selectedTier = model.legacyDifficulty
         let selectedMode = searchMode
         isThinking = true
         searchStartedAt = Date()
@@ -390,7 +415,9 @@ final class NativeGomokuAppController: ObservableObject {
                 budget: budget,
                 learning: learning,
                 formationPreference: activeFormation,
-                difficultyRawValue: selectedTier.rawValue,
+                diagnosticEclipseUnified: model.usesTrainedUnifiedSearch,
+                difficultyRawValue: model.usesTrainedUnifiedSearch
+                    ? selectedTier.rawValue : nil,
                 onExploredLine: observer,
                 onSearchTrace: metricObserver
             )
@@ -451,7 +478,7 @@ final class NativeGomokuAppController: ObservableObject {
         do {
             let committed = try archive.save(
                 sessionID: sessionID, moves: archivedMoves,
-                difficulty: difficulty.rawValue,
+                difficulty: selectedModel.rawValue,
                 humanStone: sessionHumanStone, status: state
             )
             // Only actual play may create the device-keyed evidence receipt.
