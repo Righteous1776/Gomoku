@@ -335,7 +335,35 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("模型版本代表训练/算法世代，不代表思考时间。当前原版 Swift 使用历史预算仅为兼容与评测；训练 Agent 的新检查点可指定自适应搜索，没有固定的时间或节点上限。")
+                    if let generation3 = EclipseGeneration3ResearchCatalog.bundled,
+                       let candidate = generation3.preferredResearchCandidate {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                Text("ECLIPSE 3.0 · R07")
+                                    .font(.headline)
+                                    .foregroundColor(VeilTheme.text)
+                                Spacer(minLength: 6)
+                                Text("研究候选 · 未开放")
+                                    .font(.caption2.monospaced())
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
+                            Text("\(candidate.trees) 棵树 · \(candidate.features)D · 权重 SHA: \(String(candidate.sha256.prefix(12)))…")
+                                .font(.caption.monospaced())
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("新一代权重已登记，但 R07-249 仅通过 8/9 研究门禁；34D 原生推理尚未验收，不能选择、不能冒充已加载的 Astra/Sol 2.0。")
+                                .font(.caption)
+                                .foregroundColor(VeilTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            VeilTheme.subtleFill,
+                            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        )
+                        .accessibilityIdentifier("gomoku.eclipse.model3.research-unavailable")
+                    }
+                    Text("模型代际与应用版本、思考预算彼此独立。当前原生 Astra/Sol 维持真实已加载的 2.0 身份；搜索器在训练 Agent 核准的预算内根据局面复杂度自适应收敛。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
