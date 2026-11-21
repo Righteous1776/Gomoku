@@ -18,8 +18,8 @@ final class EclipseCppProductionRuntimeTests: XCTestCase {
         let actual = EclipseCppProductionAdapter.loadedCheckpointSHA256()
         if let actual {
             XCTAssertEqual(actual.count, 64)
-            XCTAssertTrue(actual.allSatisfy {
-                $0.isASCII && ($0.isNumber || ("a"..."f").contains(String($0)))
+            XCTAssertTrue(actual.utf8.allSatisfy {
+                (48...57).contains(Int($0)) || (97...102).contains(Int($0))
             })
         }
     }
