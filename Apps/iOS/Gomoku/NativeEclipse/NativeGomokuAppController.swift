@@ -598,6 +598,126 @@ final class NativeGomokuAppController: ObservableObject {
         }
     }
 
+    /// Run native ECLIPSE at the current manually staged teaching position.
+    /// IMPORTANT: this does NOT place a stone, archive a match, train a model
+    /// or alter the original automatic gameplay path. A compiled, attested
+    /// 2.0 Astra/Sol backend is required for live ranked/PV evidence.
+    func analyzeTeachingPosition() {
+        guard developerTeachingMode, developerAuthorization.isAuthorized,
+              !isThinking, status == 0 else { return }
+        guard let trainer = verifiedTrainerExecution,
+              let runtime = EclipseCppProductionAdapter.make(
+                history: archivedMoves.map(\.index), trainer: trainer
+              ) else {
+            developerMessage = "当前模型没有完成 C++ 原生加载核验，不能产生真实候选/PV。"
+            return
+        }
+        let boardAtStart = state
+        let token = generation
+        let model = selectedModel
+        // Release previously reviewed engine before beginning a fresh run.
+        activeCppSearch = runtime
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        lastDecisionNodes = nil
+        lastDecisionDepth = nil
+        lastDecisionMilliseconds = nil
+        lastExecutedModel = nil
+        lastExecutionBackend = nil
+        isThinking = true
+        searchStartedAt = Date()
+        searchStartedUptime = ProcessInfo.processInfo.systemUptime
+        activeThinkingRun = EclipseThinkingRunIdentity(
+            id: UUID(), positionRevision: boardAtStart.moveCount,
+            backend: "C++20 V2", modelName: model.name,
+            checkpointSHA256: trainer.checkpointSHA256,
+            computePolicySHA256: trainer.computePolicy.sha256
+        )
+        developerMessage = nil
+
+        let moves = archivedMoves
+        let journalDirectory = trainingJournal.directory
+        let archiveDirectory = archive.directory
+        let useNativeTraining = selfPlayLearningEnabled
+        // The teaching analysis player is whichever color is to move.
+        let toMoveStone: UInt8 = boardAtStart.currentPlayer == .host ? 1 : 2
+        let otherStone: UInt8 = toMoveStone == 1 ? 2 : 1
+        let lessonInfluence = developerLessons.influence(
+            for: moves.map { .init(index: $0.index, stone: $0.stone) },
+            aiStone: toMoveStone
+        )
+        let aiMoves = moves.filter { $0.stone == toMoveStone }.map(\.index)
+        let opponentMoves = moves.filter { $0.stone == otherStone }.map(\.index)
+        let formation = GomokuFormationPreference(
+            mode: formationMode, aiHistory: aiMoves,
+            opponentHistory: opponentMoves, discovered: []
+        )
+        searchTask = Task.detached(priority: .userInitiated) { [weak self] in
+            guard !Task.isCancelled else { return }
+            let learned = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: moves,
+                humanStone: otherStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot.applying(lessonInfluence)
+            guard !Task.isCancelled else { return }
+            let rooted = EclipseCppRootLearningPolicy.build(
+                state: boardAtStart,
+                player: boardAtStart.currentPlayer,
+                learning: learned,
+                formation: formation
+            )
+            let result = runtime.decide(
+                policy: trainer.computePolicy, rootPolicy: rooted
+            )
+            guard !Task.isCancelled else { return }
+            await self?.finishTeachingAnalysis(
+                result, on: boardAtStart, token: token,
+                model: model, runtime: runtime
+            )
+        }
+    }
+
+    private func finishTeachingAnalysis(
+        _ decision: GomokuBotMove?,
+        on original: GomokuState,
+        token: UUID,
+        model: EclipseModelID,
+        runtime: EclipseCppProductionAdapter
+    ) {
+        guard token == generation, state == original,
+              developerTeachingMode, developerAuthorization.isAuthorized,
+              activeCppSearch === runtime else { return }
+        lastThinkingRun = activeThinkingRun
+        activeThinkingRun = nil
+        searchStartedUptime = nil
+        searchStartedAt = nil
+        isThinking = false
+        searchTask = nil
+        guard let decision,
+              (0..<225).contains(decision.index),
+              original.value(at: decision.index) == 0,
+              decision.nativeStopReason != nil else {
+            activeCppSearch = nil
+            lastThinkingRun = nil
+            lastThinkingStopReason = "原生教学分析未获得合法结果"
+            developerMessage = "本局原生分析失败，未落子、未写入训练或对局记录。"
+            return
+        }
+        // Keep this completed, idle native handle only for read-only review.
+        // A manually staged move or reset immediately drops its evidence.
+        lastDecisionNodes = decision.nodes
+        lastDecisionDepth = decision.completedDepth
+        lastDecisionMilliseconds = decision.elapsedMilliseconds
+        lastExecutedModel = model
+        lastExecutedTrainerRevision = nil
+        lastExecutionBackend = decision.engineLabel ?? "C++20 V2"
+        lastThinkingStopReason =
+            EclipseThinkingHUDSnapshot.nativeStopReason(decision.nativeStopReason)
+        developerMessage = "原生搜索完成；当前棋盘未变化，候选与 PV 仅供教学研判。"
+    }
+
     private func scheduleAI() {
         guard !isThinking, status == 0 else { return }
         let token = generation
