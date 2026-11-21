@@ -306,7 +306,7 @@ struct VeilEclipseTraceSheet: View {
                         .buttonStyle(.bordered)
                     } else {
                         Text(matchFinished ? "本局的已验证走子记录暂不可用。"
-                             : "对局结束后可回放实际棋步。")
+                             : "为保证公平，对局进行时不会显示棋盘推演、推荐点、对方威胁位置或主变路线。赛后才能查看实际棋步。")
                             .font(.subheadline)
                             .foregroundColor(VeilTheme.secondaryText)
                             .padding(.vertical, 12)

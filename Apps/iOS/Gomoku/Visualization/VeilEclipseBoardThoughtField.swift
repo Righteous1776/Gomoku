@@ -15,15 +15,13 @@ struct VeilEclipseBoardThoughtField: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var refreshInterval: TimeInterval {
-        if reduceMotion { return 0.25 }
-        return ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0 / 12 : 1.0 / 24
-    }
-
     var body: some View {
         Group {
             if enabled && isThinking && actualSearchStartedAt != nil && matchPlaying {
-                TimelineView(.periodic(from: .now, by: refreshInterval)) { _ in
+                TimelineView(.animation(
+                    minimumInterval: ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0/12.0 : 1.0/24.0,
+                    paused: reduceMotion
+                )) { _ in
                     let now = ProcessInfo.processInfo.systemUptime
                     let branches = searchTrace.snapshot(
                         sessionID: sessionID, turn: turn,
@@ -36,7 +34,7 @@ struct VeilEclipseBoardThoughtField: View {
                                      VeilTheme.success, VeilTheme.mutedGold]
                         for (rank, branch) in branches.enumerated() {
                             let age = max(0, now - branch.emittedAtUptime)
-                            let fading = reduceMotion ? (age < 1.35 ? 1.0 : 0.0) : max(0, 1.0 - age / 1.35)
+                            let fading = max(0, 1.0 - age / 1.35)
                             guard fading > 0 else { continue }
                             let tone = tones[rank % tones.count]
                             let points = branch.indices.map { index in

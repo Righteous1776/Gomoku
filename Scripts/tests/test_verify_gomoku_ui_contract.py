@@ -58,6 +58,13 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(checks["source-aligned game hierarchy"])
 
+    def test_veillink_original_widgets_must_not_be_restyled(self):
+        self.sources["thought"] += "\\n// unauthorized re-styling"
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks[
+            "real VeilLink source widgets are byte-for-byte migrated"
+        ])
+
     def test_veillink_identity_brand_is_pinned(self):
         self.sources["identity"] = self.sources["identity"].replace(
             'Text("VeilLink Native Intelligence")',

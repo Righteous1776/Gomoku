@@ -7,6 +7,7 @@ display/material wiring and unchanged native board hit geometry. ECLIPSE
 The simulator and physical screenshot gates remain separate.
 """
 from pathlib import Path
+import hashlib
 
 
 APP = Path(__file__).resolve().parents[1] / "Apps/iOS/Gomoku"
@@ -17,12 +18,30 @@ PATHS = {
     "identity": "Visualization/VeilEclipseIdentityAndTrace.swift",
     "appearance": "DesignSystem/AppearanceTheme.swift",
     "runtime": "Visualization/VeilEclipseRuntimeInstruments.swift",
+    "thought": "Visualization/VeilEclipseBoardThoughtField.swift",
+    "console": "Visualization/VeilEclipseComputeConsole.swift",
+    "stream": "Visualization/VeilEclipseConsoleStream.swift",
 }
 
 
 def read_sources(app=APP):
     return {name: (app / path).read_text(encoding="utf-8")
             for name, path in PATHS.items()}
+
+
+def git_blob_sha1(source: str) -> str:
+    data = source.encode("utf-8")
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
+
+
+# Exact blob SHAs from VeilLink main at
+# 0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32.
+UPSTREAM_BLOBS = {
+    "thought": "e3c648e49383261c450bd4d6c53ed2a7e8d47ead",
+    "console": "ab923f9fd731b1ed66dd64cfcab950be19d6bd42",
+    "runtime": "390410ee6a84feb1d4e9374f025715c1aee786f9",
+    "stream": "098af4a2ddbf9ac4e7466859e988ee343500c9b0",
+}
 
 
 def evaluate_sources(sources):
@@ -108,6 +127,9 @@ def evaluate_sources(sources):
         "analysis is a separate read-only presentation":
             "VeilEclipseTraceSheet(" in home
             and "VeilEclipseComputeConsole(" in identity,
+        "real VeilLink source widgets are byte-for-byte migrated":
+            all(git_blob_sha1(sources[name]) == expected
+                for name, expected in UPSTREAM_BLOBS.items()),
         "VeilLink status layout uses original adaptive readout grid":
             "LazyVGrid(" in home
             and "GridItem(.adaptive(minimum: 84), spacing: 8)" in home

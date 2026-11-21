@@ -16,7 +16,7 @@
 - Same `VStack(spacing: 14)`, outer `.padding(14)`, ambient background and title.
 - Same 3-column adaptive status grid and monospaced LCD metric typography.
 - Same 15×15 board wood fill, white grid, star points, black/white stone finish, spacing, impact and gesture geometry. The board source was **already faithfully ported** at restored rollback baseline; do not touch or unnecessarily reimplement it.
-- Same VeilLink colors, material and original ECLIPSE console/runtime components. The last three source-file SHA-1 values already match VeilLink upstream exactly; do not "refresh" their visuals.
+- Same VeilLink colors, material and original ECLIPSE console/runtime components. These four UI sources are byte-identical to VeilLink upstream and pinned by Git blob SHA-1 in CI: `VeilEclipseComputeConsole.swift`, `VeilEclipseRuntimeInstruments.swift`, `VeilEclipseConsoleStream.swift`, `VeilEclipseBoardThoughtField.swift`. Do not "refresh" their visuals.
 - Remove Gomoku-only second runtime foldout: there should be exactly one original instrument in its original position.
 - The original VeilLink ECLIPSE card text and wall-time label are restored.
 
