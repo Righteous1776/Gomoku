@@ -64,6 +64,9 @@ struct GomokuBoardView: View {
     var eclipseMatchPlaying = true
     /// Optional real C++ completed-depth candidate provider. Only the
     /// developer-authorized teaching path supplies a non-nil value.
+    /// Keep native rank/PV review visible after the read-only teaching
+    /// analysis completes, until the board or authorization changes.
+    var eclipseTeachingReviewAvailable = false
     var eclipseTeachingCandidate: (() -> Int?)? = nil
     var eclipseTeachingRootRanks: (() -> [Int])? = nil
     var eclipseTeachingPVPrefix: (() -> [Int])? = nil
@@ -112,7 +115,8 @@ struct GomokuBoardView: View {
                     // This is NOT a probability heatmap: ordinal intensity
                     // merely reflects which roots the search considered first.
                     // Rate-limited to the HUD budget; never intercepts touches.
-                    if eclipseThinking && eclipseVisualizationEnabled,
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
                        let ranksProvider = eclipseTeachingRootRanks {
                         TimelineView(.periodic(
                             from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -146,7 +150,8 @@ struct GomokuBoardView: View {
                     // Real, board-replayed native exact-TT principal
                     // variation PREFIX. Every hop is hypothetical, never
                     // presented as a forced win or an actual played stone.
-                    if eclipseThinking && eclipseVisualizationEnabled,
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
                        let pvProvider = eclipseTeachingPVPrefix {
                         TimelineView(.periodic(
                             from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
@@ -190,7 +195,8 @@ struct GomokuBoardView: View {
                     // original wood board. The formal match never enables
                     // this provider. Do not invent a best move when C++ has
                     // not completed one full depth.
-                    if eclipseThinking && eclipseVisualizationEnabled,
+                    if (eclipseThinking || eclipseTeachingReviewAvailable)
+                       && eclipseVisualizationEnabled,
                        let candidateProvider = eclipseTeachingCandidate {
                         TimelineView(.periodic(
                             from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
