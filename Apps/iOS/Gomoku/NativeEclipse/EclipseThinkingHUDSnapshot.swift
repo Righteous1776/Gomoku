@@ -40,7 +40,12 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     var nativeRootRanks: [Int] = []
 
     var visibleTeachingRanks: [Int] {
-        guard context == .teaching, isSearching else { return [] }
+        guard context == .teaching, isSearching,
+              !nativeRootRanks.isEmpty,
+              nativeRootRanks.count <= 16,
+              Set(nativeRootRanks).count == nativeRootRanks.count,
+              nativeRootRanks.allSatisfy({ (0..<225).contains($0) })
+        else { return [] }
         return nativeRootRanks
     }
 
