@@ -26,7 +26,7 @@ class Generation3ModelIdentityTests(unittest.TestCase):
         self.assertEqual(c["application_version"], "2.0.0")
         self.assertEqual(c["generation"], "3.0")
         self.assertEqual(c["label"], "ECLIPSE 3.0")
-        self.assertEqual(c["flagship_alias_name"], "Astra 3.0")
+        self.assertEqual(c["flagship_alias_name"], "3.0 Astra")
         self.assertEqual(c["flagship_alias_id"], "eclipse-3.0-astra")
         self.assertEqual(c["flagship_checkpoint_id"], "eclipse-3.0-r07-249")
         self.assertFalse(c["production_enabled"])
