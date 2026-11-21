@@ -31,6 +31,13 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         return [verified] + featured
     }
 
+    /// Both independently attested 2.0 generations must be presented together.
+    /// Keep the single-model overload above for older history and test clients.
+    static func featuredIncludingVerified(_ verified: [Self]) -> [Self] {
+        let candidates: [Self] = [.astra20, .sol20]
+        return candidates.filter { verified.contains($0) } + featured
+    }
+
     enum Backend: String, Sendable {
         case classicSwift = "classic-swift"
         case trainedUnifiedSwift = "trained-unified-swift"
