@@ -1,0 +1,45 @@
+{
+  "schema": "gomoku.original-bot-adaptation.v1",
+  "source_pin": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "engine_status": "COMPILE_CANDIDATE_NOT_PROMOTED",
+  "untouched_original_bots": [
+    {
+      "source": "VeilLink/Agent/Games/GomokuBot.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift",
+      "git_blob_sha": "5659c3527646ef45df5bf23503fbb6bbf6c61277"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift",
+      "git_blob_sha": "93fc11499f7a41caef25db79f7f4482c53257681"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuFormationLearning.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift",
+      "git_blob_sha": "2acc24f2a960a2ccc78fce962658716afa2bc83b"
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift",
+      "git_blob_sha": "3bddc8ec8a7c19891e703d662b434bd167fa4c1f"
+    }
+  ],
+  "adapted": [
+    {
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift",
+      "source": "VeilLink/Core/MiniGames.swift",
+      "range": "MiniGamePlayer → GomokuState, excluding Xiangqi and other games"
+    },
+    {
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift",
+      "source": "VeilLink/Agent/Games/LocalAIGameController.swift",
+      "range": "BoardBotDifficulty + BoardSearchMode only"
+    },
+    {
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift",
+      "source": "VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+      "range": "AdaptiveBoardLearningSnapshot and Gomoku-only FNV position encoder; excludes Xiangqi"
+    }
+  ],
+  "notes": "No source files inside Legacy/Original changed; persistent training store not yet connected. Do not claim full data migration or AI parity."
+}

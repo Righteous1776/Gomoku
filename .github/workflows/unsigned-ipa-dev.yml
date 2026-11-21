@@ -1,6 +1,11 @@
 name: Developer-only unsigned IPA (manual)
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact Gomoku commit SHA to build (must match PR review)"
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
@@ -9,10 +14,24 @@ jobs:
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Pin source SHA and reject owner-private resources
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "${#EXPECTED_SHA}" -eq 40
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 Scripts/check_private_bundle.py
       - run: brew install xcodegen
       - run: xcodegen generate --spec project.yml
       - name: Build unsigned generic device app
         run: xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Confirm the actual device app contains no private training
+        run: |
+          python3 Scripts/check_private_bundle.py --app DerivedData/Build/Products/Release-iphoneos/Gomoku.app --manifest DerivedData/Privacy/public-dev-unsigned.json
       - name: Package unsigned device app for development investigation only
         run: |
           set -euo pipefail
@@ -23,6 +42,8 @@ jobs:
           cd artifacts
           zip -qr Gomoku-UNSIGNED-DEV-ONLY.ipa Payload
           shasum -a 256 Gomoku-UNSIGNED-DEV-ONLY.ipa > Gomoku-UNSIGNED-DEV-ONLY.sha256
+      - name: Scan final IPA payload before any artifact upload
+        run: python3 Scripts/check_private_bundle.py --ipa artifacts/Gomoku-UNSIGNED-DEV-ONLY.ipa
       - uses: actions/upload-artifact@v4
         with:
           name: gomoku-unsigned-dev-ipa-not-installable-by-default

@@ -30,3 +30,5 @@ PrivateData/
 *.pem
 Exports/
 *.gomoku-backup.zip
+# Explicit owner-only app build; generated source must never be tracked.
+Apps/iOS/Gomoku/Resources/OwnerPrivate/

@@ -1,0 +1,1545 @@
+import Combine
+import Foundation
+import OSLog
+
+struct VeilTransportHealthRollup: Equatable {
+    let coverage: VeilA9TransportCoverage
+    let connectedLinkCount: Int
+    let trackedLinkCount: Int
+    let recoveringLinkCount: Int
+    let pendingBytes: Int
+
+    static func make(
+        bluetoothRunning: Bool,
+        bluetooth: [BLEPeerLinkSnapshot],
+        lanRunning: Bool,
+        lan: [LANTurboLinkSnapshot]
+    ) -> VeilTransportHealthRollup {
+        let hasBluetoothTelemetry = bluetoothRunning || !bluetooth.isEmpty
+        let hasLANTelemetry = lanRunning || !lan.isEmpty
+        let coverage: VeilA9TransportCoverage = hasLANTelemetry
+            ? .multiTransport
+            : (hasBluetoothTelemetry ? .bluetoothOnly : .none)
+        return VeilTransportHealthRollup(
+            coverage: coverage,
+            connectedLinkCount: bluetooth.filter(\.isConnected).count + lan.filter(\.isReady).count,
+            trackedLinkCount: bluetooth.count + lan.count,
+            recoveringLinkCount: bluetooth.filter(\.isRecovering).count + lan.filter { !$0.isReady }.count,
+            pendingBytes: bluetooth.reduce(0) { $0 + $1.pendingBytes }
+                + lan.reduce(0) { $0 + $1.pendingBytes }
+        )
+    }
+}
+
+@MainActor
+final class AppModel: ObservableObject {
+    lazy var veilopolyMultiplayer = VeilopolyMultiplayerBridge(sessions: sessions,
+        localIdentity: { [weak self] in self?.identity.activeIdentity?.id })
+    private static let startupSignposter = OSSignposter(
+        subsystem: "studio.zeo.veillink",
+        category: "startup"
+    )
+    @Published var conversations: [ConversationSummary] = []
+    @Published var selectedConversation: ConversationSummary?
+    @Published var selectedSection: SidebarSection = .chats
+    @Published var exportedBackupURL: URL?
+    @Published var exportedDiagnosticsURL: URL?
+    @Published private(set) var autoRegulationSummary = "尚未评估"
+    @Published private(set) var autoRegulationLastActionAt: Date?
+    private var autoRegulationLastEvaluationAt: Date?
+    private var autoRegulationLastMaintenanceAt: Date?
+    private var autoRegulationLastBLERepairAt: Date?
+    private var autoRegulationLastLoggedFingerprint: String?
+    private var autoRegulationManualHoldUntil: Date?
+    private var autoRegulationApplying = false
+    @Published var alertMessage: String?
+    @Published private(set) var messagesRevision = 0
+    @Published private(set) var activeConversationID: String?
+    @Published private(set) var performanceRevision = 0
+    @Published var autoSaveReceivedImages: Bool {
+        didSet { UserDefaults.standard.set(autoSaveReceivedImages, forKey: Self.autoSaveReceivedImagesKey) }
+    }
+    private var messageRefreshTask: Task<Void, Never>?
+    private var a9RefreshTask: Task<Void, Never>?
+    private var a9PeriodicTask: Task<Void, Never>?
+    private var lastAutomatedIntegrityCheckAt: Date?
+    /// A full SQLite PRAGMA integrity_check must not block AppModel's cold-start
+    /// construction on the SwiftUI main actor. Keep the health state UNCHECKED
+    /// until the first foreground frame has been shown and the utility check ends.
+    private var startupIntegrityCheckPending = true
+    private var startupIntegrityCheckScheduled = false
+    private var a9Cancellables = Set<AnyCancellable>()
+    private var pendingConversationRefresh = false
+    private var hostForegroundActive = true
+    private static let autoSaveReceivedImagesKey = "media.autoSaveReceivedImages"
+
+    let keychain: KeychainStore
+    let legalConsent: VeilLegalConsentController
+    let database: DatabaseStore
+    let identity: IdentityManager
+    let appLock: AppLockController
+    let developerLearningGate: DeveloperLearningLabGate
+    let ownerMode: OwnerModeController
+    let bluetooth: BLETransport
+    let lanTurbo: LANTransport
+    let sessions: SessionCoordinator
+    let meshRouter: VeilMeshOverlayRouter
+    let community: VeilCommunityStore
+    let relayCapabilities: VeilRelayCapabilityStore
+    let internetRelay: InternetRelayTransport
+    let remotePairing: VeilRemotePairingCoordinator
+    let backups: BackupManager
+    let haptics: HapticEngine
+    let walkieTalkie: VeilWalkieTalkieAudioController
+    let performanceOverrides: PerformanceOverrideController
+    let a9Health: VeilA9HealthMonitor
+    let computeGovernor: VeilA9ComputeGovernor
+    let latticeKernel: VeilLatticeKernelBridge
+    let a10Ultra: A10UltraOmegaShadowCoordinator
+    let kernelRuntime: VeilKernelRuntimeSelector
+    let a10M5CognitionRuntime: A10UltraM5Runtime
+    let a10M5GovernanceRuntime: A10UltraM5Runtime
+    let a10M5Governance: A10UltraM5GovernanceAdvisor
+    let agentControls: AgentControlCenterSettings
+    let gameIntelligence: AgentGameContextBroker
+    let agent: AgentCoordinator
+
+    var totalUnreadCount: Int {
+        conversations.reduce(0) { partial, conversation in
+            min(999, partial + conversation.unreadCount)
+        }
+    }
+
+    var activeGovernanceEngineName: String {
+        kernelRuntime.mode.ultraEvaluationEnabled && !kernelRuntime.mode.a9EvaluationEnabled
+            ? "A10 Ultra Ω"
+            : (kernelRuntime.mode == .dualShadow ? "A9 + A10 Ultra Ω" : "A9")
+    }
+
+    var activeGovernanceHealthText: String {
+        if kernelRuntime.mode.ultraEvaluationEnabled,
+           !kernelRuntime.mode.a9EvaluationEnabled {
+            if let decision = kernelRuntime.currentUltraSample(a10Ultra.lastRuntimeSample)?.ultraDecision {
+                return "H\(decision.healthScore)"
+            }
+            return "采样中"
+        }
+        return "H\(a9Health.decision.healthScore)"
+    }
+
+    func activeGovernanceStatusText() -> String {
+        if kernelRuntime.mode.ultraEvaluationEnabled,
+           !kernelRuntime.mode.a9EvaluationEnabled {
+            guard let sample = kernelRuntime.currentUltraSample(a10Ultra.lastRuntimeSample),
+                  let decision = sample.ultraDecision else {
+                return "A10 Ultra Ω：正在生成首个独立治理样本；A9 冻结值不会作为当前数据展示。"
+            }
+            let budget = sample.ultraBudget?.mode ?? "WAITING"
+            return "A10 Ultra Ω：健康度 \(decision.healthScore)/100，级别 L\(decision.level)，预算 \(budget)，数据库 \(a9Health.databaseIntegrity.title)。"
+        }
+        return "\(activeGovernanceEngineName)：健康度 \(a9Health.decision.healthScore)/100，计算模式 \(computeGovernor.plan.mode.title)，焦点 \(computeGovernor.plan.focus.title)，数据库 \(a9Health.databaseIntegrity.title)。"
+    }
+
+    init(keychain: KeychainStore = KeychainStore(), legalConsent: VeilLegalConsentController? = nil) throws {
+        let startupState = Self.startupSignposter.beginInterval("app_model.init")
+        defer { Self.startupSignposter.endInterval("app_model.init", startupState) }
+        autoSaveReceivedImages = UserDefaults.standard.bool(forKey: Self.autoSaveReceivedImagesKey)
+        self.keychain = keychain
+        self.legalConsent = legalConsent ?? VeilLegalConsentController(keychain: keychain)
+        database = try DatabaseStore(keychain: keychain)
+        identity = IdentityManager(keychain: keychain)
+        for profile in identity.profiles { try? database.upsertProfile(profile) }
+        if identity.profiles.count == 1, let onlyIdentity = identity.profiles.first {
+            try? database.adoptLegacyUnscopedRows(localIdentityID: onlyIdentity.id)
+        }
+        appLock = AppLockController(keychain: keychain)
+        developerLearningGate = DeveloperLearningLabGate(keychain: keychain)
+        ownerMode = OwnerModeController()
+        performanceOverrides = PerformanceOverrideController()
+        bluetooth = BLETransport()
+        lanTurbo = LANTransport()
+        relayCapabilities = VeilRelayCapabilityStore(keychain: keychain, identity: identity)
+        internetRelay = InternetRelayTransport(identity: identity, database: database, capabilities: relayCapabilities)
+        remotePairing = VeilRemotePairingCoordinator(identity: identity, database: database, capabilities: relayCapabilities)
+        sessions = SessionCoordinator(identity: identity, database: database)
+        meshRouter = VeilMeshOverlayRouter()
+        community = VeilCommunityStore(keychain: keychain, identity: identity)
+        backups = BackupManager(database: database, identity: identity)
+        haptics = HapticEngine()
+        walkieTalkie = VeilWalkieTalkieAudioController()
+        a9Health = VeilA9HealthMonitor()
+        let agentProfile = AgentCapabilityProfile.current
+        computeGovernor = VeilA9ComputeGovernor(profile: agentProfile)
+        latticeKernel = VeilLatticeKernelBridge()
+        a10Ultra = A10UltraOmegaShadowCoordinator()
+        kernelRuntime = VeilKernelRuntimeSelector()
+        let m5CognitionRuntime = A10UltraM5Runtime()
+        let m5GovernanceRuntime = A10UltraM5Runtime()
+        a10M5CognitionRuntime = m5CognitionRuntime
+        a10M5GovernanceRuntime = m5GovernanceRuntime
+        a10M5Governance = A10UltraM5GovernanceAdvisor(runtime: m5GovernanceRuntime)
+        agentControls = AgentControlCenterSettings()
+        computeGovernor.setExperimentalCoreEnabled(false)
+        gameIntelligence = AgentGameContextBroker()
+        agent = AgentCoordinator(
+            runtime: LocalTextModelRuntimeFactory.make(profile: agentProfile),
+            capabilityProfile: agentProfile,
+            computeGovernor: computeGovernor
+        )
+        agent.attachA10UltraShadowRuntime(m5CognitionRuntime)
+        performanceOverrides.onChange = { [weak self] in
+            self?.applyPerformanceOverrideChange()
+        }
+
+        bluetooth.onDiscovered = { [weak sessions] id, rssi in
+            sessions?.discovered(transportID: id, rssi: rssi)
+        }
+        bluetooth.onConnected = { [weak sessions] id in
+            sessions?.connected(transportID: id)
+        }
+        bluetooth.onDisconnected = { [weak sessions] id in
+            sessions?.disconnected(transportID: id)
+        }
+        bluetooth.onReceive = { [weak sessions] id, data in sessions?.receive(transportID: id, data: data) }
+        lanTurbo.onConnected = { [weak sessions] id in
+            sessions?.connected(transportID: id, kind: .lan)
+        }
+        lanTurbo.onDisconnected = { [weak sessions] id in
+            sessions?.disconnected(transportID: id)
+        }
+        lanTurbo.onReceive = { [weak sessions] id, data in
+            sessions?.receive(transportID: id, data: data)
+        }
+        internetRelay.onConnected = { [weak sessions] id in
+            sessions?.connected(transportID: id, kind: .internet)
+        }
+        internetRelay.onDisconnected = { [weak sessions] id in
+            sessions?.disconnected(transportID: id)
+        }
+        internetRelay.onReceive = { [weak sessions] id, data in
+            sessions?.receive(transportID: id, data: data)
+        }
+        sessions.transportSend = { [weak bluetooth, weak lanTurbo, weak internetRelay] id, data, priority in
+            if lanTurbo?.containsTransport(id) == true {
+                return lanTurbo?.send(data, to: id, priority: priority) ?? .temporarilyUnavailable
+            }
+            if internetRelay?.containsTransport(id) == true {
+                return internetRelay?.send(data, to: id, priority: priority) ?? .temporarilyUnavailable
+            }
+            return bluetooth?.send(data, to: id, priority: priority) ?? .temporarilyUnavailable
+        }
+        sessions.transportDisconnect = { [weak bluetooth, weak lanTurbo, weak internetRelay] id in
+            if lanTurbo?.containsTransport(id) == true { lanTurbo?.disconnect(id) }
+            else if internetRelay?.containsTransport(id) == true { internetRelay?.disconnect(id) }
+            else { bluetooth?.disconnect(id) }
+        }
+        walkieTalkie.sendControl = { [weak sessions] packet, peers in
+            sessions?.sendPTTControl(packet, to: peers)
+        }
+        walkieTalkie.sendAudioFrame = { [weak sessions] frame, peers in
+            sessions?.sendPTTAudioFrame(frame, to: peers) ?? VeilPTTSendReport()
+        }
+        sessions.onPTTControl = { [weak walkieTalkie] incoming in
+            walkieTalkie?.receiveControl(incoming)
+        }
+        sessions.onPTTAudioFrame = { [weak walkieTalkie] incoming in
+            walkieTalkie?.receiveAudio(incoming)
+        }
+        sessions.relayProvisionSecretProvider = { [weak relayCapabilities] peerIdentityID in
+            relayCapabilities?.provisioningSecretIfOwner(for: peerIdentityID)
+        }
+        sessions.onRelayProvisionReceived = { [weak self, weak relayCapabilities] remoteIdentityID, packet in
+            guard relayCapabilities?.install(packet, from: remoteIdentityID) == true, let self else { return }
+            let known = Set(self.conversations.map(\.peerIdentityID) + [remoteIdentityID])
+            self.internetRelay.start(peerIdentityIDs: Array(known))
+        }
+        remotePairing.onPairingCommitted = { [weak self] remoteIdentityID in
+            guard let self else { return }
+            self.reloadConversations()
+            let known = Set(self.conversations.map(\.peerIdentityID) + [remoteIdentityID])
+            self.internetRelay.start(peerIdentityIDs: Array(known))
+            self.internetRelay.refreshNow()
+            self.messagesRevision &+= 1
+        }
+        sessions.onTrustEstablished = { [weak self, weak lanTurbo, weak meshRouter] in
+            lanTurbo?.refresh()
+            meshRouter?.replayRecent()
+            guard let self else { return }
+            let nearbyTrusted = self.sessions.nearbyPeers.filter { $0.trustState == .trusted }.map(\.id)
+            let known = Set(self.conversations.map(\.peerIdentityID) + nearbyTrusted)
+            self.internetRelay.start(peerIdentityIDs: Array(known))
+        }
+        sessions.onMeshPayload = { [weak meshRouter] ingress, data in
+            meshRouter?.receive(data, from: ingress)
+        }
+        meshRouter.neighborProvider = { [weak sessions] in
+            sessions?.secureTransportIDs() ?? []
+        }
+        meshRouter.sendToNeighbor = { [weak sessions] transportID, data in
+            sessions?.sendMeshPayload(data, to: transportID) ?? .temporarilyUnavailable
+        }
+        meshRouter.onLocalPacket = { [weak community] packet in
+            community?.receive(packet)
+        }
+        community.onOutboundMeshPacket = { [weak meshRouter] packet in
+            meshRouter?.broadcast(packet)
+        }
+        sessions.onMessagesChanged = { [weak self] refreshConversations in
+            self?.scheduleMessageRefresh(refreshConversations: refreshConversations)
+        }
+        let previousControlEventHandler = sessions.onControlEventReceived
+        sessions.onControlEventReceived = { [weak self] event, authenticatedPeer in
+            previousControlEventHandler?(event, authenticatedPeer)
+            self?.veilopolyMultiplayer.receive(event, from: authenticatedPeer)
+        }
+        sessions.onInboundMessageReceived = { [weak self] in
+            self?.haptics.receive()
+        }
+        sessions.onDeliveryConfirmed = { [weak self] in
+            self?.haptics.resolved()
+        }
+        sessions.onInboundAttachmentCompleted = { [weak self] messageID in
+            guard let self, self.autoSaveReceivedImages else { return }
+            Task { @MainActor [weak self] in await self?.autoSaveReceivedImage(messageID: messageID) }
+        }
+        agent.bindIntegration(
+            localContextProvider: { [weak self] in self?.makeAgentLocalContext() },
+            toolExecutor: { [weak self] text in self?.executeAgentTool(text) }
+        )
+        agent.setVisualContextEnabled(agentControls.visualContextEnabled)
+        configureA9HealthMonitoring()
+        reloadConversations()
+        refreshA9Health()
+        startA9PeriodicSampling()
+    }
+
+    private func applyPerformanceOverrideChange() {
+        messageRefreshTask?.cancel()
+        pendingConversationRefresh = false
+        database.clearTransientCaches()
+        sessions.clearTransientCaches()
+        ImagePreviewCache.shared.removeAll()
+        ImagePreviewCache.shared.reconfigureForCurrentProfile()
+        performanceRevision &+= 1
+    }
+
+    private func configureA9HealthMonitoring() {
+        bluetooth.$linkSnapshots
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        bluetooth.$isRunning
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        lanTurbo.$linkSnapshots
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        lanTurbo.$isRunning
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        agent.$runtimeState
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        agent.$diagnostics
+            .sink { [weak self] _ in
+                Task { @MainActor [weak self] in self?.scheduleA9Refresh() }
+            }
+            .store(in: &a9Cancellables)
+        a9Health.$decision
+            .sink { [weak self] decision in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.computeGovernor.update(decision: decision)
+                    self.latticeKernel.recordComputePlan(self.computeGovernor.plan)
+                }
+            }
+            .store(in: &a9Cancellables)
+    }
+
+    private func scheduleA9Refresh() {
+        a9RefreshTask?.cancel()
+        a9RefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            self?.refreshA9Health()
+        }
+    }
+
+    func refreshA9Health() {
+        runAutomatedIntegrityCheckIfNeeded()
+        // A9 must reason about operational links, not every UUID passively observed by scanning.
+        let snapshots = bluetooth.linkSnapshots.values.filter(\.isA9Relevant)
+        let liveQualitySnapshots = snapshots.filter(\.contributesLinkQualityToA9)
+        let lanSnapshots = Array(lanTurbo.linkSnapshots.values)
+        let transport = VeilTransportHealthRollup.make(
+            bluetoothRunning: bluetooth.isRunning,
+            bluetooth: Array(snapshots),
+            lanRunning: lanTurbo.isRunning,
+            lan: lanSnapshots
+        )
+        let input = VeilA9Input(
+            transportCoverage: transport.coverage,
+            bluetoothRunning: bluetooth.isRunning,
+            connectedPeerCount: transport.connectedLinkCount,
+            trackedPeerCount: transport.trackedLinkCount,
+            recoveringPeerCount: transport.recoveringLinkCount,
+            weakPeerCount: liveQualitySnapshots.filter { $0.quality == .weak }.count,
+            marginalPeerCount: liveQualitySnapshots.filter { $0.quality == .marginal }.count,
+            minimumLinkHealth: liveQualitySnapshots.map(\.healthScore).min(),
+            maximumReconnectAttempt: snapshots.map(\.reconnectAttempt).max() ?? 0,
+            pendingBytes: transport.pendingBytes,
+            controlPendingPackets: snapshots.reduce(0) { $0 + $1.controlPendingPackets },
+            maximumStallMilliseconds: Int((snapshots.compactMap(\.stalledFor).max() ?? 0) * 1_000),
+            agentUnavailable: agent.runtimeState == .unavailable,
+            agentCooling: agent.runtimeState == .cooling,
+            agentHasFailure: agent.diagnostics.lastFailure != nil,
+            thermalLevel: currentA9ThermalLevel(),
+            lowPowerMode: currentA9LowPowerMode(),
+            databaseIntegrity: a9Health.databaseIntegrity
+        )
+        // Every governance mode starts from the same raw, privacy-safe host sample. Formal A10
+        // independent mode may update only the shared compute budget contract; app mutation,
+        // transport, storage, identity and game authority remain host-owned.
+        a10M5GovernanceRuntime.applyBudget(A10UltraComputeBudget.fromA9(computeGovernor.plan))
+        a10M5Governance.evaluate(
+            input: input,
+            foregroundActive: hostForegroundActive,
+            agentGenerating: agent.isGenerating,
+            gameActive: gameIntelligence.context != nil
+        )
+
+        let ultraContext = A10UltraOmegaHostContext(
+            foregroundActive: hostForegroundActive,
+            systemAvailable: true,
+            gameRuntimeState: gameIntelligence.context == nil ? "IDLE" : "ACTIVE",
+            activeProcessorCount: max(1, ProcessInfo.processInfo.activeProcessorCount),
+            physicalMemoryBytes: ProcessInfo.processInfo.physicalMemory
+        )
+        let ultraSample = a10Ultra.makeSharedSample(input: input, hostContext: ultraContext)
+        let runtimeEnvironment = kernelRuntime.beginSample()
+
+        switch runtimeEnvironment.mode {
+        case .a9Only:
+            let a9Timing = A10UltraOmegaShadowCoordinator.timingStart()
+            a9Health.evaluate(input)
+            computeGovernor.update(decision: a9Health.decision)
+            latticeKernel.recordComputePlan(computeGovernor.plan)
+            let a9Elapsed = A10UltraOmegaShadowCoordinator.timingElapsed(from: a9Timing)
+            latticeKernel.recordA9Compatibility(input: input, decision: a9Health.decision)
+            a10Ultra.recordA9Only(
+                sample: ultraSample,
+                decision: a9Health.decision,
+                budget: computeGovernor.plan,
+                latencyNanos: a9Elapsed.wall,
+                cpuNanos: a9Elapsed.cpu,
+                runtime: runtimeEnvironment
+            )
+
+        case .dualShadow:
+            let a9Timing = A10UltraOmegaShadowCoordinator.timingStart()
+            a9Health.evaluate(input)
+            computeGovernor.update(decision: a9Health.decision)
+            latticeKernel.recordComputePlan(computeGovernor.plan)
+            let a9Elapsed = A10UltraOmegaShadowCoordinator.timingElapsed(from: a9Timing)
+            latticeKernel.recordA9Compatibility(input: input, decision: a9Health.decision)
+            a10Ultra.recordA9Primary(
+                sample: ultraSample,
+                decision: a9Health.decision,
+                budget: computeGovernor.plan,
+                latencyNanos: a9Elapsed.wall,
+                cpuNanos: a9Elapsed.cpu
+            )
+            a10Ultra.evaluateA10UltraShadow(sample: ultraSample, runtime: runtimeEnvironment)
+
+        case .a10Independent:
+            if let result = a10Ultra.evaluateA10UltraIsolated(sample: ultraSample, runtime: runtimeEnvironment) {
+                computeGovernor.updateFromA10Ultra(result.decision)
+                latticeKernel.recordComputePlan(computeGovernor.plan)
+                a10M5GovernanceRuntime.applyBudget(A10UltraComputeBudget.fromA9(computeGovernor.plan))
+            } else {
+                kernelRuntime.forceA9Fallback(reason: "ULTRA_INDEPENDENT_RUNTIME_FAILURE")
+                a10Ultra.resetRuntimeEpoch(reason: "ULTRA_INDEPENDENT_RUNTIME_FAILURE")
+                computeGovernor.setPlanFrozen(false, recomputeOnUnfreeze: false)
+                Task { @MainActor [weak self] in self?.refreshA9Health() }
+            }
+
+        case .a10OnlyLab:
+            let ultraHealthy = a10Ultra.evaluateA10UltraIsolated(sample: ultraSample, runtime: runtimeEnvironment) != nil
+            let hostSafetyReason = VeilKernelHostSafetyPolicy.fallbackReason(for: input)
+            if !ultraHealthy || hostSafetyReason != nil {
+                let reason = hostSafetyReason?.rawValue ?? "ULTRA_INTERNAL_FAILURE"
+                kernelRuntime.forceA9Fallback(reason: reason)
+                a10Ultra.resetRuntimeEpoch(reason: reason)
+                computeGovernor.setPlanFrozen(false, recomputeOnUnfreeze: false)
+                // Recover A9 on the next MainActor turn, not after the ordinary 600 ms debounce.
+                Task { @MainActor [weak self] in self?.refreshA9Health() }
+            }
+        }
+    }
+
+
+    func setKernelRuntimeMode(_ mode: VeilKernelRuntimeMode) {
+        guard mode != kernelRuntime.mode else { return }
+        if mode == .a10OnlyLab {
+            // Freeze before entering LAB so no A9 plan can mutate between selection and first sample.
+            computeGovernor.setPlanFrozen(true)
+            a10Ultra.resetRuntimeEpoch(reason: "ENTER_A10_ONLY_LAB")
+            kernelRuntime.select(mode, source: "USER")
+        } else {
+            // Switch authority label first, clear Ultra persistence, then unfreeze without replaying
+            // the stale pre-LAB A9 decision. The fresh sample below supplies the next A9 plan.
+            kernelRuntime.select(mode, source: "USER")
+            a10Ultra.resetRuntimeEpoch(reason: "MODE_CHANGE_\(mode.rawValue)")
+            computeGovernor.setPlanFrozen(false, recomputeOnUnfreeze: false)
+        }
+        refreshA9Health()
+    }
+
+    func exitA10OnlyLabToA9() {
+        kernelRuntime.forceA9Fallback(reason: "USER_EXIT_LAB")
+        a10Ultra.resetRuntimeEpoch(reason: "USER_EXIT_LAB")
+        computeGovernor.setPlanFrozen(false, recomputeOnUnfreeze: false)
+        refreshA9Health()
+    }
+
+    func runA9StorageCheck() {
+        let result = database.integrityCheck().trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        a9Health.setDatabaseIntegrity(result == "ok" ? .ok : .failed)
+        lastAutomatedIntegrityCheckAt = Date()
+        startupIntegrityCheckPending = false
+        refreshA9Health()
+    }
+
+    /// First-foreground startup check: run full integrity verification only
+    /// after first UI presentation, using DatabaseStore's serialized SQL queue
+    /// from a utility worker instead of blocking SwiftUI startup.
+    private func scheduleStartupIntegrityCheckIfNeeded() {
+        guard startupIntegrityCheckPending, !startupIntegrityCheckScheduled else { return }
+        startupIntegrityCheckScheduled = true
+        let store = database
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 750_000_000)
+            guard !Task.isCancelled, let self else { return }
+            guard self.hostForegroundActive else {
+                self.startupIntegrityCheckScheduled = false
+                return
+            }
+            let startedAt = Date()
+            DispatchQueue.global(qos: .utility).async { [weak self] in
+                let result = store.integrityCheck()
+                    .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.startupIntegrityCheckPending = false
+                    // A newer manual check wins over a slow startup worker.
+                    if let latest = self.lastAutomatedIntegrityCheckAt, latest > startedAt {
+                        return
+                    }
+                    self.lastAutomatedIntegrityCheckAt = Date()
+                    self.a9Health.setDatabaseIntegrity(result == "ok" ? .ok : .failed)
+                    if result != "ok" {
+                        DiagnosticLogStore.shared.log(
+                            .error, .storage, event: "governance.integrity_check.failed"
+                        )
+                    }
+                    self.refreshA9Health()
+                }
+            }
+        }
+    }
+
+    private func runAutomatedIntegrityCheckIfNeeded(now: Date = Date()) {
+        guard !startupIntegrityCheckPending else { return }
+        if let lastAutomatedIntegrityCheckAt,
+           now.timeIntervalSince(lastAutomatedIntegrityCheckAt) < 6 * 60 * 60 {
+            return
+        }
+        lastAutomatedIntegrityCheckAt = now
+        let result = database.integrityCheck()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let integrity: VeilA9DatabaseIntegrity = result == "ok" ? .ok : .failed
+        a9Health.setDatabaseIntegrity(integrity)
+        if integrity == .failed {
+            DiagnosticLogStore.shared.log(
+                .error,
+                .storage,
+                event: "governance.integrity_check.failed"
+            )
+        }
+    }
+
+    func clearUserRequestedCaches() {
+        database.clearTransientCaches()
+        sessions.clearTransientCaches()
+        ImagePreviewCache.shared.removeAll()
+        agent.trimRuntimeMemory()
+        refreshA9Health()
+        performanceRevision &+= 1
+        DiagnosticLogStore.shared.log(.info, .performance, event: "storage.user_cache_cleanup")
+    }
+
+    func a9DiagnosticsReport() -> String {
+        a9Health.report()
+            + "\n\n" + kernelRuntime.report()
+            + "\n\n" + latticeKernel.report()
+            + "\n\n" + a10Ultra.report()
+            + "\n\n" + a10M5Governance.report()
+            + "\n\n" + computeGovernor.report()
+    }
+
+    private func currentA9ThermalLevel() -> VeilA9ThermalLevel {
+        #if os(iOS)
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return .nominal
+        case .fair: return .fair
+        case .serious: return .serious
+        case .critical: return .critical
+        @unknown default: return .fair
+        }
+        #else
+        return .nominal
+        #endif
+    }
+
+    private func currentA9LowPowerMode() -> Bool {
+        #if os(iOS)
+        return ProcessInfo.processInfo.isLowPowerModeEnabled
+        #else
+        return false
+        #endif
+    }
+
+    private func scheduleMessageRefresh(refreshConversations: Bool) {
+        pendingConversationRefresh = pendingConversationRefresh || refreshConversations
+        messageRefreshTask?.cancel()
+        messageRefreshTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: VeilDevicePerformance.current.messageRefreshDebounceNanoseconds)
+            guard !Task.isCancelled, let self else { return }
+            let shouldRefreshConversations = self.pendingConversationRefresh
+            self.pendingConversationRefresh = false
+
+            if shouldRefreshConversations {
+                if let activeConversationID = self.activeConversationID {
+                    try? self.database.markConversationRead(conversationID: activeConversationID)
+                }
+                self.reloadConversations()
+            }
+            self.messagesRevision &+= 1
+        }
+    }
+
+
+    private var a9PeriodicSamplingNanoseconds: UInt64 {
+        switch agent.capabilityProfile.tier {
+        case .legacyA10: return 8_000_000_000
+        case .balanced: return 6_000_000_000
+        case .high: return 4_000_000_000
+        }
+    }
+
+    private func startA9PeriodicSampling() {
+        guard a9PeriodicTask == nil else { return }
+        a9PeriodicTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let sleepNanoseconds = self?.a9PeriodicSamplingNanoseconds else { break }
+                try? await Task.sleep(nanoseconds: sleepNanoseconds)
+                guard !Task.isCancelled, let self else { break }
+                self.refreshA9Health()
+                self.evaluateAutoRegulation()
+            }
+        }
+    }
+
+    func handleForegroundTransition() {
+        guard legalConsent.isSatisfied else { return }
+        hostForegroundActive = true
+        veilopolyMultiplayer.setForeground(true)
+        veilopolyMultiplayer.restoreIfNeeded()
+        computeGovernor.setForegroundActive(true)
+        internetRelay.setForegroundActive(true)
+        internetRelay.refreshNow()
+        refreshA9Health()
+        startA9PeriodicSampling()
+        scheduleStartupIntegrityCheckIfNeeded()
+    }
+
+    func handleMemoryPressure() {
+        a10M5Governance.cancel()
+        a10M5GovernanceRuntime.trimMemory()
+        database.clearTransientCaches()
+        sessions.clearTransientCaches()
+        ImagePreviewCache.shared.removeAll()
+        agent.handleMemoryPressure()
+    }
+
+    func handleBackgroundTransition() {
+        a10M5Governance.cancel()
+        a10M5GovernanceRuntime.trimMemory()
+        hostForegroundActive = false
+        veilopolyMultiplayer.setForeground(false)
+        computeGovernor.setForegroundActive(false)
+        internetRelay.setForegroundActive(false)
+        a9PeriodicTask?.cancel()
+        a9PeriodicTask = nil
+        agent.handleBackground()
+        walkieTalkie.stopAll()
+        trimCachesForBackgroundIfNeeded()
+    }
+
+    func trimCachesForBackgroundIfNeeded() {
+        guard VeilDevicePerformance.current.aggressiveBackgroundCacheTrim else { return }
+        database.clearTransientCaches()
+        sessions.clearTransientCaches()
+        ImagePreviewCache.shared.removeAll()
+    }
+
+    private struct TransportResumePlan {
+        let bluetoothWasRunning: Bool
+        let lanWasRunning: Bool
+    }
+
+    private var knownPeerIdentityIDs: [String] {
+        Array(Set(conversations.map(\.peerIdentityID))).sorted()
+    }
+
+    @discardableResult
+    private func suspendCommunicationStack(reason: String, resetRemotePairing: Bool = true) -> TransportResumePlan {
+        let plan = TransportResumePlan(
+            bluetoothWasRunning: bluetooth.isRunning,
+            lanWasRunning: lanTurbo.isRunning
+        )
+        bluetooth.stop()
+        lanTurbo.stop()
+        internetRelay.stop(reason: reason)
+        if resetRemotePairing { remotePairing.resetForIdentityChange() }
+        return plan
+    }
+
+    private func resumeCommunicationStack(_ plan: TransportResumePlan? = nil, forcePrimaryTransports: Bool = false) {
+        guard legalConsent.isSatisfied, identity.activeIdentity != nil else { return }
+        if forcePrimaryTransports || plan?.bluetoothWasRunning == true { bluetooth.start() }
+        if forcePrimaryTransports || plan?.lanWasRunning == true { lanTurbo.start() }
+        internetRelay.start(peerIdentityIDs: knownPeerIdentityIDs)
+    }
+
+    private func resetIdentityScopedRuntimeState() {
+        sessions.resetForIdentityChange()
+        gameIntelligence.clear()
+        selectedConversation = nil
+        activeConversationID = nil
+        reloadConversations()
+    }
+
+    func start() {
+        guard legalConsent.isSatisfied, identity.activeIdentity != nil else { return }
+        _ = try? database.cleanupStaleInboundAttachments()
+        resumeCommunicationStack(forcePrimaryTransports: true)
+    }
+
+    func activateAfterLegalAcceptance() {
+        guard legalConsent.isSatisfied else { return }
+        handleForegroundTransition()
+        start()
+    }
+
+    func sealForLegalWithdrawal() {
+        _ = suspendCommunicationStack(reason: "已撤回当前版本使用授权")
+        sessions.clearTransientCaches()
+        database.clearTransientCaches()
+        ImagePreviewCache.shared.removeAll()
+        a9PeriodicTask?.cancel()
+        a9PeriodicTask = nil
+        computeGovernor.setForegroundActive(false)
+        agent.handleBackground()
+        appLock.lock()
+        ownerMode.lock()
+        developerLearningGate.lock()
+    }
+
+    func createInitialProfile(name: String, password: String, pin: String) -> Bool {
+        do {
+            let profile = try identity.createProfile(displayName: name, password: password)
+            try database.upsertProfile(profile)
+            guard appLock.configure(pin: pin) else {
+                alertMessage = appLock.errorMessage
+                return false
+            }
+            start()
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func createAdditionalProfile(name: String, password: String) -> Bool {
+        let resumePlan = suspendCommunicationStack(reason: "身份切换中")
+        do {
+            let profile = try identity.createProfile(displayName: name, password: password)
+            try database.upsertProfile(profile)
+            resetIdentityScopedRuntimeState()
+            resumeCommunicationStack(resumePlan)
+            return true
+        } catch {
+            resumeCommunicationStack(resumePlan)
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func switchIdentity(to id: String, password: String) -> Bool {
+        guard identity.activeIdentity?.id != id else { return true }
+        let resumePlan = suspendCommunicationStack(reason: "身份切换中")
+        guard identity.switchProfile(to: id, password: password) else {
+            resumeCommunicationStack(resumePlan)
+            alertMessage = "身份密码不正确。"
+            return false
+        }
+        if let active = identity.activeIdentity { try? database.upsertProfile(active) }
+        resetIdentityScopedRuntimeState()
+        resumeCommunicationStack(resumePlan)
+        return true
+    }
+
+    func renameContact(peerIdentityID: String, displayName: String) -> Bool {
+        guard let localIdentityID = identity.activeIdentity?.id else { return false }
+        do {
+            try database.renameContact(localIdentityID: localIdentityID, identityID: peerIdentityID, displayName: displayName)
+            reloadConversations()
+            messagesRevision &+= 1
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func deleteIdentity(id: String, password: String) -> Bool {
+        guard identity.activeIdentity?.id != id else {
+            alertMessage = IdentityError.cannotDeleteActiveIdentity.localizedDescription
+            return false
+        }
+        guard identity.verifyPassword(password, for: id) else {
+            alertMessage = "身份密码不正确。"
+            return false
+        }
+        do {
+            try database.deleteLocalIdentityData(localIdentityID: id)
+            _ = try identity.deleteProfile(id: id, password: password)
+            for profile in identity.profiles { try? database.upsertProfile(profile) }
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func deleteMessageLocally(messageID: String, conversationID: String) -> Bool {
+        do {
+            sessions.discardLocalMessage(messageID)
+            try database.deleteMessageLocally(messageID: messageID, conversationID: conversationID)
+            reloadConversations()
+            messagesRevision &+= 1
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    func clearConversationLocally(conversationID: String) -> Bool {
+        let messageIDs = database.fetchMessageIDs(conversationID: conversationID)
+        messageIDs.forEach { sessions.discardLocalMessage($0) }
+        do {
+            try database.clearConversationLocally(conversationID: conversationID)
+            reloadConversations()
+            messagesRevision &+= 1
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func autoSaveReceivedImage(messageID: String) async {
+        guard autoSaveReceivedImages,
+              let message = database.fetchMessage(id: messageID),
+              !message.isOutgoing,
+              let attachment = message.attachment,
+              let data = database.loadAttachment(id: attachment.id) else { return }
+        do {
+            try await PhotoLibrarySaver.save(data: data, mimeType: attachment.mimeType)
+        } catch {
+            alertMessage = "自动保存收到的图片失败：\(error.localizedDescription)"
+        }
+    }
+
+    func setTrust(for peerIdentityID: String, blocked: Bool) {
+        guard let localIdentityID = identity.activeIdentity?.id else { return }
+        do {
+            try database.setPeerTrust(localIdentityID: localIdentityID, identityID: peerIdentityID, blocked: blocked)
+            sessions.invalidatePeer(peerIdentityID)
+            alertMessage = blocked ? "已拉黑该身份。历史记录仍保留。" : "已取消信任。重新通信前需要再次核对六码。"
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func reloadConversations() {
+        guard let localIdentityID = identity.activeIdentity?.id else {
+            conversations = []
+            selectedConversation = nil
+            activeConversationID = nil
+            return
+        }
+        conversations = database.fetchConversations(localIdentityID: localIdentityID)
+        if let selectedID = selectedConversation?.id {
+            selectedConversation = conversations.first(where: { $0.id == selectedID })
+        }
+    }
+
+
+    func setConversationVisible(_ conversationID: String, visible: Bool) {
+        if visible {
+            activeConversationID = conversationID
+            do {
+                try database.markConversationRead(conversationID: conversationID)
+                reloadConversations()
+            } catch {
+                alertMessage = error.localizedDescription
+            }
+        } else if activeConversationID == conversationID {
+            activeConversationID = nil
+        }
+    }
+
+    func setConversationPinned(_ conversationID: String, pinned: Bool) -> Bool {
+        do {
+            try database.setConversationPinned(conversationID: conversationID, pinned: pinned)
+            reloadConversations()
+            haptics.selection()
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            haptics.error()
+            return false
+        }
+    }
+
+    func markConversationRead(_ conversationID: String) -> Bool {
+        do {
+            try database.markConversationRead(conversationID: conversationID)
+            reloadConversations()
+            haptics.selection()
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            haptics.error()
+            return false
+        }
+    }
+
+    func markConversationUnread(_ conversationID: String) -> Bool {
+        do {
+            try database.markConversationUnread(conversationID: conversationID)
+            reloadConversations()
+            haptics.selection()
+            return true
+        } catch {
+            alertMessage = error.localizedDescription
+            haptics.error()
+            return false
+        }
+    }
+
+    func exportBackup(password: String) {
+        do {
+            exportedBackupURL = try backups.exportBackup(password: password)
+        } catch {
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func restoreBackup(url: URL, password: String) {
+        let accessed = url.startAccessingSecurityScopedResource()
+        _ = suspendCommunicationStack(reason: "正在恢复备份")
+        defer {
+            if accessed { url.stopAccessingSecurityScopedResource() }
+            VeilImportedFileAccess.removeStagedCopy(url)
+            if identity.activeIdentity != nil { start() }
+        }
+        do {
+            try backups.restoreBackup(from: url, password: password)
+            resetIdentityScopedRuntimeState()
+            alertMessage = "备份已恢复。"
+        } catch {
+            sessions.resetForIdentityChange()
+            gameIntelligence.clear()
+            alertMessage = error.localizedDescription
+        }
+    }
+
+    func updateAgentGameContext(_ session: MiniGameSessionSnapshot, conversation: ConversationSummary) {
+        gameIntelligence.update(
+            session: session,
+            conversationTitle: conversation.title,
+            peerIdentityID: conversation.peerIdentityID
+        )
+    }
+
+    /// Game commands are never written optimistically while the authenticated
+    /// session is absent. Recovery probes every enabled transport because a
+    /// disconnected secure session no longer has a preferred transport ID.
+    @discardableResult
+    func ensureRealtimeGameLink(for peerIdentityID: String) -> Bool {
+        if sessions.hasSecureSession(for: peerIdentityID) { return true }
+        // Refreshing an already connected PHY does not restart its failed
+        // secure handshake. Use the current-base R2 recovery path first.
+        let handshakeRequested = sessions.recoverSecureSession(for: peerIdentityID)
+        bluetooth.refreshLinks()
+        lanTurbo.refresh()
+        internetRelay.refreshNow()
+        RuntimeDiagnosticsBridge.shared.recordSemanticAction(
+            "game.link.recovery_requested",
+            metadata: ["transports": "ble,lan,relay", "handshake_requested": String(handshakeRequested)]
+        )
+        return false
+    }
+
+    /// Rebuild from the authenticated, persisted conversation instead of using
+    /// a potentially stale SwiftUI sheet snapshot. This only requests a native
+    /// legal-action recommendation; it never executes or sends a move.
+    @discardableResult
+    func refreshAgentGameRecommendation() -> String {
+        guard let context = gameIntelligence.context,
+              let game = MiniGameKind(rawValue: context.gameID),
+              [.gomoku, .xiangqi, .ludo].contains(game) else {
+            return "本游戏暂不支持可执行的原生规则建议，只能查看局面分析。"
+        }
+        guard let localIdentityID = identity.activeIdentity?.id,
+              let conversationID = database.conversationID(
+                localIdentityID: localIdentityID,
+                for: context.peerIdentityID
+              ),
+              let latestSession = MiniGameSessionBuilder.session(
+                id: context.sessionID,
+                from: database.fetchMessages(conversationID: conversationID)
+              ),
+              latestSession.status == .active else {
+            return "未找到当前有效对局；不能用过期棋谱生成可执行建议。"
+        }
+        gameIntelligence.update(
+            session: latestSession,
+            conversationTitle: context.conversationTitle,
+            peerIdentityID: context.peerIdentityID,
+            requestNativeRecommendation: true
+        )
+        return latestSession.isLocalTurn
+            ? "已重新读取最新棋局，原生规则 Bot 正在生成合法建议。"
+            : "当前轮到对方；可查看局面，但无法执行我方落子。"
+    }
+
+    @discardableResult
+    func executeAgentSuggestedGameMove() -> String {
+        guard agentControls.allowSuggestedGameMoveExecution else {
+            return "AI 控制中心当前禁止执行建议着法。你仍可以查看分析或手动在棋盘操作。"
+        }
+        guard let tentative = gameIntelligence.currentSuggestedAction() else {
+            return "当前没有足够新鲜、经过合法动作校验的推荐着法；请回到棋局刷新后再试。"
+        }
+        guard let localIdentityID = identity.activeIdentity?.id,
+              let conversationID = database.conversationID(
+                localIdentityID: localIdentityID,
+                for: tentative.peerIdentityID
+              ),
+              let latestSession = MiniGameSessionBuilder.session(
+                id: tentative.sessionID,
+                from: database.fetchMessages(conversationID: conversationID)
+              ),
+              let action = gameIntelligence.currentSuggestedAction(validating: latestSession),
+              action == tentative else {
+            return "棋局已经变化，这条 AI 建议已失效；请回到棋局刷新后重新获取建议。"
+        }
+        guard let game = MiniGameKind(rawValue: action.gameID) else {
+            return "当前推荐动作的游戏类型无效。"
+        }
+        let packet = MiniGamePacket(
+            sessionID: action.sessionID,
+            game: game,
+            command: .move,
+            turn: action.turn,
+            move: action.move
+        )
+        do {
+            try sessions.sendMiniGamePacket(packet, to: action.peerIdentityID)
+            gameIntelligence.markSuggestedActionExecuted(action)
+            haptics.send()
+            return "已执行刚刚重新通过原游戏引擎校验的建议着法：\(action.label)。动作仍通过当前 E2EE 游戏消息链路发送。"
+        } catch {
+            haptics.error()
+            return "建议着法未执行：\(error.localizedDescription)"
+        }
+    }
+
+    private func makeAgentLocalContext() -> AgentLocalContext {
+        let snapshots = bluetooth.linkSnapshots.values.filter(\.isA9Relevant)
+        let selectedContext: AgentConversationContext? = selectedConversation.map { conversation in
+            let transportID = sessions.transportID(for: conversation.peerIdentityID)
+            let link = transportID.flatMap { bluetooth.linkSnapshots[$0] ?? bluetooth.linkSnapshot(for: $0) }
+            return AgentConversationContext(
+                title: conversation.title,
+                unreadCount: conversation.unreadCount,
+                secureSessionReady: sessions.hasSecureSession(for: conversation.peerIdentityID),
+                linkHealth: link?.healthScore,
+                linkQuality: link?.qualityTitle
+            )
+        }
+        return AgentLocalContext(
+            generatedAt: Date(),
+            activeIdentityName: identity.activeIdentity?.displayName,
+            selectedConversation: selectedContext,
+            bluetooth: AgentBluetoothContext(
+                running: bluetooth.isRunning,
+                trackedPeers: snapshots.count,
+                connectedPeers: snapshots.filter(\.isConnected).count,
+                recoveringPeers: snapshots.filter(\.isRecovering).count,
+                pendingBytes: snapshots.reduce(0) { $0 + $1.pendingBytes },
+                weakestHealth: snapshots.map(\.healthScore).min()
+            ),
+            a9HealthScore: a9Health.decision.healthScore,
+            a9Mode: computeGovernor.plan.mode.title,
+            databaseIntegrity: a9Health.databaseIntegrity.title,
+            maleCNSState: "core-disabled",
+            game: gameIntelligence.context,
+            availableTools: VeilAppControlParser.advertisedCommands
+        )
+    }
+
+    private func executeAgentTool(_ raw: String) -> AgentToolExecution? {
+        guard let command = VeilAppControlParser.parse(raw) else { return nil }
+        let result = executeAppControl(command, source: .agentRequest)
+        return AgentToolExecution(command: result.commandID, message: result.message)
+    }
+
+    @discardableResult
+    func executeAppControl(_ command: VeilAppControlCommand) -> VeilAppControlResult {
+        executeAppControl(command, source: .directUser)
+    }
+
+    @discardableResult
+    func executeAppControl(_ command: VeilAppControlCommand, source: VeilAppControlSource) -> VeilAppControlResult {
+        let permissions = VeilAppControlPermissions(
+            localMutationsEnabled: agentControls.localToolMutationsEnabled,
+            diagnosticsExportEnabled: agentControls.allowDiagnosticsExport,
+            suggestedMoveExecutionEnabled: agentControls.allowSuggestedGameMoveExecution,
+            autoRegulationMode: agentControls.autoRegulationMode
+        )
+        let decision = VeilAppControlPolicy.authorize(command, permissions: permissions, source: source)
+        guard decision.allowed else {
+            let result = VeilAppControlResult.denied(
+                command,
+                reason: decision.reason ?? "当前控制策略拒绝了该操作。"
+            )
+            logAppControl(command: command, result: result, access: decision.access, source: source)
+            return result
+        }
+
+        let result: VeilAppControlResult
+        switch command {
+        case .controlHelp:
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "Control Plane V3 已启用。除 V2 的全 App 状态与调度外，新增 AutoTune 自动诊断/安全自调节。自动执行仅允许资源焦点、缓存释放和 BLE 刷新三类可逆动作。"
+            )
+
+        case .overviewStatus:
+            let snapshots = Array(bluetooth.linkSnapshots.values)
+            let connected = snapshots.filter(\.isConnected).count
+            let pendingBytes = snapshots.reduce(0) { $0 + $1.pendingBytes }
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "VeilLink：页面 \(selectedSection.rawValue)，BLE \(bluetooth.isRunning ? "运行中" : "已停止")，连接 \(connected)/\(snapshots.count)，待发 \(ByteCountFormatter.string(fromByteCount: Int64(pendingBytes), countStyle: .file))，A9 \(a9Health.decision.healthScore)/100，数据库 \(a9Health.databaseIntegrity.title)，灵核 \(agent.runtimeState.displayName)。"
+            )
+
+        case .transportStatus:
+            let snapshots = Array(bluetooth.linkSnapshots.values)
+            let connected = snapshots.filter(\.isConnected).count
+            let recovering = snapshots.filter(\.isRecovering).count
+            let pendingBytes = snapshots.reduce(0) { $0 + $1.pendingBytes }
+            let controlPending = snapshots.reduce(0) { $0 + $1.controlPendingPackets }
+            let weakest = snapshots.map(\.healthScore).min()
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "BLE 传输：\(bluetooth.statusText)，已连接 \(connected)，恢复中 \(recovering)，待发 \(ByteCountFormatter.string(fromByteCount: Int64(pendingBytes), countStyle: .file))，控制包积压 \(controlPending)，最弱链路 \(weakest.map { "\($0)/100" } ?? "--")。"
+            )
+
+        case .mediaStatus:
+            let profile = VeilDevicePerformance.current
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "媒体策略：目标图片约 \(ByteCountFormatter.string(fromByteCount: Int64(MediaTransferPolicy.targetImageBytes), countStyle: .file))，单图上限 \(ByteCountFormatter.string(fromByteCount: Int64(MediaTransferPolicy.maximumImageBytes), countStyle: .file))，预览最长边 \(profile.imagePreviewMaxPixelSize)px，发送附件缓存 \(ByteCountFormatter.string(fromByteCount: Int64(profile.outboundAttachmentCacheBytes), countStyle: .file))，收到图片自动保存 \(autoSaveReceivedImages ? "开" : "关")。"
+            )
+
+        case .performanceStatus:
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "性能：\(VeilDevicePerformance.diagnosticLabel)，A9 \(computeGovernor.plan.mode.title)，焦点 \(computeGovernor.plan.focus.title)，手动性能覆盖 \(performanceOverrides.isEnabled ? "开启(风险项 \(performanceOverrides.riskCount))" : "关闭")。"
+            )
+
+        case .diagnosticsStatus:
+            let store = DiagnosticLogStore.shared
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "诊断：内存索引 \(store.recentEntries.count) 条，磁盘 \(store.diskUsageText)，保留上限 \(store.retentionText)。诊断导出 \(agentControls.allowDiagnosticsExport ? "已授权" : "未授权")。"
+            )
+
+        case .autoRegulationStatus:
+            let hold = max(0, Int(autoRegulationManualHoldUntil?.timeIntervalSinceNow ?? 0))
+            result = VeilAppControlResult(
+                commandID: command.id,
+                success: true,
+                didMutate: false,
+                message: "AutoTune：\(agentControls.autoRegulationMode.title)。最近判断：\(autoRegulationSummary)\(hold > 0 ? "；人工焦点保护剩余约 \(hold)s" : "")。"
+            )
+
+        case .refreshBLE:
+            bluetooth.refreshLinks()
+            refreshA9Health()
+            let connected = bluetooth.linkSnapshots.values.filter(\.isConnected).count
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已刷新 VeilLink BLE 扫描、广播、连接恢复与 RSSI 采样。当前连接 \(connected) 台设备。")
+
+        case .startBLE:
+            guard identity.activeIdentity != nil else {
+                result = VeilAppControlResult(commandID: command.id, success: false, didMutate: false, message: "当前没有活动身份，无法启动 VeilLink BLE 通信。")
+                break
+            }
+            start()
+            refreshA9Health()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已启动 VeilLink 的 BLE 通信服务；没有修改 iOS 系统蓝牙开关。")
+
+        case .stopBLE:
+            bluetooth.stop()
+            refreshA9Health()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已停止 VeilLink 的 BLE 通信服务；没有修改系统蓝牙设置。")
+
+        case .databaseIntegrity:
+            runA9StorageCheck()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "本地 SQLite 完整性检查已执行：\(a9Health.databaseIntegrity.title)。没有读取或回显聊天正文。")
+
+        case .a9Status:
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: false, message: activeGovernanceStatusText())
+
+        case .agentStatus:
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: false, message: "灵核运行时：\(agent.runtimeManifest?.displayName ?? LocalTextModelRuntimeFactory.backendName)，状态 \(agent.runtimeState.displayName)；游戏引擎 Native Bot；Control Plane V3 / AutoTune \(agentControls.autoRegulationMode.title)。")
+
+        case .gameStatus:
+            if let game = gameIntelligence.context {
+                result = VeilAppControlResult(commandID: command.id, success: true, didMutate: false, message: "当前对局：\(game.gameTitle)，第 \(game.turn) 回合，\(game.isLocalTurn ? "轮到你" : "等待对方")，策略模式 \(game.policyMode)。")
+            } else {
+                result = VeilAppControlResult(commandID: command.id, success: true, didMutate: false, message: "当前没有已接入灵核的活动对局。")
+            }
+
+        case .executeSuggestedGameMove:
+            let message = executeAgentSuggestedGameMove()
+            let executed = message.hasPrefix("已执行")
+            result = VeilAppControlResult(commandID: command.id, success: executed, didMutate: executed, message: message)
+
+        case .trimCaches:
+            database.clearTransientCaches()
+            sessions.clearTransientCaches()
+            ImagePreviewCache.shared.removeAll()
+            agent.trimRuntimeMemory()
+            refreshA9Health()
+            performanceRevision &+= 1
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已清理数据库/会话临时缓存、图片预览缓存，并压缩本地对话运行时内存。聊天记录和密钥没有删除。")
+
+        case .restoreAutomaticPerformance:
+            performanceOverrides.restoreAutomaticPolicy()
+            agent.trimRuntimeMemory()
+            ImagePreviewCache.shared.removeAll()
+            computeGovernor.setFocus(.idle)
+            refreshA9Health()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已恢复 VeilLink 自动性能策略并回到自动调度。不会修改 iOS 系统低电量模式。")
+
+        case .activateAgentRuntime:
+            agent.activate()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已请求启动本地灵核运行时。Core 默认 VeilTalk Lite，不需要模型权重。")
+
+        case .unloadAgentRuntime:
+            agent.unloadRuntime()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已卸载本地对话运行时状态；聊天数据库、Experimental AI 历史文件和控制平面均未删除。")
+
+        case .setVisualContext(let enabled):
+            setAgentVisualContextEnabled(enabled)
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: enabled ? "已允许视觉摘要进入本地 Agent 上下文。" : "已关闭视觉摘要进入本地 Agent 上下文。")
+
+        case .setAutoSaveReceivedImages(let enabled):
+            autoSaveReceivedImages = enabled
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: enabled ? "已开启收到图片自动保存到相册。" : "已关闭收到图片自动保存到相册。")
+
+        case .setResourceFocus(let focus):
+            switch focus {
+            case .automatic:
+                computeGovernor.setFocus(.idle)
+            case .communications:
+                computeGovernor.setFocus(.mediaTransfer)
+            case .agent:
+                computeGovernor.setFocus(.languageChat)
+                if source != .automaticRegulator, agentControls.autoLoadLanguageModel { agent.activate() }
+            case .game:
+                computeGovernor.setFocus(.gameDecision)
+            }
+            if source != .automaticRegulator {
+                autoRegulationManualHoldUntil = Date().addingTimeInterval(90)
+            }
+            refreshA9Health()
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已切换为“\(focus.title)”临时资源焦点。\(source == .automaticRegulator ? "由 AutoTune 安全调度触发。" : "已进入 90 秒人工焦点保护。")")
+
+        case .setAutoRegulationMode(let mode):
+            agentControls.autoRegulationMode = mode
+            if mode == .off {
+                autoRegulationSummary = "自动调控已关闭。"
+            }
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "AutoTune 已切换为“\(mode.title)”。安全自动模式只允许焦点调度、清理临时缓存和刷新 BLE。")
+
+        case .runAutoRegulationOnce:
+            let beforeMutation = autoRegulationLastActionAt
+            let summary = evaluateAutoRegulation(force: true)
+            let didMutate = autoRegulationLastActionAt != beforeMutation
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: didMutate, message: summary)
+
+        case .exportDiagnostics:
+            do {
+                let url = try RuntimeDiagnosticsBridge.shared.exportBundle(for: self, reason: "agent.control.export", extraFiles: [:])
+                exportedDiagnosticsURL = url
+                selectedSection = .agent
+                result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "诊断包已在本机生成，分享面板将打开。包内可能包含设备、App 与 BLE 链路技术标识；不会故意记录聊天正文、私钥/会话密钥、配对码或原始 AI 提示词。")
+            } catch {
+                result = VeilAppControlResult(commandID: command.id, success: false, didMutate: false, message: "诊断包生成失败：\(error.localizedDescription)")
+            }
+
+        case .navigate(let destination):
+            switch destination {
+            case .chats: selectedSection = .chats
+            case .nearby: selectedSection = .nearby
+            case .games: selectedSection = .games
+            case .agent: selectedSection = .agent
+            case .settings: selectedSection = .settings
+            }
+            result = VeilAppControlResult(commandID: command.id, success: true, didMutate: true, message: "已切换到“\(destination.title)”页面。")
+        }
+
+        logAppControl(command: command, result: result, access: decision.access, source: source)
+        return result
+    }
+
+    private func logAppControl(
+        command: VeilAppControlCommand,
+        result: VeilAppControlResult,
+        access: VeilAppControlAccess,
+        source: VeilAppControlSource
+    ) {
+        DiagnosticLogStore.shared.log(
+            result.success ? .info : .warning,
+            .agent,
+            event: source == .automaticRegulator ? "agent.autotune.execute" : "agent.control.execute",
+            message: result.message,
+            metadata: [
+                "command": command.id,
+                "access": access.rawValue,
+                "source": source.rawValue,
+                "success": result.success ? "true" : "false",
+                "mutated": result.didMutate ? "true" : "false"
+            ]
+        )
+    }
+
+    @discardableResult
+    func evaluateAutoRegulation(force: Bool = false) -> String {
+        guard !autoRegulationApplying else { return autoRegulationSummary }
+        let mode = agentControls.autoRegulationMode
+        let now = Date()
+        if !force, let last = autoRegulationLastEvaluationAt, now.timeIntervalSince(last) < 3.5 {
+            return autoRegulationSummary
+        }
+        autoRegulationLastEvaluationAt = now
+
+        let snapshots = Array(bluetooth.linkSnapshots.values)
+        let snapshot = VeilAutoRegulationSnapshot(
+            mode: mode,
+            thermal: currentAutoThermalLevel(),
+            lowPowerMode: currentA9LowPowerMode(),
+            a9HealthScore: a9Health.decision.healthScore,
+            pendingBytes: snapshots.reduce(0) { $0 + $1.pendingBytes },
+            controlPendingPackets: snapshots.reduce(0) { $0 + $1.controlPendingPackets },
+            maximumStallMilliseconds: Int((snapshots.compactMap(\.stalledFor).max() ?? 0) * 1_000),
+            recoveringPeerCount: snapshots.filter(\.isRecovering).count,
+            connectedPeerCount: snapshots.filter(\.isConnected).count,
+            currentFocus: currentResourceFocus(),
+            visibleDestination: currentControlDestination(),
+            agentGenerating: agent.isGenerating,
+            gameActive: gameIntelligence.hasCurrentGame,
+            manualFocusHoldActive: (autoRegulationManualHoldUntil?.timeIntervalSince(now) ?? 0) > 0,
+            secondsSinceLastMutation: autoRegulationLastActionAt.map { now.timeIntervalSince($0) },
+            secondsSinceLastMaintenance: autoRegulationLastMaintenanceAt.map { now.timeIntervalSince($0) },
+            secondsSinceLastBLERepair: autoRegulationLastBLERepairAt.map { now.timeIntervalSince($0) }
+        )
+        let plan = VeilAutoRegulationPolicy.evaluate(snapshot)
+        autoRegulationSummary = plan.summary
+
+        let actionIDs = plan.actions.map { $0.controlCommand.id }.joined(separator: ",")
+        let logFingerprint = "\(mode.rawValue)|\(plan.severity.rawValue)|\(plan.summary)|\(actionIDs)"
+        if autoRegulationLastLoggedFingerprint != logFingerprint {
+            DiagnosticLogStore.shared.log(
+                plan.severity == .protection ? .warning : .debug,
+                .performance,
+                event: "agent.autotune.evaluate",
+                message: plan.summary,
+                metadata: [
+                    "mode": mode.rawValue,
+                    "severity": plan.severity.rawValue,
+                    "actions": actionIDs
+                ]
+            )
+            autoRegulationLastLoggedFingerprint = logFingerprint
+        }
+
+        guard mode == .safeAutomatic, !plan.actions.isEmpty else { return plan.summary }
+        autoRegulationApplying = true
+        defer { autoRegulationApplying = false }
+        var applied: [String] = []
+        for action in plan.actions {
+            let result = executeAppControl(action.controlCommand, source: .automaticRegulator)
+            guard result.success else { continue }
+            applied.append(result.commandID)
+            autoRegulationLastActionAt = now
+            switch action {
+            case .trimCaches: autoRegulationLastMaintenanceAt = now
+            case .refreshBLE: autoRegulationLastBLERepairAt = now
+            case .setFocus: break
+            }
+        }
+        if !applied.isEmpty {
+            autoRegulationSummary = plan.summary + " 已执行：" + applied.joined(separator: "、")
+        }
+        return autoRegulationSummary
+    }
+
+    private func currentResourceFocus() -> VeilAppResourceFocus {
+        switch computeGovernor.plan.focus {
+        case .mediaTransfer: return .communications
+        case .languageChat, .videoChat: return .agent
+        case .gameDecision: return .game
+        default: return .automatic
+        }
+    }
+
+    private func currentControlDestination() -> VeilAppDestination {
+        switch selectedSection {
+        case .chats: return .chats
+        case .nearby: return .nearby
+        case .games: return .games
+        case .agent: return .agent
+        case .settings: return .settings
+        }
+    }
+
+    private func currentAutoThermalLevel() -> VeilAutoThermalLevel {
+        #if os(iOS)
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return .nominal
+        case .fair: return .fair
+        case .serious: return .serious
+        case .critical: return .critical
+        @unknown default: return .fair
+        }
+        #else
+        return .nominal
+        #endif
+    }
+
+    func setAgentAutoLoadLanguageModel(_ enabled: Bool) {
+        agentControls.autoLoadLanguageModel = enabled
+        if enabled { agent.activate() }
+    }
+
+    func setAgentConversationTextAccessEnabled(_ enabled: Bool) {
+        agentControls.conversationTextAccessEnabled = enabled
+    }
+
+    func setAgentVisualContextEnabled(_ enabled: Bool) {
+        agentControls.visualContextEnabled = enabled
+        agent.setVisualContextEnabled(enabled)
+    }
+
+    func setAgentLocalToolMutationsEnabled(_ enabled: Bool) {
+        agentControls.localToolMutationsEnabled = enabled
+    }
+
+    func setAgentSuggestedGameMoveExecutionEnabled(_ enabled: Bool) {
+        agentControls.allowSuggestedGameMoveExecution = enabled
+    }
+
+    func setAgentGameDecisionMode(_ mode: AgentGameDecisionMode) {
+        agentControls.gameDecisionMode = .baselineOnly
+        computeGovernor.setExperimentalCoreEnabled(false)
+        gameIntelligence.reconfigure()
+        if mode != .baselineOnly {
+            alertMessage = "Core 版已固定使用原生规则 Bot；神经游戏策略不再参与默认运行时。"
+        }
+        haptics.selection()
+    }
+
+    func trimAgentMemory() {
+        agent.trimRuntimeMemory()
+        ImagePreviewCache.shared.removeAll()
+        refreshA9Health()
+    }
+
+    func resetAgentControls() {
+        agentControls.resetToSafeDefaults()
+        computeGovernor.setExperimentalCoreEnabled(false)
+        agent.setVisualContextEnabled(agentControls.visualContextEnabled)
+        gameIntelligence.reconfigure()
+        haptics.resolved()
+    }
+
+    func agentDiagnosticsReport() -> String {
+        [
+            agent.diagnosticsReport(),
+            "",
+            "VeilLink AI Control Center",
+            "Auto-load LLM: \(agentControls.autoLoadLanguageModel)",
+            "Conversation text access: \(agentControls.conversationTextAccessEnabled)",
+            "Visual context: \(agentControls.visualContextEnabled)",
+            "Local tool mutations: \(agentControls.localToolMutationsEnabled)",
+            "Suggested move execution: \(agentControls.allowSuggestedGameMoveExecution)",
+            "Game decision mode: native-bot",
+            "Neural game runtime: disabled in Core",
+            "Privacy: no message plaintext, media, keys, pairing codes or database paths in this report."
+        ].joined(separator: "\n")
+    }
+
+}

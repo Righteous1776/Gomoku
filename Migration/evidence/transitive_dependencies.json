@@ -1,0 +1,64 @@
+{
+  "schema": "gomoku.dependency-closure-plan.v1",
+  "pinned_source": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "stage_files": 62,
+  "ready_for_compilation": false,
+  "modules": [
+    {
+      "module": "Swift ECLIPSE & tactics",
+      "source_prefix": "Legacy/Original/VeilLink/Agent/Games/",
+      "target": "Apps/iOS/Gomoku/Features/ECLIPSE/",
+      "status": "STAGED_NOT_LINKED",
+      "notes": "Preserve GomokuBot, unified search, forced win/block, ordering, 7 tiers, R12/R13 opt-ins, original controller semantics."
+    },
+    {
+      "module": "Shared board rules",
+      "source_prefix": "Legacy/Original/VeilLink/Core/",
+      "target": "Apps/iOS/Gomoku/Features/Gomoku/Model/",
+      "status": "STAGED_MIXED_MODULES",
+      "notes": "MiniGames/Models carry Xiangqi and other app structs; extract only GomokuState/MiniGamePlayer and required pure types."
+    },
+    {
+      "module": "Original UI and search trace",
+      "source_prefix": "Legacy/Original/VeilLink/UI/",
+      "target": "Apps/iOS/Gomoku/Features/Gomoku/UI/",
+      "status": "STAGED_NOT_LINKED",
+      "notes": "Do not reintroduce owner-rejected lower dashboard or impact ripple; selective R17.2 branch is only adapted-design source."
+    },
+    {
+      "module": "instrumentAuto theme",
+      "source_prefix": "Legacy/Original/VeilLink/Core/",
+      "target": "Apps/iOS/Gomoku/Theme/",
+      "status": "STAGED_NOT_LINKED",
+      "notes": "Preserve real SkeuomorphicComponents, AppearanceTheme, palette; fixed instrument family with light/dark/system."
+    },
+    {
+      "module": "Resources",
+      "source_prefix": "Legacy/Original/VeilLink/Resources/",
+      "target": "Apps/iOS/Gomoku/Resources/",
+      "status": "STAGED_NOT_BUNDLED",
+      "notes": "Native training JSON and licensed engine.js; preserve nested LICENSE/PROVENANCE."
+    },
+    {
+      "module": "Archive and learning data",
+      "source_prefix": "Legacy/Original/VeilLink/Agent/Games/",
+      "target": "Apps/iOS/Gomoku/Data/",
+      "status": "STAGED_NOT_INTEGRATED",
+      "notes": "Explicit export/import between app sandboxes; per-game archives, formation and self-play; no personal samples checked in."
+    },
+    {
+      "module": "Original regression tests",
+      "source_prefix": "Legacy/Original/VeilLinkTests/",
+      "target": "Apps/iOS/GomokuTests/LegacyParity/",
+      "status": "STAGED_NOT_COMPILED",
+      "notes": "Port test host to Gomoku and add forced defense/7 tier/budget/learning/provenance tests."
+    },
+    {
+      "module": "BLE/E2EE",
+      "source_prefix": "VeilLink/Transport/,VeilLink/Security/,VeilLink/Pairing/",
+      "target": "Apps/iOS/Gomoku/Networking/",
+      "status": "NOT_IMPLEMENTED",
+      "notes": "Security review and purpose-built game session; do not transplant VeilLink messenger wholesale."
+    }
+  ]
+}

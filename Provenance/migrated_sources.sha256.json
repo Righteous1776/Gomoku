@@ -1,0 +1,711 @@
+{
+  "schema": "gomoku.source-stage-proof.v1",
+  "upstream": "https://github.com/Righteous1776/VeilLink",
+  "pinned_commit": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "files": [
+    {
+      "source": "VeilLink/Agent/Games/GomokuBot.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift",
+      "sha256": "3ae1eecd1bf321c79365e868be5b45f1ea08c06e3657746127a173d1e72c6cb2",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+      "sha256": "5801123974ff3938e1e5a104fa8558e5f0e31d1c9fe958f19e5ff976d30243b1",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+      "sha256": "9f941f2831ce10d36ab75f5e2729d0ce877ec8bc63252a1450e938c70d1eb106",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+      "sha256": "f89f234fcf2db59c52db70f1d2352576e727fd3c070fbb055ae59e10c391abfe",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+      "sha256": "e3cc8228c55ef2001ba26e625a68b276f696ab90cb79f9587b42329373577880",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+      "sha256": "13d32513deeb2602a05ceb98dff822396863676fd1d64a41267c6a024ef27969",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+      "sha256": "d0f364a6235b052e5c77539821e1f14e86afa734623b708fec05750066728635",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+      "sha256": "2decd204532a671b19013a00e35848cb15a09410d63222b147ba5dd7a1d76991",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuFormationLearning.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuFormationLearning.swift",
+      "sha256": "89fc31fc31d6d5531bcb4f99ec9ca246735ecae2abba418be1de29be214665ba",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+      "sha256": "4547d6e85d82dc90abd9acb66f263f4c554d711cff1802e4ede180f93f6b47cb",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+      "sha256": "eebae9e2b21b3ccbc8021259832e367c02dc66d7d29eff6c43ffe28ac509ee8e",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+      "sha256": "9857f2caf1a27b24a432b3b029797dadf27f62d6bee8bde4973988d358e8ccd7",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/LocalAIGameController.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/LocalAIGameController.swift",
+      "sha256": "175251663c70d729f8184f127e544b0443457f61868e086cfe5e60a33c63cc62",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/LocalBoardMatchStore.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/LocalBoardMatchStore.swift",
+      "sha256": "56cfa42f23bfbfdc5f8ff728f23daf7d3bef86511e9a7fb295012daf2dbe1172",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/DeveloperFormationLibrary.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/DeveloperFormationLibrary.swift",
+      "sha256": "42c3bc112fb499f6021fc08edd9c808899d64dd86f7ddcb3567a2ddad227930e",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilOfflineGomokuEngine.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilOfflineGomokuEngine.swift",
+      "sha256": "fad12e4f19b1d3c86afad89499656b30e8e9fc6550bf4dce880a743d9742ddaa",
+      "category": "ai-core"
+    },
+    {
+      "source": "VeilLink/Core/MiniGames.swift",
+      "destination": "Legacy/Original/VeilLink/Core/MiniGames.swift",
+      "sha256": "2bd7e04f6622845f50923a0363255e82a69ebb0efba19ccb78efe271694a5916",
+      "category": "core-rules"
+    },
+    {
+      "source": "VeilLink/Core/Models.swift",
+      "destination": "Legacy/Original/VeilLink/Core/Models.swift",
+      "sha256": "52c6426c2a93f6fddaae79ae013ea38ef7f99e8aa31f2c1602fcdc4c2089e897",
+      "category": "core-rules"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuAgentAdapter.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuAgentAdapter.swift",
+      "sha256": "2d8eb334a5e777b0f7b8411395004e2fedc4b9862a5ecf5b8d2aeca315c14870",
+      "category": "core-rules"
+    },
+    {
+      "source": "VeilLink/UI/GameLobbyView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/GameLobbyView.swift",
+      "sha256": "2ba24ce1786047578bc1b71c3c20184daa7f1d8c49ef985771d41aed0e2e43a7",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/MiniGameViews.swift",
+      "destination": "Legacy/Original/VeilLink/UI/MiniGameViews.swift",
+      "sha256": "82bea12a0cab499506f384e828dc2599be58fb9a629fbe29943d75e5a69a50fd",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/BoardDeveloperLearningLabView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/BoardDeveloperLearningLabView.swift",
+      "sha256": "19390f84d31e137f89deceaae87937c37e78b8b5218e8b8e190f8a6fb28dc70e",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilGomokuMatchArchive.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilGomokuMatchArchive.swift",
+      "sha256": "3b460cc12ce0c248ffe58cbd6cca8137a2e69833194a0664a0ffc428d8a7dde1",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseBoardThoughtField.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseBoardThoughtField.swift",
+      "sha256": "5ebeb72e199339af5d6c07e1fc41cb1ca8d497e1bfb0a0f192578569bc0c4e5c",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseComputeConsole.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseComputeConsole.swift",
+      "sha256": "aedcfe6126e31fa9ce77f81fb609168d64ca3b5aa1d6169b7576ff3c8ec01f7f",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseConsoleStream.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseConsoleStream.swift",
+      "sha256": "c78066a14301661ffc914072bb921ec3c9f44e40bab6ed309f3bba154808586d",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseIdentityAndTrace.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseIdentityAndTrace.swift",
+      "sha256": "36b87eba630916f264d227bf92558f5f591d84e8cdf96487f1f3395597403009",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseRuntimeInstruments.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseRuntimeInstruments.swift",
+      "sha256": "591ed20d6df035c9cfda95dc11f7c8f966d0fddcf127938486ecd404182fcd4d",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+      "sha256": "8af183f4ebd6557b595f0d15452c540610fea625eda594ade13e327fbee1fe25",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTracePolicy.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseTracePolicy.swift",
+      "sha256": "dea15168255d75204de10c282ea08370d571c873769e95fbe353b404eba80ff9",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+      "sha256": "a78d339ccdb8905400a6619ec2deeb2c089ac64ccd0df44343c2c1c5672af8ee",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/UI/VeilOpponentAvatarView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilOpponentAvatarView.swift",
+      "sha256": "724fca5df6c94ff14c52983430696c0c427693dcf02486f8c58c77aab0eda90b",
+      "category": "original-ui"
+    },
+    {
+      "source": "VeilLink/Core/AppearanceTheme.swift",
+      "destination": "Legacy/Original/VeilLink/Core/AppearanceTheme.swift",
+      "sha256": "abe2306443311597f1ee90473aaf398b301aed3441d1cdce6d559653e8e8c80b",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/AppTheme.swift",
+      "destination": "Legacy/Original/VeilLink/Core/AppTheme.swift",
+      "sha256": "01f4c6f3a17ed96393ecf35921223dd728fd6fde9cdee295f85e843737c7fba3",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/SkeuomorphicComponents.swift",
+      "destination": "Legacy/Original/VeilLink/Core/SkeuomorphicComponents.swift",
+      "sha256": "013f7bfd47ada9e867345a75a9a5933c27f0a51365bc375ac14172837ce06679",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/SkeuomorphicPerformanceBudget.swift",
+      "destination": "Legacy/Original/VeilLink/Core/SkeuomorphicPerformanceBudget.swift",
+      "sha256": "fa365c083eccb78fcc8dfe54bc49e8232420a28b600ef5325744b59a35594f63",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/VeilMotionKit.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilMotionKit.swift",
+      "sha256": "48b0ce6d3440e26a2add6caf425f2313cc4316b8bf3fb09e5a7a724c84baacad",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/DevicePerformanceProfile.swift",
+      "destination": "Legacy/Original/VeilLink/Core/DevicePerformanceProfile.swift",
+      "sha256": "8faff33a8969fdececea55b35dff833b0a28c371fe3164e683327ec72b9ada9f",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Core/HapticEngine.swift",
+      "destination": "Legacy/Original/VeilLink/Core/HapticEngine.swift",
+      "sha256": "18924f2f78bb9991a87c20d538c6f0af48dcfedc5fef1332604b3b3d6ba6a173",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/UI/VeilForgeVisualSystem.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilForgeVisualSystem.swift",
+      "sha256": "1b9d12f3f58e16f34526f3234c5e9e5e9c10ea75bbbb2b45ea27a11205af90cb",
+      "category": "instrument-theme"
+    },
+    {
+      "source": "VeilLink/Resources/GomokuNativeTrainingSeed.json",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuNativeTrainingSeed.json",
+      "sha256": "9f7ddf5c847d6beb972c5a98ad83daa66df189f82171988ac1da68d6142188e0",
+      "category": "resource"
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/LICENSE",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/LICENSE",
+      "sha256": "2fa3c0fe65857cd47f14ba52aeaf50c74a66383aeba6c2839d1a76ecf8a4906c",
+      "category": "resource"
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/PROVENANCE.md",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/PROVENANCE.md",
+      "sha256": "7a95c8bee5c0bbe71850d5a5927c291520ba296e332a9ec37f55479c1a926a09",
+      "category": "resource"
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/engine.js",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/engine.js",
+      "sha256": "bf946066799974be1e9990ef60c9f27f72a4fc5523d106791043173e69c03fc6",
+      "category": "resource"
+    },
+    {
+      "source": "VeilLink/App/AppModel.swift",
+      "destination": "Legacy/Original/VeilLink/App/AppModel.swift",
+      "sha256": "7f706aec812d675951a2aeb1e84b09e418da7b6db09b540a2d3527e00bf3f0fb",
+      "category": "app-structure"
+    },
+    {
+      "source": "VeilLink/App/VeilLinkApp.swift",
+      "destination": "Legacy/Original/VeilLink/App/VeilLinkApp.swift",
+      "sha256": "445f8a60703d8ad172e602d4481e9669b68959927e7c8565e11cf2ad74d5f05d",
+      "category": "app-structure"
+    },
+    {
+      "source": "VeilLink/Resources/Info.plist",
+      "destination": "Legacy/Original/VeilLink/Resources/Info.plist",
+      "sha256": "ae89bcfe03726ada640453470eec92d3d902c1ff31095244d1431f173fd2a9f6",
+      "category": "app-structure"
+    },
+    {
+      "source": "VeilLink/Storage/DatabaseStore.swift",
+      "destination": "Legacy/Original/VeilLink/Storage/DatabaseStore.swift",
+      "sha256": "3121ffd2f220140a920c60e64f8d6aeec365587f4266be6c05df8c1ab1626fbd",
+      "category": "migration-context"
+    },
+    {
+      "source": "VeilLink/Core/VeilImportedFileAccess.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilImportedFileAccess.swift",
+      "sha256": "15c383bc08392455e6111495ec0db9b6128691bb8be73badedcca6dab18c12bf",
+      "category": "migration-context"
+    },
+    {
+      "source": "VeilLink/Core/VeilFileInbox.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilFileInbox.swift",
+      "sha256": "c28e73221c50e5d862b749356ccb5b3aab082a4ab9948e5f1c1636836e9f137f",
+      "category": "migration-context"
+    },
+    {
+      "source": "VeilLink/Core/VeilUnifiedImportRouter.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilUnifiedImportRouter.swift",
+      "sha256": "4f4e1107667ef32478c4ac77ab18d51cac997e810ec0d354fc49dd5e61aae3ec",
+      "category": "migration-context"
+    },
+    {
+      "source": "VeilLink/Transport/BLEConnectionIntentStore.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLEConnectionIntentStore.swift",
+      "sha256": "a9535bb7211e353e7f46e134faa2af8640918b8c8fe0a74c8db980474dde674a",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/BLEFramer.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLEFramer.swift",
+      "sha256": "daff4f529a5e555615bc4e4e4bc4f8fd220f3570966c95c9ad81e29fc081b97c",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/BLEGattHandshakeWatchdog.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLEGattHandshakeWatchdog.swift",
+      "sha256": "1a812ce0c67146774661399fdf1095d14b62c8ac908bb553aa2f237321c100e4",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/BLELinkReliabilityPolicy.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLELinkReliabilityPolicy.swift",
+      "sha256": "185c3854e5875d8f9024fe674824ce3126eda95671a2c0305c0edd7f8315c2a9",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/BLELinkSnapshot.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLELinkSnapshot.swift",
+      "sha256": "560768d3aba5ff0a10a8b056514ad18813edcd48b763ea5329a49c06b6680591",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/BLETransport.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/BLETransport.swift",
+      "sha256": "7ff08bb1948471e4c18968e97b57f7610fc4e81b0efd72ccb01a0b8c60cc0065",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/ConnectionEventGate.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/ConnectionEventGate.swift",
+      "sha256": "124dd47a21d91dce3166bb4a1f8a9c98bba299d6658c16b6daca34b571ae39c4",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Transport/LANTransport.swift",
+      "destination": "Legacy/Original/VeilLink/Transport/LANTransport.swift",
+      "sha256": "7d8894c9555be578431de45ee7e6c43c4d0b9623f80848b2eadddf1889ada2f1",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/AppLockController.swift",
+      "destination": "Legacy/Original/VeilLink/Security/AppLockController.swift",
+      "sha256": "9f73757d064af479a8bd8afc651c34f25d5ae0fafb4ade57a93340ffbe567811",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/Base32.swift",
+      "destination": "Legacy/Original/VeilLink/Security/Base32.swift",
+      "sha256": "1c2cd7bdec369bf2a7427c3afd811cd47e6addd47f7c88868341da14b118bada",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/CryptoEngine.swift",
+      "destination": "Legacy/Original/VeilLink/Security/CryptoEngine.swift",
+      "sha256": "cb60d63b93d4375331b363dc3d763305d8252e14caccf966c9bbfc0f87f1f614",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/DeveloperLearningLabGate.swift",
+      "destination": "Legacy/Original/VeilLink/Security/DeveloperLearningLabGate.swift",
+      "sha256": "4b8b3c7c43ad148021fc061406e6489987a735cf84dc6ccde9b36e6692445e43",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/IdentityManager.swift",
+      "destination": "Legacy/Original/VeilLink/Security/IdentityManager.swift",
+      "sha256": "8d9ebc5456e60d49037abd37b13a539d8cff21c9c1d163d58588b670c8778f8a",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/KeychainStore.swift",
+      "destination": "Legacy/Original/VeilLink/Security/KeychainStore.swift",
+      "sha256": "1993611f07442bd0ff497056b3371c909895413836a0d83e702f22413b217191",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/OwnerModeController.swift",
+      "destination": "Legacy/Original/VeilLink/Security/OwnerModeController.swift",
+      "sha256": "1a0df56441c8b03c50c888f776305d16439921f076224c31977fa07886f18454",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/PacketAbuseLimiter.swift",
+      "destination": "Legacy/Original/VeilLink/Security/PacketAbuseLimiter.swift",
+      "sha256": "172e9011dc9f4959c1c267c74e3e5ae158a6ff914a4e149422df384692e79c32",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/PasswordKDF.swift",
+      "destination": "Legacy/Original/VeilLink/Security/PasswordKDF.swift",
+      "sha256": "19a3ae576ce55fcd8c9ce69e4ef0d79e6d561be803b4e4f51c32b89e715fc726",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/ReplayWindow.swift",
+      "destination": "Legacy/Original/VeilLink/Security/ReplayWindow.swift",
+      "sha256": "34603c19f729ac1fedcb03e5f306873dac89b20a15863a0d19db98ab3eabcbf2",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/SessionCoordinator.swift",
+      "destination": "Legacy/Original/VeilLink/Security/SessionCoordinator.swift",
+      "sha256": "ec0d9ceed30c7211204c8a1a58dd841703b823c4a20e154f90cbe1b72277b23b",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Security/TacticalPendingRevealSecureStoreV2.swift",
+      "destination": "Legacy/Original/VeilLink/Security/TacticalPendingRevealSecureStoreV2.swift",
+      "sha256": "90f47f3912099d0ad4961de73595bf3021eb4d5acf0d6f002106df92953b3ded",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Pairing/RemotePairingCoordinator.swift",
+      "destination": "Legacy/Original/VeilLink/Pairing/RemotePairingCoordinator.swift",
+      "sha256": "a946ed3d20d25d78ebdfddba7e85df4bef0b9517d521b17da6ab3877b10571e5",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Pairing/RemotePairingCore.swift",
+      "destination": "Legacy/Original/VeilLink/Pairing/RemotePairingCore.swift",
+      "sha256": "66a98fc22d290dbdba1a7cb8af119aa327436dd64c74acd71e99949e70ad3670",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Core/WireCodec.swift",
+      "destination": "Legacy/Original/VeilLink/Core/WireCodec.swift",
+      "sha256": "c26f5fcad42aeca92e882f3c188cf22b9820a2b77129d82a27e9e317e75b5e10",
+      "category": "multiplayer-reference"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+      "sha256": "82d3a989234b6e363ff10b9aae5d21b48d5b2c461c4eb661e89c6e6d7fe3ee46",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
+      "sha256": "424f6241230f82e4fbc6516303500083bcfa479282931ec317e07d8c26854f95",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@1x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@1x-ipad.png",
+      "sha256": "3997cd15015f1c430a7cdc9be1ac7441482fae147d3e3fa6e879cb1fb563fdd4",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@2x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@2x-ipad.png",
+      "sha256": "bd7c6cf730d4fbdcba0e87b79614cb798c9ea6dabe26e20d812175a9b921f8ae",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@2x.png",
+      "sha256": "bd7c6cf730d4fbdcba0e87b79614cb798c9ea6dabe26e20d812175a9b921f8ae",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@3x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-20@3x.png",
+      "sha256": "5514834f38e1ddbd91a52e29a6acf9fd76204d281047bc22fbcee0b850321565",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@1x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@1x-ipad.png",
+      "sha256": "e33a0f946dfff7996c343115a3f69601f30666c3474d2944049281c24785d988",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@2x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@2x-ipad.png",
+      "sha256": "e2fe3809eaf654e6859a69cff1ab1816e7a290e20dd2b8678b67be80b89e87d0",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@2x.png",
+      "sha256": "e2fe3809eaf654e6859a69cff1ab1816e7a290e20dd2b8678b67be80b89e87d0",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@3x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-29@3x.png",
+      "sha256": "3fa3e51d44e100307399b042f7d95ff2a79b08864bc66d8c0ef832f54ef016c6",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@1x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@1x-ipad.png",
+      "sha256": "bd7c6cf730d4fbdcba0e87b79614cb798c9ea6dabe26e20d812175a9b921f8ae",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@2x-ipad.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@2x-ipad.png",
+      "sha256": "7276b8da3e6597c9ee2f36ab71d7dfa50d3e434a30cc08bf33eaba0255e3a4d4",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@2x.png",
+      "sha256": "7276b8da3e6597c9ee2f36ab71d7dfa50d3e434a30cc08bf33eaba0255e3a4d4",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@3x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-40@3x.png",
+      "sha256": "dc088afa546763ab1e6fbbc116a5051a9131fac087752e4d0f6911623dabd405",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@2x.png",
+      "sha256": "dc088afa546763ab1e6fbbc116a5051a9131fac087752e4d0f6911623dabd405",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-60@3x.png",
+      "sha256": "99eb820ff6562496a41b3f006a235d5bc8075426c1cea76ee72d68d342bd8531",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-76@1x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-76@1x.png",
+      "sha256": "0df377602f65ad225888e4ebd68c9a741cb2430c1237ba8c3856587fa436d39d",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-76@2x.png",
+      "sha256": "9746d292dc2c996518d780c067cdf84353f18b4b2117ab300137edba323d6c3d",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x.png",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-83.5@2x.png",
+      "sha256": "7ec5ba458e2220b0451df8dfbca5058a804a2cea48fde8a20ae594ccd4327848",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+      "sha256": "1816d68c47666cf2c4d48cd1ff31eec1cd0e2c04bad20b42e2031dc8ae5cf919",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLink/Resources/Assets.xcassets/Contents.json",
+      "destination": "Legacy/Original/VeilLink/Resources/Assets.xcassets/Contents.json",
+      "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b",
+      "category": "visual-assets"
+    },
+    {
+      "source": "VeilLinkTests/GomokuBotTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuBotTests.swift",
+      "sha256": "5bd4052c6d4f26df1f9c5216302177f2bff523ea4b35e2f0c9e4ebcffc960581",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/GomokuSevenTierIntegrationTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuSevenTierIntegrationTests.swift",
+      "sha256": "a6c40e3fa42a74961a7c930db2b90887bee59d9e148e8d6e5d043c9edb3329d9",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/GomokuBundledNativeSeedTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuBundledNativeSeedTests.swift",
+      "sha256": "1237a350634e7e861f173d631e777589c86c609c9f677a540a2ebd22d4ad6f60",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/GomokuFormationLearningTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuFormationLearningTests.swift",
+      "sha256": "c7288b1c0a764d5032a8c544a3b41e778eefbc283313462152a576dc400bf473",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/NativeGomokuSelfPlayTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/NativeGomokuSelfPlayTests.swift",
+      "sha256": "89e9fb1f23c7801f58d2266d090eec57fd67d6dcae936cf49850b63ca122f016",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/VeilOfflineGomokuEngineTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/VeilOfflineGomokuEngineTests.swift",
+      "sha256": "fbe9751e986cf4ad11b142264174c0321e3061a08aea78662a1b1c0a37f4a3af",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/AdaptiveBoardLearningTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/AdaptiveBoardLearningTests.swift",
+      "sha256": "01f3e8f573341ef9d6e46525de2a1f5b298a2eb7fe458e8e9e3fc90588a112ea",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/LocalBoardMatchStoreTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/LocalBoardMatchStoreTests.swift",
+      "sha256": "da11cd1e6838747cf50fdec97932fd6ea4b36862adb9316d5eedb7a907d6a272",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/EclipseHorizonR12Tests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseHorizonR12Tests.swift",
+      "sha256": "2e58a58b9b2be52d399bb64354ba6eaf27e791eeba2ff9d73d520f1b05821d29",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/EclipseIncrementalThreatIndexR13Tests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseIncrementalThreatIndexR13Tests.swift",
+      "sha256": "b5b6d2ff4d1f886b57c2d2d2bb34fb83a99db65f0e098da79120dbe86df3cdd9",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/EclipseR14UnifiedTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseR14UnifiedTests.swift",
+      "sha256": "f74c1c0f6828a7f53a0dc48f9e522d37fc04cb9a9ff791d7b67ed6090d63c460",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/GlobalAppearanceModeTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GlobalAppearanceModeTests.swift",
+      "sha256": "4da22829824ce488ebed2ca60a8030391d1df18608c1f9f47c6b19e10edd6c1b",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/SkeuomorphicPerformanceBudgetTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/SkeuomorphicPerformanceBudgetTests.swift",
+      "sha256": "0a9b8eade8a14b2452681dcb7b78c3a0e86d29c0fab390e6577da163d8fdb672",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/MiniGameTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/MiniGameTests.swift",
+      "sha256": "a8c5fef1879d7e6dc6c89744502a30dd24e22bf4acc87860dfc28d539f9f8785",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "VeilLinkTests/BLETransportSafetyTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/BLETransportSafetyTests.swift",
+      "sha256": "984ad1ca17c04553fd1385ee4e9f9997e80ca5c1fbee33d415cb8b5e9928eb91",
+      "category": "legacy-tests"
+    },
+    {
+      "source": "LICENSE",
+      "destination": "Legacy/Original/LICENSE",
+      "sha256": "e35f9c982c10869693ff989344708b73c3157bb5da0b09148d04f120a3cab441",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "VeilLink/Agent/Games/AgentGameAdapter.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/AgentGameAdapter.swift",
+      "sha256": "5d1ccee07893d62f3af7fdad77bf1a0cf0688da7765dabc4fc6f84d49ac59438",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "VeilLink/Agent/Games/TrainedGamePolicyRuntime.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/TrainedGamePolicyRuntime.swift",
+      "sha256": "237d861399ffffaa62c0c98f4d679bbf8988b00aeb8638799d1536ad9ecd4101",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "VeilLink/Agent/Games/AgentGameRegistry.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/AgentGameRegistry.swift",
+      "sha256": "21eac10da1ea8b48065bea5751bff4a719a894d3543e026b7c382a0ef291b51b",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "docs/GOMOKU_NATIVE_SELFPLAY_R3_20261031.md",
+      "destination": "Legacy/Original/docs/GOMOKU_NATIVE_SELFPLAY_R3_20261031.md",
+      "sha256": "50906505131bb35e48fd0e3a1f203b70a630b0e3476f7318073c79515f549137",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "docs/GOMOKU_FORMATION_LAB_R1_20261031.md",
+      "destination": "Legacy/Original/docs/GOMOKU_FORMATION_LAB_R1_20261031.md",
+      "sha256": "568cdb2eea76e814f45e30b44a6cdd645ffe6921945030636fdcd0bfaae5e635",
+      "category": "dependency-and-license-reference"
+    },
+    {
+      "source": "VeilLinkTests/DeveloperFormationLibraryTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/DeveloperFormationLibraryTests.swift",
+      "sha256": "22bc04d1aaa6d67111869777b31e1a9671a84bb83f73290196329dba82321cae",
+      "category": "legacy-tests"
+    }
+  ],
+  "missing_optional": [],
+  "stage_only": true
+}
