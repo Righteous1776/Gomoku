@@ -544,6 +544,19 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
+    const bool tactical_risk = std::any_of(risks.begin(), risks.end(),
+        [](const auto &r) { return r.second > 0; });
+    if (adaptive) {
+        // Proof phase must not consume the entire complex ceiling when the
+        // current position is quiet. A detected fork risk earns substantially
+        // more proof time, but every stage remains under the same hard cap.
+        const auto proof_ms = tactical_risk
+            ? std::max<std::int64_t>(adaptive->clear_budget_ms,
+                adaptive->complex_budget_ms / 3)
+            : std::max<std::int64_t>(100, adaptive->clear_budget_ms / 2);
+        proof_deadline_ = std::min(deadline_,
+            started + std::chrono::milliseconds(proof_ms));
+    }
     for (const int i : eligible) allowed_proof_root_[i] = true;
     if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
@@ -560,8 +573,6 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
     // An unsafe fork response makes the position high-complexity even if
     // the model repeats a favorite move. A stable move is NOT a proof.
-    const bool tactical_risk = std::any_of(risks.begin(), risks.end(),
-        [](const auto &r) { return r.second > 0; });
     int stable_completed = 0;
     int previous_move = -1;
     int previous_score = 0;
