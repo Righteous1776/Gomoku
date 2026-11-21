@@ -367,9 +367,12 @@ final class NativeGomokuAppController: ObservableObject {
     func currentNativeLatencySummary() -> EclipseNativeLatencyStatistics.Summary? {
         guard !isThinking, let id = lastThinkingRun,
               let checkpoint = id.checkpointSHA256,
-              let policy = id.computePolicySHA256 else { return nil }
+              let policy = id.computePolicySHA256,
+              let execution = lastExecutionBackend else { return nil }
+        // V2 and V3 can share a model/checkpoint SHA and the trainer's
+        // geometric compute SHA while having DIFFERENT termination rules.
         return EclipseNativeLatencyStatistics.summarize(
-            nativeLatencyBySignature[checkpoint + ":" + policy] ?? []
+            nativeLatencyBySignature[checkpoint + ":" + policy + ":" + execution] ?? []
         )
     }
 
@@ -986,7 +989,8 @@ final class NativeGomokuAppController: ObservableObject {
                let verified = lastThinkingRun,
                let checkpoint = verified.checkpointSHA256,
                let policy = verified.computePolicySHA256 {
-                let signature = checkpoint + ":" + policy
+                let signature = checkpoint + ":" + policy + ":" +
+                    (decision.engineLabel ?? "C++20 unknown")
                 if nativeLatencyBySignature[signature] == nil {
                     nativeLatencyOrder.append(signature)
                     if nativeLatencyOrder.count > 16 {
