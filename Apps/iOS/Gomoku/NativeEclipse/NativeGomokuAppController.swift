@@ -557,7 +557,7 @@ final class NativeGomokuAppController: ObservableObject {
                 ? model.name : nil,
             checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil,
             computePolicySHA256: usingCpp
-                ? verifiedTrainer?.approvedComputePolicySHA256 : nil
+                ? verifiedTrainer?.computePolicy.sha256 : nil
         )
         if verifiedTrainer == nil || cppRuntime != nil {
             fallbackWarning = nil

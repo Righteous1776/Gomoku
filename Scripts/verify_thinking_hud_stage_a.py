@@ -52,6 +52,7 @@ def verify():
     assert "EclipseCppProductionAdapter.make(" in controller
     assert "let usingCpp = cppRuntime != nil && verifiedTrainer != nil" in controller
     assert "checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil" in controller
+    assert "verifiedTrainer?.computePolicy.sha256" in controller
     assert "GomokuLearningRepertoire.build(" in controller
     assert "run.search.reason" in adapter
     assert "nativeStopReason: Int32? = nil" in bot
