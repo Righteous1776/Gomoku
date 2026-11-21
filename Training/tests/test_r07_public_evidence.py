@@ -4,6 +4,7 @@ These checks validate internal arithmetic and evidence boundaries;
 they do NOT independently replay private games, regenerate LightGBM
 weights, certify Elo, or replace genuine headless-native chess tests.
 """
+import ast
 import json
 import unittest
 from pathlib import Path
@@ -69,6 +70,13 @@ class R07PublicEvidenceTests(unittest.TestCase):
         self.assertEqual(a["native_v9_games"], 0)
         self.assertLessEqual(a["paired_bootstrap_ci95"][0], 0.5)
         self.assertGreaterEqual(a["paired_bootstrap_ci95"][1], 0.5)
+
+    def test_public_research_sources_parse_without_private_imports(self):
+        """Parse source syntax without requiring proprietary inputs or models."""
+        root = Path(__file__).resolve().parents[1]
+        for name in ("features34.py", "train_r07.py", "arena_ranker_r07.py"):
+            source = root / "research" / "r07" / "source" / name
+            ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
 
     def test_model_hashes_are_structurally_verifiable(self):
         lineage = self.m["source_lineage"]
