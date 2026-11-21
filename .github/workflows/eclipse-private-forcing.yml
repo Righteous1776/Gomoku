@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'Arena/private_forcing_forks.py'
+      - 'Arena/private_forcing_overlay.py'
+      - 'Arena/tests/test_private_forcing_overlay.py'
       - 'Arena/tests/test_private_forcing_forks.py'
       - '.github/workflows/eclipse-private-forcing.yml'
   workflow_dispatch:
@@ -20,3 +22,4 @@ jobs:
       - name: Independently prove double threats and reject snapshot count inflation
         run: |
           python3 -m unittest discover -v -s Arena/tests -p 'test_private_forcing_forks.py'
+          python3 -m unittest discover -v -s Arena/tests -p 'test_private_forcing_overlay.py'
