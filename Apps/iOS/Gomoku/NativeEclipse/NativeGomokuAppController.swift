@@ -24,6 +24,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var activeThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingStopReason: String?
+    @Published private(set) var lastAdaptiveSearchEvidence: EclipseAdaptiveStopEvidence?
     private var searchStartedUptime: TimeInterval?
     // Ephemeral measured latencies only: isolated by executed SHA/policy,
     // bounded to 16 signatures x 128 samples, no private game records.
@@ -311,6 +312,7 @@ final class NativeGomokuAppController: ObservableObject {
             stopReason: live ? nil : lastThinkingStopReason
         )
         snapshot.hasTeachingReview = teachingReview
+        snapshot.adaptiveEvidence = live ? nil : lastAdaptiveSearchEvidence
         // The native engine may publish a best move for a FULLY completed
         // iteration. Only authenticated developer teaching may observe it.
         // Formally played matches do not store this move in the HUD.
@@ -421,6 +423,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = resumed
         sessionID = previous.id
@@ -467,6 +470,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = GomokuState()
         sessionID = UUID().uuidString
@@ -505,6 +509,7 @@ final class NativeGomokuAppController: ObservableObject {
             activeCppSearch = nil
             lastThinkingRun = nil
             lastThinkingStopReason = nil
+            lastAdaptiveSearchEvidence = nil
             lastDecisionNodes = nil
             lastDecisionDepth = nil
             lastDecisionMilliseconds = nil
@@ -578,6 +583,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = GomokuState()
         archivedMoves.removeAll()
@@ -639,6 +645,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeCppSearch = runtime
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         lastDecisionNodes = nil
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
@@ -742,6 +749,7 @@ final class NativeGomokuAppController: ObservableObject {
         }
         // Keep this completed, idle native handle only for read-only review.
         // A manually staged move or reset immediately drops its evidence.
+        lastAdaptiveSearchEvidence = decision.adaptiveEvidence
         lastDecisionNodes = decision.nodes
         lastDecisionDepth = decision.completedDepth
         lastDecisionMilliseconds = decision.elapsedMilliseconds
@@ -781,6 +789,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         // The native runtime has been freshly created and attested at this
         // exact position. If that failed, do NOT claim selected Astra/Sol.
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
@@ -935,6 +944,7 @@ final class NativeGomokuAppController: ObservableObject {
             : EclipseThinkingHUDSnapshot.nativeStopReason(
                 trainerRevision != nil ? decision?.nativeStopReason : nil
             )
+        lastAdaptiveSearchEvidence = cppFailed ? nil : decision?.adaptiveEvidence
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
