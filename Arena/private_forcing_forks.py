@@ -135,13 +135,18 @@ def verified_sources(db):
         if not policy or "LOCAL_ONLY" not in policy[0]:
             raise ValueError("missing private-only evidence policy")
         query = """
-            select s.id, s.actions_json, count(*) repeats,
-                   count(distinct src.id) source_count,
-                   sum(case when g.diagnostic='ok' then 0 else 1 end) bad
-              from sequences s join game_observations g on g.sequence_id=s.id
-                 join sources src on src.id=g.source_id
-             where src.integrity in ('canonical_match','historical_sha_pinned')
-             group by s.id, s.actions_json order by s.id
+            with per_source as (
+                select s.id, s.actions_json, src.id source_id,
+                       count(*) repeats,
+                       sum(case when g.diagnostic='ok' then 0 else 1 end) bad
+                  from sequences s join game_observations g on g.sequence_id=s.id
+                     join sources src on src.id=g.source_id
+                 where src.integrity in ('canonical_match','historical_sha_pinned')
+                 group by s.id, s.actions_json, src.id
+            )
+            select id, actions_json, max(repeats) repeats,
+                   count(source_id) source_count, sum(bad) bad
+              from per_source group by id, actions_json order by id
         """
         for rec in con.execute(query):
             if rec["bad"]:
