@@ -25,6 +25,11 @@ if(BUILD_TESTING)
   target_link_libraries(eclipse_compute_policy_v2_tests PRIVATE eclipse_core Threads::Threads)
   add_test(NAME eclipse_compute_policy_v2 COMMAND eclipse_compute_policy_v2_tests)
   set_tests_properties(eclipse_compute_policy_v2 PROPERTIES TIMEOUT 30)
+  # V9 synthetic mandatory-defense regression, exercised through the real R19
+  # C ABI V2 search path, independent of any staged LightGBM checkpoint.
+  add_executable(eclipse_v9_unique_block_tests tests/test_v9_unique_block.cpp)
+  target_link_libraries(eclipse_v9_unique_block_tests PRIVATE eclipse_core)
+  add_test(NAME eclipse_v9_unique_block COMMAND eclipse_v9_unique_block_tests)
   add_executable(eclipse_r10_ordering_tests tests/test_trained_ordering.cpp)
   target_include_directories(eclipse_r10_ordering_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   add_test(NAME eclipse_r10_ordering COMMAND eclipse_r10_ordering_tests)
