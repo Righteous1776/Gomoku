@@ -97,7 +97,13 @@ final class NativeGomokuAppController: ObservableObject {
         trainingDirectory: URL? = nil,
         verifiedTrainerExecution: EclipseVerifiedTrainerExecution? = nil
     ) {
+        // The official application resolves its signed/verified C++ runtime
+        // binding at launch, without requiring DEBUG tools or a manual
+        // injection. Isolated XCTest archive roots remain deterministic.
+        let productionInstall = archiveDirectory == nil && trainingDirectory == nil
         self.verifiedTrainerExecution = verifiedTrainerExecution
+            ?? (productionInstall
+                ? EclipseTrainerProductionRegistry.loadFromBundle() : nil)
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         let root = archive.directory.deletingLastPathComponent()
@@ -110,6 +116,14 @@ final class NativeGomokuAppController: ObservableObject {
         let journalFolder = trainingJournal.directory
         let production = archiveDirectory == nil && trainingDirectory == nil
         if production {
+            // First launch selects the actually installed trained model;
+            // explicit user choices always override this default.
+            if UserDefaults.standard.string(
+                forKey: EclipseModelID.selectionKey
+            ) == nil, let trained = self.verifiedTrainerExecution {
+                selectedModel = trained.model
+                computeTier = trained.model.defaultComputeTier
+            }
             if let stored = UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
