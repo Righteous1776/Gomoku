@@ -1,4 +1,5 @@
 #include "search.hpp"
+#include "eclipse_trained_ordering.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -169,7 +170,7 @@ std::vector<int> Search::ordered(const std::vector<int> &moves,
                                   int side, int limit, int preferred) const {
     std::vector<std::pair<int,int>> sorted;
     sorted.reserve(moves.size());
-    for (int i : moves) sorted.emplace_back(i, pattern_priority(i, side));
+    for (int i : moves) sorted.emplace_back(i, trained_model::score(cells_, i, side));
     std::sort(sorted.begin(), sorted.end(), [preferred](const auto &a, const auto &b) {
         if (a.first == preferred) return true;
         if (b.first == preferred) return false;
