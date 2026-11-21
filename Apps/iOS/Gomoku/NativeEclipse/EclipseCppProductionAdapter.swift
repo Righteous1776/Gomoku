@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Production-capable C++ V2 execution adapter.
 ///
@@ -30,6 +31,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         switch model {
         case .astra20: return Int32(EG_RESEARCH_RANKER_V9_ASTRA)
         case .sol20: return Int32(EG_RESEARCH_RANKER_V9_SOL)
+        case .astra30: return Int32(EG_RESEARCH_RANKER_R07_ASTRA)
         default: return nil
         }
     }
@@ -40,11 +42,10 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     ) {
         guard let selected = Self.nativeRanker(model),
               let created = eg_create() else { return nil }
-        let bound = checkpointSHA256.withCString {
-            eg_select_compiled_v9_model_v4(created, selected, $0)
-        }
-        guard bound == 1,
-              Self.activeCheckpointSHA256(of: created) == checkpointSHA256
+        let bound = Self.bindCheckpoint(created, model: model,
+                                        checksum: checkpointSHA256)
+        guard bound,
+              Self.activeCheckpointSHA256(of: created, model: model) == checkpointSHA256
         else {
             eg_destroy(created)
             return nil
@@ -68,6 +69,38 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
 
     deinit { eg_destroy(engine) }
 
+    /// R07 is a REAL model resource, independently SHA-confirmed by CryptoKit
+    /// and by the native loader. Its R04 base 26D parity remains experimental.
+    private static func bindCheckpoint(
+        _ handle: OpaquePointer, model: EclipseModelID, checksum: String
+    ) -> Bool {
+        if model == .astra30 {
+            guard checksum == "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234",
+                  let url = Bundle.main.url(
+                    forResource: "eclipse_r07_34d_249_trees", withExtension: "txt"
+                  ),
+                  let data = try? Data(contentsOf: url),
+                  data.count == 585541,
+                  SHA256.hash(data: data)
+                    .map({ String(format: "%02x", $0) }).joined() == checksum
+            else { return false }
+            let result = data.withUnsafeBytes { bytes in
+                checksum.withCString { cSHA in
+                    eg_load_astra_r07_v5(
+                        handle, bytes.baseAddress?.assumingMemoryBound(to: CChar.self),
+                        Int32(bytes.count), cSHA
+                    )
+                }
+            }
+            return result == 1
+        }
+        return checksum.withCString {
+            eg_select_compiled_v9_model_v4(
+                handle, Self.nativeRanker(model) ?? -1, $0
+            ) == 1
+        }
+    }
+
     /// This digest must come from the *actually loaded C++ scorer*, not the
     /// manifest or the application's model picker. Zero means not loaded.
     static func loadedCheckpointSHA256() -> String? {
@@ -90,11 +123,16 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// Read identity of the ACTIVE forest of this engine instance, never a
     /// model-picker label or the old global R10 research checkpoint stub.
     private static func activeCheckpointSHA256(
-        of engine: OpaquePointer
+        of engine: OpaquePointer, model: EclipseModelID
     ) -> String? {
         var bytes = [CChar](repeating: 0, count: 65)
         let read = bytes.withUnsafeMutableBufferPointer { buffer in
-            eg_active_compiled_v9_sha256_v4(
+            if model == .astra30 {
+                return eg_active_astra_r07_sha256_v5(
+                    engine, buffer.baseAddress, Int32(buffer.count)
+                )
+            }
+            return eg_active_compiled_v9_sha256_v4(
                 engine, buffer.baseAddress, Int32(buffer.count)
             )
         }
@@ -117,11 +155,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
               expectedSHA256.count == 64,
               let handle = eg_create() else { return nil }
         defer { eg_destroy(handle) }
-        let ok = expectedSHA256.withCString {
-            eg_select_compiled_v9_model_v4(handle, selected, $0)
-        }
-        guard ok == 1 else { return nil }
-        return activeCheckpointSHA256(of: handle)
+        guard bindCheckpoint(handle, model: model,
+                             checksum: expectedSHA256) else { return nil }
+        return activeCheckpointSHA256(of: handle, model: model)
     }
 
     /// Runtime dispatch authority: real C++ loaded model and trainer handoff
@@ -336,7 +372,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE 2.0 \(model.family) · " +
+            engineLabel: (model == .astra30
+                ? "ECLIPSE 3.0 Astra · R07 真权重实验 · "
+                : "ECLIPSE 2.0 \(model.family) · ") +
                 (useAdaptiveV3 ? "C++20 V3 自适应收敛" : "C++20 V2"),
             completedDepth: Int(run.search.completed_depth),
             nativeStopReason: run.search.reason,

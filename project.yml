@@ -27,6 +27,8 @@ targets:
       - path: Apps/iOS/Gomoku/Vendor/GomokuEngineV2
         type: folder
         buildPhase: resources
+      - path: Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt
+        buildPhase: resources
       - path: Engine/src/board.cpp
       - path: Engine/src/search.cpp
       - path: Engine/src/eclipse_c_api.cpp

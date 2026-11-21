@@ -30,7 +30,7 @@ final class EclipseGeneration3ResearchCatalogTests: XCTestCase {
         XCTAssertFalse(catalog.productionExecutable)
         XCTAssertFalse(catalog.productionEnabled)
         XCTAssertFalse(catalog.iosRuntimeLoaded)
-        XCTAssertEqual(catalog.nativeFeatureAbi, "34D-not-implemented")
+        XCTAssertEqual(catalog.nativeFeatureAbi, "34D-r07-compatibility-port-experimental")
         XCTAssertFalse(EclipseModelID.allCases.contains {
             $0.rawValue.hasPrefix("eclipse-3.0-")
         })

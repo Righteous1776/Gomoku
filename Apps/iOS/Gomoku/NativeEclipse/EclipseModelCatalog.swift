@@ -12,6 +12,8 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
     // for legacy 1.0/1.1/1.2 compute budgets. Keep their IDs independently.
     case astra20 = "eclipse-2.0-astra"
     case sol20 = "eclipse-2.0-sol"
+    // Genuine R07-249 research forest, experimental but actually executable.
+    case astra30 = "eclipse-3.0-astra"
 
     static let currentDefault: Self = .terra10
     static let selectionKey = "gomoku.eclipse.selected-model-id.v1"
@@ -21,7 +23,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
     static let featured: [Self] = [.astra10, .sol10, .terra10, .luna10]
 
     var requiresVerifiedCheckpoint: Bool {
-        self == .astra20 || self == .sol20
+        self == .astra20 || self == .sol20 || self == .astra30
     }
 
     static func featuredIncludingVerified(_ verified: Self?) -> [Self] {
@@ -34,7 +36,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
     /// Both independently attested 2.0 generations must be presented together.
     /// Keep the single-model overload above for older history and test clients.
     static func featuredIncludingVerified(_ verified: [Self]) -> [Self] {
-        let candidates: [Self] = [.astra20, .sol20]
+        let candidates: [Self] = [.astra30, .astra20, .sol20]
         return candidates.filter { verified.contains($0) } + featured
     }
 
@@ -53,6 +55,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .astra10: return "1.0 Astra"
         case .astra20: return "2.0 Astra"
         case .sol20: return "2.0 Sol"
+        case .astra30: return "3.0 Astra"
         }
     }
     var family: String {
@@ -60,19 +63,19 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .luna10: return "Luna"
         case .terra10: return "Terra"
         case .sol10, .sol20: return "Sol"
-        case .astra10, .astra20: return "Astra"
+        case .astra10, .astra20, .astra30: return "Astra"
         }
     }
     var backend: Backend {
         switch self {
         case .luna10: return .classicSwift
         case .terra10, .sol10, .astra10: return .trainedUnifiedSwift
-        case .astra20, .sol20: return .verifiedTrainedCpp
+        case .astra20, .sol20, .astra30: return .verifiedTrainedCpp
         }
     }
     var usesTrainedUnifiedSearch: Bool { backend == .trainedUnifiedSwift }
     var defaultComputeTier: EclipseComputeTier {
-        self == .astra10 || self == .astra20 ? .extreme : .standard
+        self == .astra10 || self == .astra20 || self == .astra30 ? .extreme : .standard
     }
     var description: String {
         switch self {
@@ -82,6 +85,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .astra10: return "旗舰算力型 · 深层组合与强迫搜索"
         case .astra20: return "第二代旗舰 · V9 314 树训练检查点"
         case .sol20: return "第二代蒸馏型 · V9 160 树独立权重"
+        case .astra30: return "第三代实验旗舰 · R07-249 真权重 · 34D 兼容特征待完整验证"
         }
     }
     var backendDescription: String {
@@ -92,6 +96,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         }
     }
     var artifactKind: String {
+        if self == .astra30 { return "cpp-lightgbm-r07-249-34d-experimental" }
         switch backend {
         case .classicSwift: return "native-classic-policy-v1"
         case .trainedUnifiedSwift: return "native-unified-r10-policy-v1"
@@ -161,7 +166,7 @@ struct EclipseModelSelection: Equatable, Sendable {
             case .high: return .master
             case .extreme: return .grandmaster
             }
-        case .astra10, .astra20:
+        case .astra10, .astra20, .astra30:
             switch compute {
             case .light: return .master
             case .standard: return .grandmaster

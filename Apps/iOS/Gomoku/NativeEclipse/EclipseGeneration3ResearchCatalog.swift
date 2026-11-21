@@ -59,7 +59,7 @@ struct EclipseGeneration3ResearchCatalog: Decodable, Sendable {
               catalog.flagshipCheckpointId == "eclipse-3.0-r07-249",
               !catalog.productionEnabled,
               !catalog.iosRuntimeLoaded,
-              catalog.nativeFeatureAbi == "34D-not-implemented",
+              catalog.nativeFeatureAbi == "34D-r07-compatibility-port-experimental",
               catalog.checkpoints.count == 5,
               catalog.checkpoints.map(\.trees) == [244, 249, 259, 274, 289],
               Set(catalog.checkpoints.map(\.id)).count == 5,

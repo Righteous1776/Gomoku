@@ -294,7 +294,8 @@ struct InstrumentHomeView: View {
                     }
                     .padding(.bottom, 6)
 
-                    if let generation3 = EclipseGeneration3ResearchCatalog.bundled,
+                    if !engine.verifiedSelectableModels.contains(.astra30),
+                       let generation3 = EclipseGeneration3ResearchCatalog.bundled,
                        let candidate = generation3.preferredResearchCandidate {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 8) {
