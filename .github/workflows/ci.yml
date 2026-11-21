@@ -94,6 +94,7 @@ jobs:
       - name: Confirm the actual device app contains no private training
         if: inputs.expected_sha != ''
         run: |
+          python3 Scripts/check_app_icon.py DerivedData/Build/Products/Release-iphoneos/Gomoku.app
           python3 Scripts/check_private_bundle.py --app DerivedData/Build/Products/Release-iphoneos/Gomoku.app --manifest DerivedData/Privacy/public-dev-unsigned.json
       - name: Package unsigned device app for development investigation only
         if: inputs.expected_sha != ''
