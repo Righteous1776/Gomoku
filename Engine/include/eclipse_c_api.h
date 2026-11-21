@@ -181,6 +181,25 @@ typedef struct EGRankedRootsSnapshotV1 {
 } EGRankedRootsSnapshotV1;
 int eg_read_ranked_roots_v1(const EGEngine *engine, EGRankedRootsSnapshotV1 *out);
 
+/* Stage C3: exact-transposition-table-backed principal variation PREFIX.
+ * The first move is a real root winner of a fully completed depth. Each
+ * subsequent move comes from a TT exact entry of sufficient remaining
+ * depth. This is NOT a proven VCF/VCT or a guaranteed full-depth PV.
+ * The caller must replay all moves in strict turn order on its actual board.
+ * This read is permitted concurrently with V2 search; writer is native.
+ * Never disclose to formal-game players before the AI plays.
+ */
+#define EG_LIVE_PV_PREFIX_MAX 16
+typedef struct EGPVPrefixSnapshotV1 {
+    uint32_t size_bytes;
+    uint32_t count;
+    uint64_t search_serial;
+    int32_t completed_depth;
+    int32_t reserved;
+    int32_t moves[EG_LIVE_PV_PREFIX_MAX]; /* unused = -1 */
+} EGPVPrefixSnapshotV1;
+int eg_read_pv_prefix_v1(const EGEngine *engine, EGPVPrefixSnapshotV1 *out);
+
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
  * Mutators are forbidden while any search runs. eg_reset restores 0.
