@@ -13,6 +13,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     private let engine: OpaquePointer
     private let checkpointSHA256: String
     private let model: EclipseModelID
+    private let approvedComputePolicySHA256: String
 
     /// The compiled Astra and Sol forests have DISTINCT immutable identities.
     private static func nativeRanker(_ model: EclipseModelID) -> Int32? {
@@ -24,7 +25,8 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     }
 
     private init?(
-        history: [Int], model: EclipseModelID, checkpointSHA256: String
+        history: [Int], model: EclipseModelID, checkpointSHA256: String,
+        approvedComputePolicySHA256: String
     ) {
         guard let selected = Self.nativeRanker(model),
               let created = eg_create() else { return nil }
@@ -51,6 +53,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         engine = created
         self.checkpointSHA256 = checkpointSHA256
         self.model = model
+        self.approvedComputePolicySHA256 = approvedComputePolicySHA256
     }
 
     deinit { eg_destroy(engine) }
@@ -118,13 +121,15 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         trainer: EclipseVerifiedTrainerExecution
     ) -> EclipseCppProductionAdapter? {
         guard eg_compute_policy_abi_version() == 2,
+              let policyDigest = trainer.computePolicy.sha256,
               loadedCheckpointSHA256(
                 for: trainer.model, expectedSHA256: trainer.checkpointSHA256
               ) == trainer.checkpointSHA256
         else { return nil }
         return EclipseCppProductionAdapter(
             history: history, model: trainer.model,
-            checkpointSHA256: trainer.checkpointSHA256
+            checkpointSHA256: trainer.checkpointSHA256,
+            approvedComputePolicySHA256: policyDigest
         )
     }
 
@@ -142,6 +147,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         policy: EclipseTrainerComputePolicy
     ) -> GomokuBotMove? {
         guard policy.isValid,
+              policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
         else { return nil }
