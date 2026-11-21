@@ -97,19 +97,18 @@ final class NativeGomokuAppController: ObservableObject {
         let journalFolder = trainingJournal.directory
         let production = archiveDirectory == nil && trainingDirectory == nil
         if production {
-            if let stored = EclipseModelID.fromStoredIdentifier(
-                UserDefaults.standard.string(forKey: EclipseModelID.selectionKey)
-            ) {
-                selectedModel = stored
+            if let stored = UserDefaults.standard.string(
+                forKey: EclipseModelID.selectionKey
+            ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
+                selectedModel = saved.model
+                computeTier = saved.compute
             }
-            if let storedCompute = EclipseComputeTier(
+            if let explicitlySelectedCompute = EclipseComputeTier(
                 rawValue: UserDefaults.standard.string(
                     forKey: EclipseComputeTier.selectionKey
                 ) ?? ""
             ) {
-                computeTier = storedCompute
-            } else {
-                computeTier = selectedModel.defaultComputeTier
+                computeTier = explicitlySelectedCompute
             }
         }
         // The full historical replay pass can be huge and must never block
