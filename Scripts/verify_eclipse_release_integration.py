@@ -31,10 +31,29 @@ def check(root: Path) -> dict:
         "Apps/iOS/GomokuTests/EclipseCppProductionRuntimeTests.swift",
         "Apps/iOS/GomokuTests/EclipseTrainerProductionRegistryTests.swift",
         "Arena/trainer_handoff_gate.py",
+        "Engine/tools/verify_v9_compiled_provenance.py",
+        "Engine/tests/test_v9_compiled_binding.cpp",
+        "Apps/iOS/Gomoku/Resources/ECLIPSE_ACTIVE_MODELS.json",
     )
-    src = {path: (root / path).read_text(encoding="utf8") for path in required}
+    present = all((root / path).is_file() for path in required)
+    src = {
+        path: (root / path).read_text(encoding="utf8")
+        if (root / path).is_file() else ""
+        for path in required
+    }
+    model_catalog = {}
+    try:
+        model_catalog = json.loads(
+            src["Apps/iOS/Gomoku/Resources/ECLIPSE_ACTIVE_MODELS.json"]
+        )
+    except (ValueError, TypeError):
+        pass
+    catalog_records = model_catalog.get("models", [])
+    catalog_ids = {
+        m.get("model_id") for m in catalog_records if isinstance(m, dict)
+    } if isinstance(catalog_records, list) else set()
     checks = {
-        "all_required_sources_present": True,
+        "all_required_sources_present": present,
         "release_adapter_not_debug_only":
             re.search(r"(?m)^\s*#if\s+DEBUG\b", src[PRODUCTION_ADAPTER]) is None,
         "official_controller_routes_to_cpp":
@@ -44,8 +63,24 @@ def check(root: Path) -> dict:
             "eg_analyze_compute_policy_v2(" in src[PRODUCTION_ADAPTER]
             and "EGComputePolicyV2" in src[C_HEADER],
         "runtime_checkpoint_must_be_loaded":
-            "loadedCheckpointSHA256() == trainer.checkpointSHA256"
-            in src[PRODUCTION_ADAPTER],
+            (
+                "loadedCheckpointSHA256() == trainer.checkpointSHA256"
+                in src[PRODUCTION_ADAPTER]
+            ) or all(x in src[PRODUCTION_ADAPTER] for x in (
+                "eg_select_compiled_v9_model_v4",
+                "eg_active_compiled_v9_sha256_v4",
+                "Self.activeCheckpointSHA256(of: engine) == checkpointSHA256",
+                "Self.activeCheckpointSHA256(of: created) == checkpointSHA256",
+            )) and all(x in src[C_HEADER] and x in src[C_IMPL]
+                       for x in (
+                "eg_select_compiled_v9_model_v4",
+                "eg_active_compiled_v9_sha256_v4",
+            )) and (
+                "verify_v9_compiled_provenance.py"
+                in src["Engine/tools/verify_v9_compiled_provenance.py"]
+                or "compiled, compiled_roots" in
+                src["Engine/tools/verify_v9_compiled_provenance.py"]
+            ),
         "checkpoint_identity_api_exposed":
             "eg_active_trained_checkpoint_sha256_v2" in src[C_HEADER]
             and "eg_active_trained_checkpoint_sha256_v2" in src[C_IMPL],
@@ -53,7 +88,22 @@ def check(root: Path) -> dict:
             "cppLoadedCheckpointSHA256: " in src[REGISTRY]
             and "actuallyLoaded == manifest.checkpointSHA256" in src[REGISTRY],
         "production_auto_loads_verified_manifest":
-            "EclipseTrainerProductionRegistry.loadFromBundle()" in src[CONTROLLER],
+            "EclipseTrainerProductionRegistry.loadFromBundle()" in src[CONTROLLER]
+            or (
+                "EclipseTrainerProductionRegistry.loadAllFromBundle()" in
+                src[CONTROLLER]
+                and "resolveCatalog(" in src[REGISTRY]
+                and "ECLIPSE_ACTIVE_MODELS" in src[REGISTRY]
+                and model_catalog.get("schema")
+                    == "eclipse.production-model-catalog.v2"
+                and catalog_ids == {
+                    "eclipse-2.0-astra", "eclipse-2.0-sol"
+                }
+                and len(catalog_records) == 2
+                and "featuredIncludingVerified(verifiedSelectableModels)"
+                    in src[CONTROLLER]
+                and "verifiedTrainerExecutions" in src[CONTROLLER]
+            ),
         "original_swift_fallback_present":
             "GomokuBot.chooseMove(" in src[CONTROLLER]
             and "cppFailed:" in src[CONTROLLER],
