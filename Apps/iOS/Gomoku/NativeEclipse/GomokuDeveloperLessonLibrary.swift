@@ -39,10 +39,17 @@ final class GomokuDeveloperLessonLibrary {
     }
 
     private let fileURL: URL
+    #if DEBUG
+    // Explicitly supplied by XCTest only; never available in Release builds.
+    private let fixtureMacKey: Data?
+    #endif
     private(set) var lessons: [Lesson] = []
     private(set) var requiresRecovery = false
 
     init(fileURL: URL? = nil) {
+        #if DEBUG
+        fixtureMacKey = nil
+        #endif
         if let fileURL { self.fileURL = fileURL }
         else {
             let root = FileManager.default.urls(
@@ -51,6 +58,27 @@ final class GomokuDeveloperLessonLibrary {
             self.fileURL = root.appendingPathComponent("Gomoku/DeveloperFormations/gomoku-v1.json")
         }
         load()
+    }
+
+    #if DEBUG
+    /// Test-only deterministic signing fixture, to exercise tamper detection
+    /// when unsigned iOS simulator runners cannot access the device Keychain.
+    /// Production release binaries do not include this initializer or bypass.
+    init(fileURL: URL, fixtureMacKey: Data) {
+        self.fileURL = fileURL
+        self.fixtureMacKey = fixtureMacKey
+        load()
+    }
+    #endif
+
+    private func signingKey(createIfMissing: Bool) throws -> Data {
+        #if DEBUG
+        if let fixtureMacKey {
+            guard fixtureMacKey.count == 32 else { throw LibraryError.keyUnavailable }
+            return fixtureMacKey
+        }
+        #endif
+        return try Self.macKey(createIfMissing: createIfMissing)
     }
 
     private func valid(_ candidate: Lesson) -> Bool {
@@ -127,7 +155,7 @@ final class GomokuDeveloperLessonLibrary {
 
     private func save() throws {
         guard !requiresRecovery else { throw LibraryError.damagedStore }
-        let key = try Self.macKey(createIfMissing: true)
+        let key = try signingKey(createIfMissing: true)
         let code = Data(HMAC<SHA256>.authenticationCode(
             for: try Self.canonical(lessons), using: SymmetricKey(data: key)
         ))
@@ -153,7 +181,7 @@ final class GomokuDeveloperLessonLibrary {
                 requiresRecovery = true
                 return
             }
-            let key = try Self.macKey(createIfMissing: false)
+            let key = try signingKey(createIfMissing: false)
             let calculated = Data(HMAC<SHA256>.authenticationCode(
                 for: try Self.canonical(envelope.lessons),
                 using: SymmetricKey(data: key)
