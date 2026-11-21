@@ -42,4 +42,4 @@
 - 真正学习“什么时候停止思考”的算法接口属于另一系列工程分支：#59 / #60，不能把该研究排序权重误当作自适应时间策略。
 - 与本仓库核心训练测试互不污染：这些源码没有注册为正式生产编译目标。
 
-完整聚合数据：[R07 public metrics](../r07_public_metrics.json)；总审计：[R01–R07 报告](../../../../Docs/Research/ECLIPSE_TRAINING_R01_R07_PUBLIC_AUDIT.md)。
+完整聚合数据：[R07 public metrics](../r07_public_metrics.json)；总审计：[R01–R07 报告](../../../Docs/Research/ECLIPSE_TRAINING_R01_R07_PUBLIC_AUDIT.md)。
