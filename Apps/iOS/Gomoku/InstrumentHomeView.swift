@@ -13,6 +13,8 @@ struct InstrumentHomeView: View {
     @State private var showsAdvanced = false
     @State private var showsInstruments = false
     @State private var showsEclipseTrace = false
+    @State private var showsModelSelection = false
+    @State private var pendingModel: EclipseModelID?
     @State private var matchExportURL: URL?
 
     @Environment(\.colorScheme) private var scheme
@@ -61,6 +63,9 @@ struct InstrumentHomeView: View {
         .sheet(isPresented: $showsEclipseTrace) {
             EclipseAnalysisPresentation(engine: engine)
         }
+        .sheet(isPresented: $showsModelSelection) {
+            modelSelectionSheet
+        }
         .sheet(isPresented: $showingCoach) {
             GomokuCoachView(engine: engine)
         }
@@ -93,7 +98,7 @@ struct InstrumentHomeView: View {
                     Text(statusText)
                         .font(.headline)
                         .foregroundColor(canPlaceStone ? VeilTheme.goldBright : VeilTheme.text)
-                    Text("你 vs ECLIPSE · 本机离线对局")
+                    Text("你 vs ECLIPSE \(engine.selectedModel.name) · 离线对局")
                         .font(.caption)
                         .foregroundColor(VeilTheme.secondaryText)
                 }
@@ -107,7 +112,8 @@ struct InstrumentHomeView: View {
                 }
             }
             HStack(spacing: 7) {
-                statusMetric("引擎", "原生 Swift")
+                statusMetric("模型路径", engine.selectedModel.backend == .classicSwift
+                    ? "Classic" : "R10 Unified")
                 statusMetric("联网", "不需要")
                 statusMetric("上步耗时", engine.lastDecisionMilliseconds.map { "\($0)ms" } ?? "—")
             }
@@ -159,7 +165,7 @@ struct InstrumentHomeView: View {
                 matchFinished: engine.status != 0,
                 lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
                 actualSearchStartedAt: showingSearch ? engine.searchStartedAt : nil,
-                difficultyTitle: engine.difficulty.title,
+                difficultyTitle: engine.selectedModel.name,
                 liveMetrics: engine.realSearchMetrics,
                 openTrace: { showsEclipseTrace = true }
             )
@@ -175,12 +181,12 @@ struct InstrumentHomeView: View {
     private var boardQuickControls: some View {
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 12) {
-                difficultyMenu
+                modelSelector
                 Spacer(minLength: 3)
                 deepSearchToggle
             }
             VStack(alignment: .leading, spacing: 10) {
-                difficultyMenu
+                modelSelector
                 deepSearchToggle
             }
         }
@@ -191,28 +197,137 @@ struct InstrumentHomeView: View {
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
-    private var difficultyMenu: some View {
-        Menu {
-            ForEach(BoardBotDifficulty.allCases) { difficulty in
-                Button {
-                    engine.difficulty = difficulty
-                } label: {
-                    if difficulty == engine.difficulty {
-                        Label(difficulty.title, systemImage: "checkmark")
-                    } else {
-                        Text(difficulty.title)
-                    }
-                }
-            }
+    /// Model identity is not the same thing as a generic difficulty slider.
+    /// The chosen model is a real runtime dispatch policy with a stable ID,
+    /// persisted across launches and (without modifying legacy records) games.
+    private var modelSelector: some View {
+        Button {
+            showsModelSelection = true
         } label: {
-            Label(engine.difficulty.title, systemImage: "slider.horizontal.3")
+            Label(engine.selectedModel.name, systemImage: "cpu")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(VeilTheme.goldBright)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
+        .buttonStyle(.plain)
         .fixedSize(horizontal: true, vertical: false)
-        .accessibilityIdentifier("gomoku.eclipse.seven-tiers")
+        .accessibilityIdentifier("gomoku.eclipse.model.selector")
+        .accessibilityLabel("选择模型，当前 \(engine.selectedModel.name)")
+    }
+
+    private var modelSelectionSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 10) {
+                        Image(systemName: "cpu.fill")
+                            .foregroundColor(VeilTheme.goldBright)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("ECLIPSE / MODEL LIBRARY")
+                                .font(.caption.monospaced().weight(.bold))
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("选择实际执行的搜索模型")
+                                .font(.headline)
+                                .foregroundColor(VeilTheme.text)
+                        }
+                    }
+                    .padding(.bottom, 6)
+
+                    ForEach(EclipseModelID.featured) { model in
+                        Button {
+                            requestModelSelection(model)
+                        } label: {
+                            HStack(spacing: 10) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(model.name)
+                                        .font(.headline)
+                                        .foregroundColor(VeilTheme.text)
+                                    Text(model.description)
+                                        .font(.caption)
+                                        .foregroundColor(VeilTheme.secondaryText)
+                                        .multilineTextAlignment(.leading)
+                                    Text(model.backendDescription)
+                                        .font(.caption2.monospaced())
+                                        .foregroundColor(VeilTheme.goldBright)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer(minLength: 2)
+                                VStack(alignment: .trailing, spacing: 6) {
+                                    if model == engine.selectedModel {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(VeilTheme.goldBright)
+                                            .accessibilityLabel("当前模型")
+                                    }
+                                    Text("\(model.fullComputeBudgetMilliseconds)ms")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundColor(VeilTheme.secondaryText)
+                                }
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                model == engine.selectedModel
+                                    ? VeilTheme.subtleFillStrong : VeilTheme.subtleFill,
+                                in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
+                    }
+                    Text("模型版本是可复现的 Swift 搜索策略包，而非七份独立神经网络权重。Luna 使用经典搜索，其余型号使用 R10 训练排序和不同搜索配置；切换当前对局的模型将重开棋局。")
+                        .font(.caption2)
+                        .foregroundColor(VeilTheme.secondaryText)
+                        .padding(.top, 6)
+                }
+                .padding(16)
+            }
+            .background(VeilInstrumentBackground())
+            .navigationTitle("ECLIPSE 模型")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") { showsModelSelection = false }
+                        .foregroundColor(VeilTheme.goldBright)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+        .confirmationDialog(
+            "切换模型将结束当前对局并重开",
+            isPresented: Binding(
+                get: { pendingModel != nil },
+                set: { if !$0 { pendingModel = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let model = pendingModel {
+                Button("切换至 \(model.name) 并重开") {
+                    engine.selectModel(model)
+                    pendingModel = nil
+                    showsModelSelection = false
+                }
+            }
+            Button("取消", role: .cancel) {
+                pendingModel = nil
+            }
+        } message: {
+            Text("这是一次真实的模型策略切换；旧对局保留在历史记录中，不会把两种模型的落子混成一局训练证据。")
+        }
+    }
+
+    private func requestModelSelection(_ model: EclipseModelID) {
+        guard model != engine.selectedModel else {
+            showsModelSelection = false
+            return
+        }
+        if engine.state.moveCount > 0 || engine.isThinking {
+            pendingModel = model
+        } else {
+            engine.selectModel(model)
+            showsModelSelection = false
+        }
     }
 
     private var deepSearchToggle: some View {
@@ -605,7 +720,7 @@ private struct EclipseAnalysisPresentation: View {
                 lastCompletedMilliseconds: engine.lastDecisionMilliseconds,
                 actualSearchStartedAt: active ? engine.searchStartedAt : nil,
                 committedMoves: engine.completedMoves,
-                difficultyTitle: engine.difficulty.title,
+                difficultyTitle: engine.selectedModel.name,
                 searchModeTitle: engine.searchMode.title,
                 liveMetrics: engine.realSearchMetrics,
                 archivedMatchPage: engine.historyPage(offset:limit:)
