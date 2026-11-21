@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -56,10 +57,14 @@ class Search {
 public:
     explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
         : ranker_(ranker) {}
+    // Optional per-search, read-only diagnostics sink. It must never choose a
+    // move or change any search limit. Values describe completed iterations.
+    using ProgressSink = std::function<void(std::uint64_t, int, int)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
-                         const std::atomic<bool> *cancel = nullptr);
+                         const std::atomic<bool> *cancel = nullptr,
+                         const ProgressSink &progress = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -82,6 +87,9 @@ private:
     bool timed_out_ = false;
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
+    ProgressSink progress_{};
+    int last_completed_depth_ = 0;
+    int last_best_move_ = -1;
     int candidate_radius_ = 2;
     int root_width_ = 18;
     int proof_width_ = 28;
