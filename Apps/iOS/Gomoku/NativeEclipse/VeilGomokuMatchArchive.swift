@@ -190,25 +190,85 @@ final class VeilGomokuMatchArchive {
         return match
     }
 
-    /// Paged listing reads only the requested slice, so old archives have no
-    /// fixed match-count or storage cap and browsing remains bounded.
-    func page(offset: Int = 0, limit: Int = 30) throws -> Page {
-        guard manager.fileExists(atPath: directory.path) else {
-            return Page(matches: [], totalFiles: 0, nextOffset: nil, invalidFiles: 0)
+    /// Lazy, one-pass scan for verified local gameplay only. Unlike calling
+    /// page(offset:limit) 200 times for 10k records, this never re-sorts the
+    /// whole directory and never accumulates all histories in memory.
+    /// Corrupt/unknown records are skipped but NEVER removed or rewritten.
+    func verifiedMatches() -> AnySequence<Match> {
+        let folder = directory.standardizedFileURL
+        return AnySequence<Match> {
+            guard let enumerator = self.manager.enumerator(
+                at: folder,
+                includingPropertiesForKeys: [.isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
+                return AnyIterator<Match> { nil }
+            }
+            return AnyIterator<Match> {
+                while let item = enumerator.nextObject() as? URL {
+                    guard item.deletingLastPathComponent().standardizedFileURL == folder,
+                          item.pathExtension.lowercased() == "json",
+                          UUID(uuidString: item.deletingPathExtension().lastPathComponent) != nil,
+                          (try? item.resourceValues(
+                            forKeys: [.isRegularFileKey]
+                          ).isRegularFile) == true else { continue }
+                    if let match = try? self.read(
+                        sessionID: item.deletingPathExtension().lastPathComponent
+                    ) {
+                        return match
+                    }
+                }
+                return nil
+            }
         }
-        let files = try manager.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+    }
+
+    /// Enumerating filenames is O(N) and does not decode, replay or sort
+    /// historical games. Use only at boot or when an explicit import changes N.
+    func recordCount() throws -> Int {
+        try matchingFiles().count
+    }
+
+    /// Single-sort latest playable recovery. The previous controller called
+    /// page() for every 50 records, redundantly sorting all N files each time.
+    /// Keep corrupted files untouched and continue looking behind them.
+    func mostRecentMatch(where predicate: (Match) -> Bool) throws -> Match? {
+        for url in try matchingFiles().sorted(by: Self.newerFirst) {
+            guard let match = try? read(
+                sessionID: url.deletingPathExtension().lastPathComponent
+            ) else { continue }
+            if predicate(match) { return match }
+        }
+        return nil
+    }
+
+    private func matchingFiles() throws -> [URL] {
+        guard manager.fileExists(atPath: directory.path) else { return [] }
+        return try manager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
             options: [.skipsHiddenFiles]
         ).filter {
             $0.pathExtension.lowercased() == "json"
                 && UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil
                 && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
         }
-            .sorted {
-                let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
-                return a == b ? $0.lastPathComponent > $1.lastPathComponent : a > b
-            }
+    }
+
+    private static func newerFirst(_ lhs: URL, _ rhs: URL) -> Bool {
+        let a = (try? lhs.resourceValues(
+            forKeys: [.contentModificationDateKey]
+        ).contentModificationDate) ?? .distantPast
+        let b = (try? rhs.resourceValues(
+            forKeys: [.contentModificationDateKey]
+        ).contentModificationDate) ?? .distantPast
+        return a == b ? lhs.lastPathComponent > rhs.lastPathComponent : a > b
+    }
+
+    /// Paged listing decodes only the requested slice. Pagination still sorts
+    /// metadata on request, never on each user/AI move.
+    func page(offset: Int = 0, limit: Int = 30) throws -> Page {
+        let files = try matchingFiles().sorted(by: Self.newerFirst)
         let start = min(max(0, offset), files.count)
         let end = min(files.count, start + min(100, max(1, limit)))
         var entries: [Match] = []

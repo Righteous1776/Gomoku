@@ -6,15 +6,23 @@ import XCTest
 final class GomokuDeveloperFormationTests: XCTestCase {
     private let signingKey = Data(repeating: 0x4B, count: 32)
 
-    private func lessonFile() throws -> URL {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent("gomoku-v1.json", isDirectory: false)
+    private func path() throws -> URL {
+        // Simulator runner temporary folders may be cleaned while file
+        // protection / Keychain operations are running. Use an explicitly
+        // allocated per-test Application Support directory instead.
+        let root = (FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory)
+            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString,
+                                    isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true
+        )
+        return root.appendingPathComponent("gomoku-v1.json")
     }
 
     func testOnlyAuthorizedValidatedLessonsCanEnterSignedRepertoire() throws {
-        let file = try lessonFile()
+        let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let store = GomokuDeveloperLessonLibrary(fileURL: file, testingKey: signingKey)
         let valid: [GomokuDeveloperLessonLibrary.Move] = [
@@ -46,7 +54,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
     }
 
     func testTamperingLocksReadOnlyAndPreservesDamagedOriginal() throws {
-        let file = try lessonFile()
+        let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let writer = GomokuDeveloperLessonLibrary(fileURL: file, testingKey: signingKey)
         try writer.capture(

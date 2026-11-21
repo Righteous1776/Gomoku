@@ -28,12 +28,14 @@ final class InstrumentUITests: XCTestCase {
         scrollUntilHittable(advanced, in: app)
         advanced.tap()
 
-        let learning = app.buttons["gomoku.training.developer-lab"]
-        scrollUntilHittable(learning, in: app)
+        // SwiftUI does not guarantee a noninteractive VStack is a hittable
+        // accessibility node. Verify its actual visible title instead.
+        let learningTitle = app.staticTexts["本地自学习棋手"]
+        scrollUntilHittable(learningTitle, in: app)
         capture(app, named: "Gomoku-instrument-training-expanded")
         scrollUntilHittable(advanced, in: app, swipeUp: false)
         advanced.tap()
-        XCTAssertFalse(learning.exists)
+        XCTAssertFalse(learningTitle.exists)
     }
 
     func testInstrumentDayAndNightModesAreSelectable() {
@@ -62,12 +64,17 @@ final class InstrumentUITests: XCTestCase {
         in app: XCUIApplication,
         swipeUp: Bool = true
     ) {
+        let scrollable = app.scrollViews.firstMatch
         for _ in 0..<15 {
             if element.isHittable { return }
-            if swipeUp {
-                app.swipeUp()
+            // Swipe the native ScrollView, not the board or app surface.
+            // The board has tap and visualization gesture layers.
+            if scrollable.exists {
+                if swipeUp { scrollable.swipeUp() }
+                else { scrollable.swipeDown() }
             } else {
-                app.swipeDown()
+                if swipeUp { app.swipeUp() }
+                else { app.swipeDown() }
             }
         }
         XCTAssertTrue(element.isHittable, "Target must remain reachable by native scrolling")
