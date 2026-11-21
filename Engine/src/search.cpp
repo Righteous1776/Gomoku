@@ -89,7 +89,7 @@ bool Search::winning_move(int index, int side) const {
 
 std::vector<int> Search::neighbors(int radius) const {
     if (free_ == kCells) return {112};
-    radius = std::clamp(radius, 1, 3);
+    radius = std::clamp(radius, 1, kSide - 1);
     std::array<bool, kCells> visited{};
     for (int i = 0; i < kCells; ++i) {
         if (!cells_[i]) continue;
@@ -206,6 +206,11 @@ int Search::static_value(int side) const {
     return std::clamp(value, -kMate / 4, kMate / 4);
 }
 bool Search::limit_reached() {
+    if (cancel_signal_ && cancel_signal_->load(std::memory_order_relaxed)) {
+        cancelled_ = true;
+        timed_out_ = true;
+        return true;
+    }
     if (timed_out_) return true;
     if (nodes_ >= node_cap_ || Clock::now() >= deadline_)
         timed_out_ = true;
@@ -219,7 +224,7 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
     ++nodes_;
     if (remaining <= 0 || Clock::now() >= proof_deadline_ || limit_reached())
         return false;
-    const auto candidates = neighbors();
+    const auto candidates = neighbors(candidate_radius_);
     if (!immediate_wins(other(side), candidates).empty()) return false;
     const auto direct = immediate_wins(side, candidates);
     if (!direct.empty()) {
@@ -228,11 +233,11 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
             return true;
         }
     }
-    for (const int move : ordered(candidates, side, 28)) {
+    for (const int move : ordered(candidates, side, proof_width_)) {
         if (restrict_root && !allowed_proof_root_[move]) continue;
         if (Clock::now() >= proof_deadline_ || limit_reached()) return false;
         place(move, side);
-        const auto after = neighbors();
+        const auto after = neighbors(candidate_radius_);
         const auto ours = immediate_wins(side, after);
         const auto theirs = immediate_wins(other(side), after);
         if (theirs.empty() && ours.size() >= 2) {
@@ -263,7 +268,7 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
 int Search::tactical_leaf(int side, int ply, int remaining_forced) {
     ++nodes_;
     if (limit_reached()) return 0;
-    const auto moves = neighbors();
+    const auto moves = neighbors(candidate_radius_);
     if (!immediate_wins(side, moves).empty()) return kMate - ply - 1;
     const auto threats = immediate_wins(other(side), moves);
     if (threats.size() >= 2) return -kMate + ply + 2;
@@ -285,7 +290,8 @@ int Search::negamax(int side, int depth, int alpha, int beta,
     if (limit_reached()) return 0;
     if (last >= 0 && five_at(last, other(side))) return -kMate + ply;
     if (!free_) return 0;
-    if (depth <= 0) return tactical_leaf(side, ply, 2);
+    if (depth <= 0) return leaf_forced_blocks_ > 0
+        ? tactical_leaf(side, ply, leaf_forced_blocks_) : static_value(side);
     const std::uint64_t key = hash_ ^ side_hash()[side];
     const int old_alpha = alpha;
     const auto found = table_.find(key);
@@ -295,12 +301,15 @@ int Search::negamax(int side, int depth, int alpha, int beta,
         if (entry.flag == 1 && entry.score >= beta) return entry.score;
         if (entry.flag == 2 && entry.score <= alpha) return entry.score;
     }
-    auto moves = neighbors();
+    auto moves = neighbors(candidate_radius_);
     if (!immediate_wins(side, moves).empty()) return kMate - ply - 1;
     const auto blocks = immediate_wins(other(side), moves);
     if (blocks.size() > 1) return -kMate + ply + 2;
     if (blocks.size() == 1) moves = {blocks.front()};
-    moves = ordered(moves, side, 14, found != table_.end() ? found->second.best : -1);
+    const int active_width = ply <= 1 || continuation_width_ == 0
+        ? reply_width_ : continuation_width_;
+    moves = ordered(moves, side, active_width,
+                    found != table_.end() ? found->second.best : -1);
     int best = -kInf, best_move = -1, lower = alpha;
     bool first = true;
     for (const int move : moves) {
@@ -329,26 +338,45 @@ int Search::negamax(int side, int depth, int alpha, int beta,
 }
 
 SearchResult Search::analyze(const Board &root, int milliseconds,
-                             const RootPolicy *policy) {
+                             const RootPolicy *policy,
+                             const ComputePolicy *compute,
+                             const std::atomic<bool> *cancel) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
+    cancelled_ = false;
+    cancel_signal_ = cancel;
+    candidate_radius_ = compute ? compute->candidate_radius : 2;
+    root_width_ = compute ? compute->root_width : 18;
+    reply_width_ = compute ? compute->reply_width : 14;
+    continuation_width_ = compute ? compute->continuation_width : 14;
+    proof_width_ = compute ? compute->root_width : 28;
+    forced_line_depth_ = compute ? compute->forced_line_depth : 5;
+    leaf_forced_blocks_ = compute ? compute->forced_line_depth : 2;
     table_.clear();
     allowed_proof_root_.fill(false);
     // Research API convention: 0 means no imposed wall-clock deadline.
     // Positive time budgets come from the training agent or experiment
     // caller. Do not silently clamp a requested 30s / 90s to 20s.
-    const bool open_ended = milliseconds == 0;
-    const int max_ms = std::max(0, milliseconds);
-    deadline_ = open_ended ? Clock::time_point::max()
+    const std::int64_t max_ms = compute ? compute->max_wall_time_ms
+        : static_cast<std::int64_t>(std::max(0, milliseconds));
+    const bool open_ended = max_ms == 0;
+    const auto until_max = std::chrono::duration_cast<std::chrono::milliseconds>(
+        Clock::time_point::max() - started).count();
+    // Only representable steady_clock capacity limits the clock arithmetic,
+    // not a product-defined 20s/5.7s cap.
+    deadline_ = open_ended || max_ms >= until_max
+        ? Clock::time_point::max()
         : started + std::chrono::milliseconds(max_ms);
-    proof_deadline_ = open_ended ? Clock::time_point::max()
-        : started + std::chrono::milliseconds(
-            static_cast<std::int64_t>(max_ms) * 3 / 10);
-    // No second, hidden node cap derived from a trainer-owned time budget.
-    // Search still terminates on a chosen finite depth, forced mate, or a
-    // caller-supplied deadline; no 3M cap silently truncates evaluation.
-    node_cap_ = std::numeric_limits<std::uint64_t>::max();
+    // Trainer's own policy uses the full allocated time for proof if needed;
+    // legacy benchmark retains its historical 30% proof reservation.
+    proof_deadline_ = compute ? deadline_ : open_ended
+        ? Clock::time_point::max()
+        : started + std::chrono::milliseconds(max_ms * 3 / 10);
+    node_cap_ = compute && compute->max_nodes > 0
+        ? compute->max_nodes : std::numeric_limits<std::uint64_t>::max();
+    max_depth_ = compute ? compute->max_depth
+        : open_ended || max_ms >= 2500 ? 9 : max_ms >= 900 ? 8 : 6;
     cells_ = root.cells;
     free_ = static_cast<int>(std::count(cells_.begin(), cells_.end(), 0));
     hash_ = 0;
@@ -367,7 +395,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     };
     if (root.outcome != 0 || free_ == 0)
         return finish(-1, SearchStopReason::no_move, 0);
-    const auto all_roots = neighbors();
+    const auto all_roots = neighbors(candidate_radius_);
     std::vector<int> roots;
     for (const int move : all_roots)
         if (!policy || policy->allowed[move]) roots.push_back(move);
@@ -408,14 +436,15 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     // Exact two-different-five-completions: an unanswerable one-move fork
     // when the opponent has no immediate win after our hypothetical move.
     for (const int move : roots) {
+        if (limit_reached()) break;
         place(move, side);
-        const auto next = neighbors();
+        const auto next = neighbors(candidate_radius_);
         const auto finishers = immediate_wins(side, next);
         const auto enemy = immediate_wins(other(side), next);
         unplace(move, side);
         if (finishers.size() >= 2 && enemy.empty())
             return finish(move, SearchStopReason::forced_win, 0);
-        if (Clock::now() >= deadline_) break;
+        if (limit_reached()) break;
     }
 
     // Rule-certified opponent fork filter, before trained/heuristic ordering.
@@ -425,7 +454,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     std::vector<std::pair<int,int>> risks;
     bool finished_fork_audit = true;
     for (const int move : roots) {
-        if (Clock::now() >= deadline_) { finished_fork_audit = false; break; }
+        if (limit_reached()) { finished_fork_audit = false; break; }
         place(move, side);
         const int forks = fork_count(other(side));
         unplace(move, side);
@@ -447,21 +476,24 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     const auto fallbacks = root_ordered(eligible, static_cast<int>(eligible.size()));
     if (fallbacks.empty()) return finish(-1, SearchStopReason::no_move, 0);
     int incumbent = fallbacks.front(), completed = 0;
+    if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (open_ended || max_ms >= 40) {
+    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
-        if (prove_four(side, 5, true, pv) && !pv.empty())
+        if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
             return finish(pv.front(), SearchStopReason::forced_win,
                           static_cast<int>(pv.size()));
     }
+    if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
+    if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
-    const auto ranked = root_ordered(eligible, std::min(18, static_cast<int>(eligible.size())));
-    const int max_depth = open_ended || max_ms >= 2500 ? 9 : max_ms >= 900 ? 8 : 6;
-    for (int depth = 1; depth <= max_depth; ++depth) {
+    const auto ranked = root_ordered(eligible,
+                                     std::min(root_width_, static_cast<int>(eligible.size())));
+    for (int depth = 1; depth <= max_depth_; ++depth) {
         int round_best = -1, round_score = -kInf;
         for (int move : ranked) {
             ++nodes_;
@@ -484,8 +516,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             if (round_score >= kMate / 2) break;
         }
     }
-    return finish(incumbent, timed_out_ ? SearchStopReason::time_limit
-                                       : SearchStopReason::complete, completed);
+    return finish(incumbent, cancelled_ ? SearchStopReason::cancelled
+        : timed_out_ ? SearchStopReason::time_limit
+                     : SearchStopReason::complete, completed);
 }
 int Search::best_move(const Board &root, int milliseconds) {
     return analyze(root, milliseconds).move;
