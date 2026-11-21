@@ -28,3 +28,9 @@ The standalone difficulty/full-search quick-controls now use `ViewThatFits` to r
 - No unnecessary theme options; day/night correct.
 - Back from a game and reopen preserves state and scroll where applicable.
 - No interaction hijacking from decorative effects; no noticeable freezes when AI computes.
+
+## Small-screen board width regression — 2026-11-21
+
+Owner compared side-by-side screenshots of the independent Gomoku V1.0.0 RC1 and the original VeilLink ECLIPSE. The independent version layered a generic `.veilCard()` around `GomokuBoardView` even though the wood board already draws its own bounded material. The outer plate added **16pt padding on each side**, reducing the playable board width by **32pt** on every iPhone while adding an unnecessary gray border.
+
+The standalone game's board section now uses `.frame(maxWidth: .infinity)` directly, without `.veilCard()`, while keeping the enclosing `ScrollView` horizontal 14pt safe gutter. On an unconstrained 390pt phone width, this removes the redundant plate and raises the theoretical board diameter from roughly 330pt to 362pt; this is a **layout calculation** rather than a simulator screenshot claim. The wooden face, 15x15 grid, 5.5% protective intersection inset, star points, touch-distance guard, move highlights, and VoiceOver coordinate representation are intentionally unchanged. Top ECLIPSE telemetry and controls retain their skeuomorphic instrument cards. Source regression checks `unframed board fills narrow screens` and `wood board retains safe edge taps` explicitly prevent reintroducing the plate or compromising edge taps. Simulator screenshot comparison and physical-device tap testing remain release acceptance steps.
