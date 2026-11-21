@@ -2,11 +2,13 @@ name: V1.0.0 RC1 iOS IPA and pre-release
 on:
   push:
     branches: [release/v1.0.0-rc1]
+  pull_request:
+    branches: [release/v1.0.0-rc1]
 
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: gomoku-v1-rc
+  group: gomoku-v1-rc-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -51,6 +53,7 @@ jobs:
           echo "Version=$VERSION Bundle=$BUNDLE"
           test "$VERSION" = "1.0.0"
           test "$BUNDLE" = "studio.zeo.gomoku"
+          python3 Scripts/check_app_icon.py "$APP"
           python3 Scripts/check_private_bundle.py --app "$APP"
       - name: Create unsigned development IPA and SHA256
         shell: bash
@@ -63,6 +66,16 @@ jobs:
           python3 Scripts/check_private_bundle.py \
             --ipa dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa \
             --manifest dist/public-ipa-privacy.json
+      - name: Upload unsigned candidate IPA and privacy manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-V1.0.0-RC1-UNSIGNED-DEV-ONLY
+          path: |
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.sha256
+            dist/public-ipa-privacy.json
+          if-no-files-found: error
+          retention-days: 7
       - name: iPhone simulator XCTest regression gate
         shell: bash
         run: |
@@ -72,17 +85,6 @@ jobs:
             -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" \
             -derivedDataPath DerivedData -parallel-testing-enabled NO \
             -resultBundlePath V1-RC1-Tests.xcresult CODE_SIGNING_ALLOWED=NO test
-      - name: Upload unsigned candidate IPA and privacy manifest
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Gomoku-V1.0.0-RC1-UNSIGNED-DEV-ONLY
-          path: |
-            dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa
-            dist/Gomoku-V1.0.0-RC1-UNSIGNED.sha256
-            dist/public-ipa-privacy.json
-          if-no-files-found: warn
-          retention-days: 7
       - name: Upload simulator XCTest result
         if: always() && hashFiles('V1-RC1-Tests.xcresult/Info.plist') != ''
         uses: actions/upload-artifact@v4
@@ -90,6 +92,20 @@ jobs:
           name: Gomoku-V1.0.0-RC1-XCTest
           path: V1-RC1-Tests.xcresult
           retention-days: 7
+  publish:
+    if: github.event_name == 'push'
+    needs: ios
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Gomoku-V1.0.0-RC1-UNSIGNED-DEV-ONLY
+          path: dist
       - name: Publish unsigned engineering pre-release only after all checks
         env:
           GH_TOKEN: ${{ github.token }}

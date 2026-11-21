@@ -21,6 +21,24 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
                     ui_contract.evaluate_sources(self.sources).items() if not valid]
         self.assertEqual(failures, [])
 
+    def test_second_board_instrument_plate_is_forbidden(self):
+        self.sources["home"] = self.sources["home"].replace(
+            '.frame(maxWidth: .infinity)\n'
+            '        .accessibilityIdentifier("gomoku.instrument.board")',
+            '.veilCard()\n'
+            '        .accessibilityIdentifier("gomoku.instrument.board")',
+            1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks["unframed board fills narrow screens"])
+
+    def test_edge_hit_targets_are_not_sacrificed_for_extra_board_size(self):
+        self.sources["board"] = self.sources["board"].replace(
+            "let margin = side * 0.055", "let margin = 0", 1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks["wood board retains safe edge taps"])
+
     def test_unfolded_runtime_gauge_is_rejected(self):
         self.sources["home"] = self.sources["home"].replace(
             "if showsInstruments {", "if true {", 1
