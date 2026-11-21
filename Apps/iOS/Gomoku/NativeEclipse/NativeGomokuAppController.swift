@@ -659,8 +659,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
-            backend: trainer.computePolicy.mode == .adaptive
-                && trainer.computePolicy.maxDepth >= 2
+            backend: trainer.computePolicy.maxDepth >= 5
                 ? "C++20 V3 adaptive" : "C++20 V2",
             modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
@@ -800,8 +799,7 @@ final class NativeGomokuAppController: ObservableObject {
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
             backend: usingCpp
-                ? (verifiedTrainer?.computePolicy.mode == .adaptive
-                   && (verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 2
+                ? ((verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 5
                     ? "C++20 V3 adaptive" : "C++20 V2") :
                 (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
             modelName: usingCpp || !model.requiresVerifiedCheckpoint
