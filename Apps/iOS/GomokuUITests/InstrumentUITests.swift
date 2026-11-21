@@ -28,7 +28,7 @@ final class InstrumentUITests: XCTestCase {
         scrollUntilHittable(advanced, in: app)
         advanced.tap()
 
-        let learning = app.descendants(matching: .any)["gomoku.training.learning-card"]
+        let learning = app.buttons["gomoku.training.developer-lab"]
         scrollUntilHittable(learning, in: app)
         capture(app, named: "Gomoku-instrument-training-expanded")
         scrollUntilHittable(advanced, in: app, swipeUp: false)

@@ -403,6 +403,7 @@ struct InstrumentHomeView: View {
                     .font(.caption.weight(.semibold))
             }
             .buttonStyle(VeilPhysicalButtonStyle())
+            .accessibilityIdentifier("gomoku.training.developer-lab")
         }
         .veilCard()
         .accessibilityIdentifier("gomoku.training.learning-card")
