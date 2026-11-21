@@ -27,6 +27,11 @@ if(BUILD_TESTING)
   set_tests_properties(eclipse_compute_policy_v2 PROPERTIES TIMEOUT 30)
   # V9 synthetic mandatory-defense regression, exercised through the real R19
   # C ABI V2 search path, independent of any staged LightGBM checkpoint.
+  # Compile the actual staged Astra V9 (314) and Sol V9 (160) forests
+  # against the production 26D feature extractor; never claim they are loaded.
+  add_executable(eclipse_v9_forest_research_tests tests/test_v9_forest_research.cpp)
+  target_include_directories(eclipse_v9_forest_research_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  add_test(NAME eclipse_v9_forest_research COMMAND eclipse_v9_forest_research_tests)
   add_executable(eclipse_v9_unique_block_tests tests/test_v9_unique_block.cpp)
   target_link_libraries(eclipse_v9_unique_block_tests PRIVATE eclipse_core)
   add_test(NAME eclipse_v9_unique_block COMMAND eclipse_v9_unique_block_tests)
