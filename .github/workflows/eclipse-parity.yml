@@ -58,3 +58,47 @@ jobs:
           path: |
             Arena/evidence/headless-smoke.json
             Arena/evidence/stratified-paired.json
+
+  original-swift-bot-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build C++20 candidate
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Compile unchanged original Swift GomokuBot with empty-learning shim
+        run: |
+          swiftc -O -swift-version 5 -o build/swift_original_gomokubot \
+            Arena/SwiftOriginalBotReference.swift \
+            Arena/EmptyLearningHeadless.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift
+      - name: Original Swift bot command-line smoke
+        run: |
+          build/swift_original_gomokubot --best '' --ms 60
+          build/swift_original_gomokubot --best '110,0,111,15,113,30' --ms 100
+      - name: Original production Swift GomokuBot vs experimental C++ (empty learning)
+        run: |
+          python3 Arena/tournament_swift_cpp.py \
+            --swift build/swift_original_gomokubot \
+            --cpp build/Engine/gomoku_cli \
+            --seed 20261121 \
+            --tier 75:4 --tier 250:2 \
+            --out Arena/evidence/original-swift-empty-learning.json
+      - name: Upload synthetic full-Swift reference aggregate
+        if: always() && hashFiles('Arena/evidence/original-swift-empty-learning.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-original-GomokuBot-empty-learning-report
+          path: Arena/evidence/original-swift-empty-learning.json
