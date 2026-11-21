@@ -159,7 +159,11 @@ struct EclipseThinkingHUDView: View {
                                 .foregroundColor(VeilTheme.tertiaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
+                        if snapshot.hasTeachingReview {
+                            Text("教学模式仅分析当前合法局面：没有自动落子、没有新增对局或训练棋谱。")
+                                .font(.caption2)
+                                .foregroundColor(VeilTheme.secondaryText)
+                        } else if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
                             Text(snapshot.backend == "未提供"
                                  ? "无法可靠解释本手：没有引擎决策证据。"
                                  : "本手已执行；引擎未提供可验证的战术解释。")
