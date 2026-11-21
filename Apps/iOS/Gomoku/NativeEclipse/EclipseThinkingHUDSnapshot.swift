@@ -1,0 +1,76 @@
+import Foundation
+
+/// Read-only, versioned presentation projection of measurements returned
+/// by the active ECLIPSE engine. Never holds hypothetical moves or private
+/// training positions. A nil measurement means unsupported, NOT zero.
+struct EclipseThinkingHUDSnapshot: Equatable {
+    static let version = 1
+
+    enum Context: Equatable {
+        case formal
+        case teaching
+        case postgame
+
+        /// Future PV and tactical overlays must pass this check.
+        /// Formal competition cannot leak AI candidates while thinking.
+        var permitsUncommittedCandidates: Bool {
+            self != .formal
+        }
+    }
+
+    let searchID: UUID?
+    let positionRevision: Int
+    let context: Context
+    let isSearching: Bool
+    let backend: String
+    /// This is the actual engine identity, not the selected UI model.
+    let executedModel: String?
+    let checkpointSHA256: String?
+    let computePolicySHA256: String?
+    let elapsedMilliseconds: Int?
+    let visitedNodes: Int?
+    let completedDepth: Int?
+    let stopReason: String?
+
+    var averageNPS: Int? {
+        guard let visitedNodes, let elapsedMilliseconds,
+              visitedNodes > 0, elapsedMilliseconds >= 500 else { return nil }
+        return Int(Double(visitedNodes) * 1000.0 / Double(elapsedMilliseconds))
+    }
+    var shortStatus: String {
+        if isSearching { return "搜索中 · 阶段未提供" }
+        if stopReason != nil || elapsedMilliseconds != nil { return "本步已结束" }
+        return "等待搜索"
+    }
+    static func nativeStopReason(_ raw: Int32?) -> String? {
+        guard let raw else { return nil }
+        switch raw {
+        case Int32(EG_SEARCH_REASON_COMPLETE):
+            return "完成配置的搜索深度"
+        case Int32(EG_SEARCH_REASON_FORCED_WIN):
+            return "直接获胜落点 / 强制终结"
+        case Int32(EG_SEARCH_REASON_FORCED_BLOCK):
+            return "已识别立即必防"
+        case Int32(EG_SEARCH_REASON_ONLY_MOVE):
+            return "仅有一个合法候选"
+        case Int32(EG_SEARCH_REASON_NO_MOVE):
+            return "无合法落子"
+        case Int32(EG_SEARCH_REASON_TIME_LIMIT):
+            return "搜索预算耗尽（时间或节点）"
+        case Int32(EG_SEARCH_REASON_CANCELLED):
+            return "引擎收到取消信号"
+        default: return nil
+        }
+    }
+}
+
+/// The *verified* run identity. Isolated from any selected-model UI label.
+/// A nil checkpoint SHA means no loaded C++ V9 model is being claimed.
+struct EclipseThinkingRunIdentity: Equatable {
+    let id: UUID
+    let positionRevision: Int
+    let backend: String
+    let modelName: String?
+    let checkpointSHA256: String?
+    let computePolicySHA256: String?
+}

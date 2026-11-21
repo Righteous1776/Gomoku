@@ -19,6 +19,12 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastExecutedTrainerRevision: String?
     @Published private(set) var lastExecutionBackend: String?
     @Published private(set) var fallbackWarning: String?
+    // Versioned, read-only HUD identity. A model label alone is never proof
+    // the corresponding C++ forest was actually loaded.
+    @Published private(set) var activeThinkingRun: EclipseThinkingRunIdentity?
+    @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
+    @Published private(set) var lastThinkingStopReason: String?
+    private var searchStartedUptime: TimeInterval?
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
     @Published private(set) var computeTier: EclipseComputeTier = .standard
@@ -241,6 +247,39 @@ final class NativeGomokuAppController: ObservableObject {
         return nil
     }
 
+    /// No invented positions, likelihoods, PV, or progress percentage.
+    /// Current C++ V2 has no live iteration callback: nodes/depth remain
+    /// nil until it actually returns. Swift live metrics are session-gated.
+    func thinkingHUDSnapshot(
+        uptime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> EclipseThinkingHUDSnapshot {
+        let identity = isThinking ? activeThinkingRun : lastThinkingRun
+        let metrics = isThinking ? realSearchMetrics : nil
+        let liveElapsed: Int? = searchStartedUptime.map {
+            Int(max(0, uptime - $0) * 1000)
+        }
+        let live = isThinking && activeThinkingRun != nil
+        let context: EclipseThinkingHUDSnapshot.Context =
+            developerTeachingMode ? .teaching :
+                (status == 0 ? .formal : .postgame)
+        return EclipseThinkingHUDSnapshot(
+            searchID: identity?.id,
+            positionRevision: identity?.positionRevision ?? state.moveCount,
+            context: context,
+            isSearching: live,
+            backend: identity?.backend
+                ?? (lastExecutionBackend ?? "未提供"),
+            executedModel: identity?.modelName
+                ?? (live ? nil : lastExecutedModel?.name),
+            checkpointSHA256: identity?.checkpointSHA256,
+            computePolicySHA256: identity?.computePolicySHA256,
+            elapsedMilliseconds: live ? liveElapsed : lastDecisionMilliseconds,
+            visitedNodes: live ? metrics?.visitedNodes : lastDecisionNodes,
+            completedDepth: live ? metrics?.completedDepth : lastDecisionDepth,
+            stopReason: live ? nil : lastThinkingStopReason
+        )
+    }
+
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
         guard status != 0 else { return [] }
         return archivedMoves.map { .init(index: $0.index, stone: $0.stone) }
@@ -288,6 +327,10 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        searchStartedUptime = nil
         state = resumed
         sessionID = previous.id
         sessionHasLocalProvenance = localMatchEvidence.isVerifiedLocal(previous)
@@ -330,6 +373,10 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        searchStartedUptime = nil
         state = GomokuState()
         sessionID = UUID().uuidString
         sessionHasLocalProvenance = true
@@ -426,6 +473,12 @@ final class NativeGomokuAppController: ObservableObject {
         activeCppSearch = nil
         searchTask?.cancel()
         searchTask = nil
+        eclipseTraceStore.clear()
+        eclipseMetricsStore.clear()
+        activeThinkingRun = nil
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        searchStartedUptime = nil
         state = GomokuState()
         archivedMoves.removeAll()
         sessionID = UUID().uuidString
@@ -489,6 +542,23 @@ final class NativeGomokuAppController: ObservableObject {
         }
         isThinking = true
         searchStartedAt = Date()
+        searchStartedUptime = ProcessInfo.processInfo.systemUptime
+        lastThinkingRun = nil
+        lastThinkingStopReason = nil
+        // The native runtime has been freshly created and attested at this
+        // exact position. If that failed, do NOT claim selected Astra/Sol.
+        let usingCpp = cppRuntime != nil && verifiedTrainer != nil
+        activeThinkingRun = EclipseThinkingRunIdentity(
+            id: UUID(),
+            positionRevision: boardAtStart.moveCount,
+            backend: usingCpp ? "C++20 V2" :
+                (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
+            modelName: usingCpp || !model.requiresVerifiedCheckpoint
+                ? model.name : nil,
+            checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil,
+            computePolicySHA256: usingCpp
+                ? verifiedTrainer?.computePolicy.sha256 : nil
+        )
         if verifiedTrainer == nil || cppRuntime != nil {
             fallbackWarning = nil
         }
@@ -501,7 +571,8 @@ final class NativeGomokuAppController: ObservableObject {
             _ = metricSink.record(trace, token: metricToken)
         }
         let observer: (@Sendable ([Int], Int) -> Void)?
-        if eclipseVisualizationEnabled, let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
+        if eclipseVisualizationEnabled && developerTeachingMode,
+           let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
             observer = { indices, nodes in
                 _ = traceStore.record(indices, nodes: nodes, token: traceToken)
             }
@@ -611,10 +682,20 @@ final class NativeGomokuAppController: ObservableObject {
             )?.completedDepth
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
+        // Preserve the ID and exact revision of the completed search only.
+        // Subsequent reset/model switch clears this last-run context.
+        lastThinkingRun = activeThinkingRun
+        activeThinkingRun = nil
+        searchStartedUptime = nil
         isThinking = false
         searchStartedAt = nil
         searchTask = nil
         activeCppSearch = nil
+        lastThinkingStopReason = cppFailed
+            ? "C++ 搜索未返回有效结果，Swift 接管"
+            : EclipseThinkingHUDSnapshot.nativeStopReason(
+                trainerRevision != nil ? decision?.nativeStopReason : nil
+            )
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
@@ -634,12 +715,27 @@ final class NativeGomokuAppController: ObservableObject {
             lastExecutedModel = verifiedV9Played ? executedModel : nil
             lastExecutedTrainerRevision = trainerRevision
             lastExecutionBackend = decision.engineLabel ?? "ECLIPSE Swift"
+            if let previous = lastThinkingRun {
+                lastThinkingRun = EclipseThinkingRunIdentity(
+                    id: previous.id, positionRevision: previous.positionRevision,
+                    backend: lastExecutionBackend ?? "未提供",
+                    modelName: lastExecutedModel?.name,
+                    checkpointSHA256: verifiedV9Played
+                        && executedModel.requiresVerifiedCheckpoint
+                        ? previous.checkpointSHA256 : nil,
+                    computePolicySHA256: verifiedV9Played
+                        && executedModel.requiresVerifiedCheckpoint
+                        ? previous.computePolicySHA256 : nil
+                )
+            }
             if !verifiedV9Played {
                 fallbackWarning = "本手实际由原版 Swift 接管，尚未执行验证的 2.0 训练模型；不能计入 Astra/Sol 棋力。"
             }
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
+            lastThinkingStopReason = "搜索失败：使用合法性保底"
+            lastThinkingRun = nil
         } else {
             refresh()
             return

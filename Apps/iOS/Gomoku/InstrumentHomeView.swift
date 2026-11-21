@@ -38,13 +38,19 @@ struct InstrumentHomeView: View {
                 VStack(spacing: 14) {
                     statusCard
                     eclipseIdentity
-                    VeilEclipseRuntimeInstruments(
-                        running: showingSearch,
-                        start: showingSearch ? engine.searchStartedAt : nil,
-                        lastNodes: engine.lastDecisionNodes,
-                        lastMilliseconds: engine.lastDecisionMilliseconds,
-                        trainedGames: engine.trainedGames
-                    )
+                    // One VeilLink R17 runtime card. Thinking HUD lives
+                    // inside the existing original material and layout,
+                    // not as a second invented instrument or board overlay.
+                    VStack(alignment: .leading, spacing: 8) {
+                        VeilEclipseRuntimeInstruments(
+                            running: showingSearch,
+                            start: showingSearch ? engine.searchStartedAt : nil,
+                            lastNodes: engine.lastDecisionNodes,
+                            lastMilliseconds: engine.lastDecisionMilliseconds,
+                            trainedGames: engine.trainedGames
+                        )
+                        EclipseThinkingHUDView(engine: engine)
+                    }
                     .veilCard()
                     .accessibilityIdentifier("gomoku.eclipse.runtime-source-card")
                     boardQuickControls
@@ -438,7 +444,8 @@ struct InstrumentHomeView: View {
             enabled: canPlaceStone,
             eclipseThinking: showingSearch,
             actualSearchStartedAt: engine.searchStartedAt,
-            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
+            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled
+                && engine.developerTeachingMode,
             eclipseTraceStore: engine.eclipseTraceStore,
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
@@ -529,12 +536,13 @@ struct InstrumentHomeView: View {
             Toggle(isOn: $engine.eclipseVisualizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                    Text("仅原生搜索展示真实分支；可能透露策略，默认关闭。")
+                    Text("仅授权教学可展示真实分支；正式对局不会公开候选。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                 }
             }
             .tint(VeilTheme.gold)
+            .disabled(!engine.developerTeachingMode)
             .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
 
             HStack(spacing: 8) {

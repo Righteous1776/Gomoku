@@ -55,3 +55,5 @@ jobs:
           python3 Scripts/audit_migration.py
       - name: Enforce owner R17.2 UI exclusions
         run: python3 Scripts/verify_gomoku_ui_contract.py
+      - name: Verify Issue 50 real Thinking HUD Stage A
+        run: python3 Scripts/verify_thinking_hud_stage_a.py
