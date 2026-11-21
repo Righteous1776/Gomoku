@@ -21,6 +21,11 @@ targets:
     platform: iOS
     sources:
       - path: Apps/iOS/Gomoku
+        excludes:
+          - Vendor/**
+      - path: Apps/iOS/Gomoku/Vendor/GomokuEngineV2
+        type: folder
+        buildPhase: resources
       - path: Engine/src/board.cpp
       - path: Engine/src/search.cpp
       - path: Engine/src/eclipse_c_api.cpp
@@ -36,11 +41,13 @@ targets:
           - $(SRCROOT)/Engine/include
           - $(SRCROOT)/Engine/src
         INFOPLIST_KEY_CFBundleDisplayName: Gomoku
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "仅用于验证设备持有人身份，以保护私有阵法和训练数据库；不读取或保存生物识别信息。"
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         SUPPORTS_MACCATALYST: NO
     scheme:
       testTargets:
         - GomokuTests
+        - GomokuUITests
   GomokuTests:
     type: bundle.unit-test
     platform: iOS
@@ -52,3 +59,15 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: studio.zeo.gomoku.tests
+  GomokuUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: Apps/iOS/GomokuUITests
+    dependencies:
+      - target: Gomoku
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: studio.zeo.gomoku.uitests
+        TEST_TARGET_NAME: Gomoku

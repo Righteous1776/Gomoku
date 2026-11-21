@@ -1,0 +1,448 @@
+{
+  "schema": "gomoku.original-git-blob-proof.v1",
+  "upstream": "Righteous1776/VeilLink",
+  "pinned_commit": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "target_repo": "Righteous1776/Gomoku",
+  "source_tree_verified": true,
+  "critical_inventory_entries": 57,
+  "critical_expanded_files": 59,
+  "additional_reference_files": 3,
+  "verification": "Git blob SHA-1 identity (identical Git object bytes); SHA256 manifest requires local --emit-sha256",
+  "stage_only": true,
+  "files": [
+    {
+      "source": "VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/AdaptiveBoardLearning.swift",
+      "git_blob_sha": "398d6c49cc65405129eaa9fef0678ffefbd7efdf",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/DeveloperFormationLibrary.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/DeveloperFormationLibrary.swift",
+      "git_blob_sha": "046b920219b3ab7bbffd7e4628237923a48a5147",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+      "git_blob_sha": "f1c830c4c3d57c17d2bb974e3ec1e8d12a6b85fa",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+      "git_blob_sha": "0eb6e94e37052a19cc2b96bc1a82463f6fadfc22",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+      "git_blob_sha": "a8241383c28422ac75542caaa7b5f684c01c39bb",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+      "git_blob_sha": "4e73cc1910820324487d9350194cfb5562a8439f",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuAgentAdapter.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuAgentAdapter.swift",
+      "git_blob_sha": "201f5d8120c40f3ee23e55017b5db4830ff263f2",
+      "category": "core-rules",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuBot.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift",
+      "git_blob_sha": "5659c3527646ef45df5bf23503fbb6bbf6c61277",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+      "git_blob_sha": "74415da0c9a44fc0beb5f970ea24405411eb7ff9",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift",
+      "git_blob_sha": "93fc11499f7a41caef25db79f7f4482c53257681",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuFormationLearning.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/GomokuFormationLearning.swift",
+      "git_blob_sha": "2acc24f2a960a2ccc78fce962658716afa2bc83b",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/LocalAIGameController.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/LocalAIGameController.swift",
+      "git_blob_sha": "099dcd4a934f06d8d296adc9b3ce4ed1c938e1e7",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/LocalBoardMatchStore.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/LocalBoardMatchStore.swift",
+      "git_blob_sha": "c0242733faa3c42b0a2b3a93c000b3860ae3f9fd",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+      "git_blob_sha": "6b4f7465b9deba28e0005f59e6dd8dacb58ae5a6",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift",
+      "git_blob_sha": "3bddc8ec8a7c19891e703d662b434bd167fa4c1f",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+      "git_blob_sha": "94d9173b490159b2b9402656fa0a386ed0a59c1e",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Agent/Games/VeilOfflineGomokuEngine.swift",
+      "destination": "Legacy/Original/VeilLink/Agent/Games/VeilOfflineGomokuEngine.swift",
+      "git_blob_sha": "0ac9e0994d0e1770883e2c0aa13d76a440301545",
+      "category": "ai-core",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/AppTheme.swift",
+      "destination": "Legacy/Original/VeilLink/Core/AppTheme.swift",
+      "git_blob_sha": "0c2bc8d0c645a65182bb2a4dd62112a0e4d28d2a",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/AppearanceTheme.swift",
+      "destination": "Legacy/Original/VeilLink/Core/AppearanceTheme.swift",
+      "git_blob_sha": "345279acc54f563e35d3e55c862213b118ba5366",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/DevicePerformanceProfile.swift",
+      "destination": "Legacy/Original/VeilLink/Core/DevicePerformanceProfile.swift",
+      "git_blob_sha": "16cf0ed458a6fbc07c4d5552dc30944dfb7d818b",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/HapticEngine.swift",
+      "destination": "Legacy/Original/VeilLink/Core/HapticEngine.swift",
+      "git_blob_sha": "c4c63fcf6ed1c32ef687a170c0975a9d01050884",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/MiniGames.swift",
+      "destination": "Legacy/Original/VeilLink/Core/MiniGames.swift",
+      "git_blob_sha": "d26a32e39b7929ec0c3c827a45d1d642c08f3d7b",
+      "category": "core-rules",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/Models.swift",
+      "destination": "Legacy/Original/VeilLink/Core/Models.swift",
+      "git_blob_sha": "d80c208fb58b7ed3810c21fa403d9972cb7c55ae",
+      "category": "core-rules",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/SkeuomorphicComponents.swift",
+      "destination": "Legacy/Original/VeilLink/Core/SkeuomorphicComponents.swift",
+      "git_blob_sha": "ad52a21f38515c9dd4abe8d51d3c6967e2b5a980",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/SkeuomorphicPerformanceBudget.swift",
+      "destination": "Legacy/Original/VeilLink/Core/SkeuomorphicPerformanceBudget.swift",
+      "git_blob_sha": "5ef4a172edfd3bf50c4e3b99318d4be61c8d7931",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/VeilImportedFileAccess.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilImportedFileAccess.swift",
+      "git_blob_sha": "c5d795324cac5cb723230cb5ae568e002ed6189a",
+      "category": "additional-reference",
+      "critical": false
+    },
+    {
+      "source": "VeilLink/Core/VeilMotionKit.swift",
+      "destination": "Legacy/Original/VeilLink/Core/VeilMotionKit.swift",
+      "git_blob_sha": "f4b64276da5e81cdde98988606cfd20229c2de78",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Core/WireCodec.swift",
+      "destination": "Legacy/Original/VeilLink/Core/WireCodec.swift",
+      "git_blob_sha": "277c05c9427774f80d8041c352e92dc9d834734e",
+      "category": "additional-reference",
+      "critical": false
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/LICENSE",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/LICENSE",
+      "git_blob_sha": "e3b6a803fd36ef85aaa3e137f05ce9e3bfb8d3b9",
+      "category": "resource",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/PROVENANCE.md",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/PROVENANCE.md",
+      "git_blob_sha": "4b2d0d19fb6c51d7d185f508e91c057f5d4b9007",
+      "category": "resource",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Resources/GomokuEngineV2/engine.js",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuEngineV2/engine.js",
+      "git_blob_sha": "12360bfb17fb78c03e755cce9dcaaaae022a6354",
+      "category": "resource",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/Resources/GomokuNativeTrainingSeed.json",
+      "destination": "Legacy/Original/VeilLink/Resources/GomokuNativeTrainingSeed.json",
+      "git_blob_sha": "b9f017ee9b40c877c3f6124a6911eef15a8cd19c",
+      "category": "resource",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/BoardDeveloperLearningLabView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/BoardDeveloperLearningLabView.swift",
+      "git_blob_sha": "27ea874656c5a78af7701926e843188a968141e3",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/GameLobbyView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/GameLobbyView.swift",
+      "git_blob_sha": "f500fa56566d90a81460860192f7314ec3d2754a",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/MiniGameViews.swift",
+      "destination": "Legacy/Original/VeilLink/UI/MiniGameViews.swift",
+      "git_blob_sha": "77315a804ebf5834b0f20b30d802f1afdd204a10",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseBoardThoughtField.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseBoardThoughtField.swift",
+      "git_blob_sha": "e3c648e49383261c450bd4d6c53ed2a7e8d47ead",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseComputeConsole.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseComputeConsole.swift",
+      "git_blob_sha": "ab923f9fd731b1ed66dd64cfcab950be19d6bd42",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseConsoleStream.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseConsoleStream.swift",
+      "git_blob_sha": "098af4a2ddbf9ac4e7466859e988ee343500c9b0",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseIdentityAndTrace.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseIdentityAndTrace.swift",
+      "git_blob_sha": "5f54343d13bae6d2a8a4ab9102827a15074ab7cd",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseRuntimeInstruments.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseRuntimeInstruments.swift",
+      "git_blob_sha": "390410ee6a84feb1d4e9374f025715c1aee786f9",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+      "git_blob_sha": "24f03a41d55cf2340576739efda7fb7d3b1e9836",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTracePolicy.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseTracePolicy.swift",
+      "git_blob_sha": "7b7534983911eecd106a7be45f8a3fc67c501dd2",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+      "git_blob_sha": "cca151f3805ec60afe6929cb51994b2e2db910d4",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilForgeVisualSystem.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilForgeVisualSystem.swift",
+      "git_blob_sha": "cbe534e38286ac8af7f5e0027c48d2243c58ef7f",
+      "category": "instrument-theme",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilGomokuMatchArchive.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilGomokuMatchArchive.swift",
+      "git_blob_sha": "509ccf339b9805f568f3a0f2d314575186364ce1",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLink/UI/VeilOpponentAvatarView.swift",
+      "destination": "Legacy/Original/VeilLink/UI/VeilOpponentAvatarView.swift",
+      "git_blob_sha": "5f2120368253b3cba72a177393fed580b48a8a69",
+      "category": "original-ui",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/AdaptiveBoardLearningTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/AdaptiveBoardLearningTests.swift",
+      "git_blob_sha": "8c3de94aa69b5f1b597fd829f8192c3f60304310",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/BLETransportSafetyTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/BLETransportSafetyTests.swift",
+      "git_blob_sha": "a527fe5a87351356e0c67f40eacd473ce33c8f6a",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/DeveloperFormationLibraryTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/DeveloperFormationLibraryTests.swift",
+      "git_blob_sha": "0be6e86d75390e076e42734835f39522afad72be",
+      "category": "additional-reference",
+      "critical": false
+    },
+    {
+      "source": "VeilLinkTests/EclipseHorizonR12Tests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseHorizonR12Tests.swift",
+      "git_blob_sha": "41a0f23d4e59cfa5fe8207b9f12b95c1d00566e4",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/EclipseIncrementalThreatIndexR13Tests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseIncrementalThreatIndexR13Tests.swift",
+      "git_blob_sha": "14a49f3345d95c264b8da5e7c27828ffb23189ed",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/EclipseR14UnifiedTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/EclipseR14UnifiedTests.swift",
+      "git_blob_sha": "55197dd8b5d613f101788021376f2908d8e108ce",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/GlobalAppearanceModeTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GlobalAppearanceModeTests.swift",
+      "git_blob_sha": "374dd45925014b5ab541f87eb0873052fe3af5a0",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/GomokuBotTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuBotTests.swift",
+      "git_blob_sha": "9ee137a56332039e3f29424235da19bf03f22a44",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/GomokuBundledNativeSeedTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuBundledNativeSeedTests.swift",
+      "git_blob_sha": "c16b1cfca58309e5673232fec897582b979b4bcd",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/GomokuFormationLearningTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuFormationLearningTests.swift",
+      "git_blob_sha": "b86a8dbc563519c83f97f7c055975effe6a6591a",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/GomokuSevenTierIntegrationTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/GomokuSevenTierIntegrationTests.swift",
+      "git_blob_sha": "d38b1b9a5ec8c7bdf05aa8f2bd8c283767830b77",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/LocalBoardMatchStoreTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/LocalBoardMatchStoreTests.swift",
+      "git_blob_sha": "385d46291ba07e3d1a4913ee15f1553f5ecb1e8a",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/MiniGameTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/MiniGameTests.swift",
+      "git_blob_sha": "eadbf30952e5de412fed2532c44bf66172022f97",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/NativeGomokuSelfPlayTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/NativeGomokuSelfPlayTests.swift",
+      "git_blob_sha": "d6d53d25241a6b4c0c393e8ae978e24713f74a12",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/SkeuomorphicPerformanceBudgetTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/SkeuomorphicPerformanceBudgetTests.swift",
+      "git_blob_sha": "2393f6b0500f13756cf1f95d453ee14963c07fa5",
+      "category": "legacy-tests",
+      "critical": true
+    },
+    {
+      "source": "VeilLinkTests/VeilOfflineGomokuEngineTests.swift",
+      "destination": "Legacy/Original/VeilLinkTests/VeilOfflineGomokuEngineTests.swift",
+      "git_blob_sha": "e86925343c62ff9fb25daff366850eaa491a222d",
+      "category": "legacy-tests",
+      "critical": true
+    }
+  ]
+}

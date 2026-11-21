@@ -1,4 +1,7 @@
 name: C++ and Python CI
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [main]
@@ -38,5 +41,13 @@ jobs:
         run: python3 Training/selfplay.py --engine build/Engine/gomoku_cli --games 1 --ms 2 --out Training/outputs/smoke.jsonl
       - name: Validate dataset
         run: python3 Training/validate_dataset.py --path Training/outputs/smoke.jsonl
+      - name: Verify exact real owner training evidence
+        run: python3 Scripts/verify_owner_training_evidence.py
       - name: Verify package
         run: python3 Scripts/verify_package.py
+      - name: Audit all staged VeilLink original sources
+        run: |
+          python3 Scripts/audit_git_blobs.py
+          python3 Scripts/audit_migration.py
+      - name: Enforce owner R17.2 UI exclusions
+        run: python3 Scripts/verify_gomoku_ui_contract.py

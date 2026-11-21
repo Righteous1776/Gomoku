@@ -1,0 +1,111 @@
+name: V1.0.0 RC1 iOS IPA and pre-release
+on:
+  push:
+    branches: [release/v1.0.0-rc1]
+
+permissions:
+  contents: write
+concurrency:
+  group: gomoku-v1-rc
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reject private archives in RC source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files | grep -E '^(Migration/|Legacy/Original/|Apps/iOS/Gomoku/Resources/OwnerPrivate/)'; then
+            echo "::error::Private training or development archive in release source"
+            exit 1
+          fi
+          python3 Scripts/check_private_bundle.py
+          git rev-parse HEAD
+      - name: Xcode version
+        run: xcodebuild -version && xcrun --sdk iphoneos --show-sdk-version
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate standalone Xcode project
+        run: xcodegen generate --spec project.yml
+      - name: Build V1.0.0 Release for generic iPhone
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Verify bundle identity and privacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=DerivedData/Build/Products/Release-iphoneos/Gomoku.app
+          test -d "$APP"
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist")
+          BUNDLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          echo "Version=$VERSION Bundle=$BUNDLE"
+          test "$VERSION" = "1.0.0"
+          test "$BUNDLE" = "studio.zeo.gomoku"
+          python3 Scripts/check_private_bundle.py --app "$APP"
+      - name: Create unsigned development IPA and SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/Payload
+          ditto DerivedData/Build/Products/Release-iphoneos/Gomoku.app dist/Payload/Gomoku.app
+          (cd dist && zip -qr Gomoku-V1.0.0-RC1-UNSIGNED.ipa Payload)
+          (cd dist && shasum -a 256 Gomoku-V1.0.0-RC1-UNSIGNED.ipa > Gomoku-V1.0.0-RC1-UNSIGNED.sha256)
+          python3 Scripts/check_private_bundle.py \
+            --ipa dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa \
+            --manifest dist/public-ipa-privacy.json
+      - name: iPhone simulator XCTest regression gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          phone_id=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin)["devices"]; print(next(x["udid"] for runtime in reversed(sorted(d)) if ".iOS-" in runtime for x in d[runtime] if x["name"].startswith("iPhone")))')
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku \
+            -configuration Debug -destination "platform=iOS Simulator,id=$phone_id" \
+            -derivedDataPath DerivedData -parallel-testing-enabled NO \
+            -resultBundlePath V1-RC1-Tests.xcresult CODE_SIGNING_ALLOWED=NO test
+      - name: Upload unsigned candidate IPA and privacy manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-V1.0.0-RC1-UNSIGNED-DEV-ONLY
+          path: |
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.sha256
+            dist/public-ipa-privacy.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload simulator XCTest result
+        if: always() && hashFiles('V1-RC1-Tests.xcresult/Info.plist') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Gomoku-V1.0.0-RC1-XCTest
+          path: V1-RC1-Tests.xcresult
+          retention-days: 7
+      - name: Publish unsigned engineering pre-release only after all checks
+        env:
+          GH_TOKEN: \${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa
+          if gh release view v1.0.0-rc.1 >/dev/null 2>&1; then
+            echo "::error::RC1 tag exists; refusing to replace"
+            exit 1
+          fi
+          gh release create v1.0.0-rc.1 \
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.ipa \
+            dist/Gomoku-V1.0.0-RC1-UNSIGNED.sha256 \
+            dist/public-ipa-privacy.json \
+            --target "$GITHUB_SHA" \
+            --title "Gomoku V1.0.0 RC1 — unsigned engineering preview" \
+            --notes-file Docs/Operations/V1_0_0_RC_RELEASE_NOTES.md \
+            --prerelease
