@@ -234,6 +234,15 @@ final class NativeGomokuAppController: ObservableObject {
 
     var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
         if isThinking {
+            if activeThinkingRun?.backend == "C++20 V2" {
+                guard let native = activeCppSearch?.liveSearchSnapshot() else {
+                    return nil
+                }
+                return VeilEclipseTracePolicy.LiveMetrics(
+                    completedDepth: native.completedDepth,
+                    visitedNodes: native.nodes
+                )
+            }
             return eclipseMetricsStore.snapshot(
                 sessionID: sessionID, turn: state.moveCount, isThinking: true
             )
