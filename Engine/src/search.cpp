@@ -563,8 +563,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
         if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
+            // The historical V2 reports proof-line length here. In V3,
+            // completed_depth must mean ONLY fully searched root iterations.
             return finish(pv.front(), SearchStopReason::forced_win,
-                          static_cast<int>(pv.size()));
+                          adaptive ? 0 : static_cast<int>(pv.size()));
     }
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
