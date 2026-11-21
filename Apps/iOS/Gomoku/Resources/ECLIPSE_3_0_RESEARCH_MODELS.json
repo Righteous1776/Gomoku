@@ -58,8 +58,8 @@
       "production_eligible": false
     }
   ],
-  "note": "Astra 3.0 is the Owner-designated research DISPLAY ID for existing R07-249 weights, not an independently retrained or currently executable native checkpoint; historical 2.0 Astra and Sol stay unchanged. No 3.0 Sol weight is present.",
+  "note": "3.0 Astra is the Owner-designated research DISPLAY ID for existing R07-249 weights, not an independently retrained or currently executable native checkpoint; historical 2.0 Astra and Sol stay unchanged. No 3.0 Sol weight is present.",
   "flagship_alias_id": "eclipse-3.0-astra",
-  "flagship_alias_name": "Astra 3.0",
+  "flagship_alias_name": "3.0 Astra",
   "flagship_checkpoint_id": "eclipse-3.0-r07-249"
 }
