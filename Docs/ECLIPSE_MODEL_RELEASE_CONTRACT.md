@@ -13,9 +13,9 @@ The canonical user-facing format is **ECLIPSE {generation} {family}**, e.g. **EC
 | `eclipse-1.0-sol` — 1.0 Sol | 攻防策略 | Original Swift R10/R12/R13 unified | 标准 |
 | `eclipse-1.0-astra` — 1.0 Astra | 高算力深层推演 | Original Swift R10/R12/R13 unified | 极高 |
 
-Four independent *compute effort* options: **轻度、标准、高、极高**. This preserves the source's actual seven original Swift profile tiers through an explicit model+effort mapping (not a name-only display toggle). The separate existing full/economy search-mode preference remains user controlled.
+The former compute effort options (**轻度、标准、高、极高**) survive solely for **historical original-Swift compatibility** and user preference. They are NOT binding limits for a new training-Agent checkpoint. A verified trainer-controlled model may disable this legacy selector entirely.
 
-The seven original HIGH-profile native budgets remain precisely **130/260/520/950/1900/3800/5700 ms** and are measured/compared via the original Swift source and research C++ engine. Budget is an upper bound, not an Elo multiple, guaranteed node count, or literal battery expense. Astra + 极高 maps to the original zenith 6× profile.
+**Owner correction (R16):** the seven historical HIGH-profile Swift budgets **130/260/520/950/1900/3800/5700 ms** are comparison baselines only, not maximum permitted training/inference time. Neither model version nor Astra branding fixes a time/node ceiling. The specialized **training Agent is the sole authority for each trained checkpoint's stopping/computation strategy**. A null wall-time or node ceiling explicitly means *no deadline*, and the runtime must not replace it with a 30ms/5.7s/20s or 180k/3M-node hidden clamp. Search still needs finite, trainer-chosen depth/branching, cooperative cancellation, privacy, memory/thermal protections, and safe app lifecycle behavior. Do not misrepresent a high hardware cost as Elo strength.
 
 **Important:** The four shipped-option *search-policy* families do not yet correspond to four independently trained neural checkpoints. Luna really uses Classic Swift; Terra/Sol/Astra share frozen R10 ordering and Swift UnifiedSearch with distinct budget/depth/width configurations. Do not call this a four-weight neural product until the training Agent supplies independently auditable artifacts.
 
@@ -24,6 +24,19 @@ The seven original HIGH-profile native budgets remain precisely **130/260/520/95
 `R29` is treated as a **training revision / candidate checkpoint**, NOT a release name, NOT GitHub PR #29, and NOT proof it is the best model. No R29 artifact / cryptographic fingerprint is currently confirmed in the accessible repository. Until its actual checkpoint, metadata and execution route have been provided and audited, the UI must not show "R29 Astra" as a production option.
 
 A newly trained revision becomes `ECLIPSE 1.1 Astra` or `1.1 Sol` only after its model family, actual loaded artifact SHA-256, separate engine interface, data provenance and strength gates are verified and the Owner authorizes promotion. Do not modify the bytes behind existing `1.0` model IDs.
+
+## Trainer-controlled compute contract (R16)
+
+The private handoff schema is `eclipse.trainer.handoff.v2`, including `compute_policy` (not a hard-coded list of historical times). A valid policy specifies:
+
+- `mode = adaptive` and `max_wall_time_ms = null`: no artificial wall-clock cutoff, or `mode = budgeted` with **any positive trainer-chosen value**. No arbitrary 5.7s/20s maximum.
+- `max_nodes = null`: no fixed global node limit, or any positive trainer-chosen node target.
+- `max_depth`, `root_width`, `reply_width`, `continuation_width`, `forced_line_depth`, and `candidate_radius`: the training Agent's search geometry, validated against real 15×15 board semantics, not a product-tier lookup table.
+- `compute_policy_sha256` is included in the candidate's `--identity` output, in addition to the actual loaded checkpoint SHA-256. Two matching names without matching bytes are not accepted.
+
+The iOS integration's `EclipseVerifiedTrainerExecution` requires matching loaded-checkpoint and policy hashes before allowing trainer-selected settings to replace original Swift budgets. It is an **integration token**, not itself proof that the external binary executed: runtime attestation is independently required by `trainer_handoff_gate.py`. No such R29 candidate is currently registered in public production; until then the old Swift is a **reference fallback**, not a model budget decision by this integration Agent.
+
+The original seven budget headless arena remains frozen as a historical regression benchmark. New trained candidate testing may use any positive budget or no wall deadline; strength promotion remains a separate game outcome gate.
 
 ## Separate Training Agent handoff
 
