@@ -34,12 +34,12 @@ def evaluate_sources(sources):
 
     # Compare complete layout rows, not substring positions: "board" is
     # also a prefix of "boardQuickControls".
-    layout = home.split("LazyVStack(alignment: .leading, spacing: 14) {", 1)
-    layout_body = layout[1].split(".padding(14)", 1)[0] if len(layout) == 2 else ""
+    layout = home.split("LazyVStack(alignment: .leading, spacing: 12) {", 1)
+    layout_body = layout[1].split(".padding(.horizontal, 12)", 1)[0] if len(layout) == 2 else ""
     rows = [line.strip() for line in layout_body.splitlines()]
     hierarchy = [row for row in rows if row in {
         "statusCard", "eclipseIdentity", "boardQuickControls", "board",
-        "advancedPanel"
+        "liveSearchRibbon", "advancedPanel"
     }]
 
     # Scope the gesture assertion to the genuine move-impact effect only.
@@ -78,8 +78,8 @@ def evaluate_sources(sources):
             "!eclipseSessionID.isEmpty && !reduceMotion" in pulse
             and ".allowsHitTesting(false)" in pulse,
         "source-aligned game hierarchy":
-            hierarchy == ["statusCard", "eclipseIdentity",
-                          "boardQuickControls", "board", "advancedPanel"],
+            hierarchy == ["eclipseIdentity", "boardQuickControls", "board",
+                          "liveSearchRibbon", "statusCard", "advancedPanel"],
         "training below board and behind disclosure":
             "if showsAdvanced {" in home
             and "gomoku.training.advanced.toggle" in home
@@ -91,8 +91,9 @@ def evaluate_sources(sources):
             "let selection: VeilAppearanceSelection = .instrumentAuto" in appearance,
         "real search start timestamp":
             "searchStartedAt = Date()" in controller
-            and "timeIntervalSince(started)" in identity,
-        "live search branches explicitly opt in":
+            and ("timeIntervalSince(started)" in identity
+                 or "timeIntervalSince(started)" in home),
+        "live search branch visibility is under owner control":
             "Toggle(isOn: $engine.eclipseVisualizationEnabled)" in home
             and "onExploredLine: observer" in controller
             and "traceStore.record(" in controller,
@@ -103,6 +104,16 @@ def evaluate_sources(sources):
         "analysis is a separate read-only presentation":
             "VeilEclipseTraceSheet(" in home
             and "VeilEclipseComputeConsole(" in identity,
+        "responsive live measured telemetry": 
+            "liveSearchRibbon" in home
+            and 'accessibilityIdentifier("gomoku.eclipse.live-telemetry")' in home
+            and 'accessibilityIdentifier("gomoku.eclipse.live-visibility")' in home
+            and 'accessibilityIdentifier("gomoku.eclipse.analysis.open")' in home
+            and "engine.realSearchMetrics" in home,
+        "day/night board material is adaptive without changing tap geometry":
+            "appearance.isDarkAppearance" in board
+            and "RadialGradient(" in board
+            and "VeilBoardTapSurface(enabled: enabled)" in board,
         "day/night/system palette remains user selectable":
             'Picker("颜色模式", selection: $appearance.colorMode)' in home
             and all(f"case {mode}" in appearance

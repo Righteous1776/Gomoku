@@ -32,21 +32,26 @@ struct InstrumentHomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    statusCard
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    // Preserve the model/analysis launch above the board.
+                    // Detailed settings are below the play surface.
                     eclipseIdentity
                     boardQuickControls
                     board
+                    liveSearchRibbon
                     if engine.status != 0 { resultCard }
+                    statusCard
                     advancedPanel
                 }
-                .padding(14)
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 28)
                 .frame(maxWidth: 680)
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
             .background(VeilInstrumentBackground())
-            .navigationTitle("五子棋 · 人机")
+            .navigationTitle("GOMOKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -200,7 +205,8 @@ struct InstrumentHomeView: View {
                 actualSearchStartedAt: showingSearch ? engine.searchStartedAt : nil,
                 difficultyTitle: engine.selectedModel.name,
                 liveMetrics: engine.realSearchMetrics,
-                openTrace: { showsEclipseTrace = true }
+                openTrace: { showsEclipseTrace = true },
+                matchupLabel: "你 vs ECLIPSE \(engine.selectedModel.name) · 离线对局"
             )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
@@ -228,9 +234,16 @@ struct InstrumentHomeView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(VeilTheme.elevated.opacity(0.82),
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.vertical, 5)
+        .background(
+            VeilInstrumentPlate(
+                shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
+            )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(VeilTheme.gold.opacity(0.18), lineWidth: 0.6)
+        )
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
@@ -248,6 +261,8 @@ struct InstrumentHomeView: View {
                 .minimumScaleFactor(0.8)
         }
         .buttonStyle(.plain)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityIdentifier("gomoku.eclipse.model.selector")
         .accessibilityLabel("选择模型，当前 \(engine.selectedModel.name)")
@@ -410,6 +425,7 @@ struct InstrumentHomeView: View {
             Text("深入分析").font(.caption.weight(.semibold))
         }
         .tint(VeilTheme.gold)
+        .frame(minHeight: 44)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityIdentifier("gomoku.eclipse.search-mode")
         .accessibilityHint(engine.trainerControlsCompute
@@ -418,7 +434,21 @@ struct InstrumentHomeView: View {
     }
 
     private var board: some View {
-        GomokuBoardView(
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "circle.hexagongrid")
+                    .foregroundColor(VeilTheme.goldBright)
+                Text("01  /  MATCH ARENA")
+                    .foregroundColor(VeilTheme.secondaryText)
+                    .tracking(1.5)
+                Spacer(minLength: 4)
+                Text("\(engine.state.moveCount) PLY  ·  15 × 15")
+                    .foregroundColor(VeilTheme.goldBright)
+                    .monospacedDigit()
+            }
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .padding(.horizontal, 4)
+            GomokuBoardView(
             state: engine.state,
             localPlayer: engine.humanIsBlack ? .host : .guest,
             enabled: canPlaceStone,
@@ -430,13 +460,105 @@ struct InstrumentHomeView: View {
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
             onMove: { engine.play($0) }
-        )
+            )
+        }
+        // Keep native board tap geometry at full available width.
         // The wood board already owns its material and 5.5% edge-safe grid
         // inset. Adding a second 16pt-padded instrument plate wasted 32pt of
         // usable width on small phones, shrinking stones and tap targets.
         // Keep the ScrollView's outer 14pt gutter, without a nested frame.
         .frame(maxWidth: .infinity)
         .accessibilityIdentifier("gomoku.instrument.board")
+    }
+
+    // True search metrics only. No guessed progress percent or move timer.
+    // The ribbon updates independently; the board is not rebuilt at 4 FPS.
+    private var liveSearchRibbon: some View {
+        TimelineView(.periodic(from: .now, by: showingSearch ? 0.25 : 8)) { clock in
+            let elapsedText: String = {
+                if showingSearch, let started = engine.searchStartedAt {
+                    return String(format: "%.1fs",
+                                  max(0, clock.date.timeIntervalSince(started)))
+                }
+                if let ms = engine.lastDecisionMilliseconds {
+                    return String(format: "%.2fs", Double(ms) / 1000)
+                }
+                return "—"
+            }()
+            let metrics = engine.realSearchMetrics
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 7) {
+                    telemetryCell("耗时 / REAL", value: elapsedText)
+                    telemetryCell("搜索深度", value: metrics?.completedDepth.map { "D\($0)" } ?? "—")
+                    telemetryCell("实际节点", value: metrics?.visitedNodes.map(String.init) ?? "—")
+                    telemetryActions
+                }
+                HStack(spacing: 6) {
+                    telemetryCell("真实耗时", value: elapsedText)
+                    telemetryCell("深度", value: metrics?.completedDepth.map { "D\($0)" } ?? "—")
+                    telemetryActions
+                }
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(VeilTheme.elevated)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(VeilTheme.subtleStroke, lineWidth: 0.8)
+                    )
+            )
+        }
+        .accessibilityIdentifier("gomoku.eclipse.live-telemetry")
+    }
+
+    private func telemetryCell(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title.uppercased())
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                .foregroundColor(VeilTheme.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(value)
+                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                .foregroundColor(VeilTheme.goldBright)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
+        .padding(.horizontal, 6)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var telemetryActions: some View {
+        HStack(spacing: 2) {
+            Button {
+                engine.eclipseVisualizationEnabled.toggle()
+            } label: {
+                Image(systemName: engine.eclipseVisualizationEnabled
+                    ? "eye.fill" : "eye.slash")
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(engine.eclipseVisualizationEnabled
+                ? "关闭棋盘思考可视化" : "开启棋盘思考可视化")
+            .accessibilityIdentifier("gomoku.eclipse.live-visibility")
+            Button {
+                showsEclipseTrace = true
+            } label: {
+                Image(systemName: "waveform.path.ecg.rectangle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("查看详细分析")
+            .accessibilityIdentifier("gomoku.eclipse.analysis.open")
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(VeilTheme.goldBright)
     }
 
     private var resultCard: some View {
@@ -461,7 +583,7 @@ struct InstrumentHomeView: View {
                 HStack(spacing: 9) {
                     Image(systemName: "slider.horizontal.3")
                         .foregroundColor(VeilTheme.gold)
-                    Text("训练与高级设置")
+                    Text("训练实验室 · 高级设置")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(VeilTheme.text)
                     Spacer(minLength: 6)
@@ -517,7 +639,7 @@ struct InstrumentHomeView: View {
             Toggle(isOn: $engine.eclipseVisualizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                    Text("仅原生搜索展示真实分支；可能透露策略，默认关闭。")
+                    Text("仅显示真实搜索过的分支；默认开启，可随时关闭。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                 }

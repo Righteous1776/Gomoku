@@ -80,11 +80,11 @@ final class InstrumentUITests: XCTestCase {
         let ribbon = app.descendants(matching: .any)[
             "gomoku.eclipse.live-telemetry"
         ]
-        scrollUntilHittable(ribbon, in: app)
-        XCTAssertTrue(ribbon.exists)
-
         let switcher = app.buttons["gomoku.eclipse.live-visibility"]
+        // A non-interactive ribbon is intentionally not a hittable target.
+        // Scroll to its genuine button instead.
         scrollUntilHittable(switcher, in: app)
+        XCTAssertTrue(ribbon.exists)
         XCTAssertTrue(switcher.isHittable)
         switcher.tap()
         // The eye button must really change the persisted visibility state.
