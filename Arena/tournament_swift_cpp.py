@@ -76,7 +76,7 @@ def paired_bootstrap_ci(scores: list[float], seed: int) -> list[float]:
 
 
 def run(swift: Path, cpp: Path, pairs_by_ms: list[tuple[int, int]],
-        seed: int) -> dict:
+        seed: int, reference_scope: str = 'unified') -> dict:
     validate_openings()
     if any(not 1 <= ms <= 20000 or not 1 <= pairs <= 10000
            for ms, pairs in pairs_by_ms):
@@ -117,7 +117,11 @@ def run(swift: Path, cpp: Path, pairs_by_ms: list[tuple[int, int]],
         })
     return {
         "schema": "eclipse.swift-cpp.stratified-paired.v1",
-        "engine_reference": "original compiled Swift VeilGomokuUnifiedSearch + original R10",
+        "engine_reference": (
+            "original unmodified Swift GomokuBot with R4/R6/R8, UnifiedSearch and R10; empty learning"
+            if reference_scope == "gomokubot-empty" else
+            "original compiled Swift VeilGomokuUnifiedSearch + original R10"
+        ),
         "candidate": "experimental C++20 ECLIPSE research engine",
         "rules": "unrestricted freestyle 15x15",
         "fixed_seed": seed,
@@ -132,6 +136,8 @@ def run(swift: Path, cpp: Path, pairs_by_ms: list[tuple[int, int]],
             "Cpp_wins": overall["Cpp"],
             "draws": overall["draw"],
         },
+        "production_GomokuBot_source_executed": reference_scope == "gomokubot-empty",
+        "private_learning_loaded": False,
         "full_native_GomokuBot": False,
         "statistical_noninferiority_pass": False,
         "ship_gate": "BLOCKED",
@@ -150,13 +156,14 @@ def main():
     parser.add_argument("--tier", action="append", metavar="MS:PAIRS",
                         default=[], help="e.g. --tier 75:8 --tier 250:6 --tier 950:4")
     parser.add_argument("--seed", type=int, default=20261121)
+    parser.add_argument("--reference-scope", choices=["unified", "gomokubot-empty"], default="unified")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args()
     parsed = []
     for tier in args.tier or ["75:8", "250:6", "950:4"]:
         ms, pairs = tier.split(":", maxsplit=1)
         parsed.append((int(ms), int(pairs)))
-    report = run(args.swift, args.cpp, parsed, args.seed)
+    report = run(args.swift, args.cpp, parsed, args.seed, args.reference_scope)
     payload = json.dumps(report, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
