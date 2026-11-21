@@ -40,7 +40,7 @@ jobs:
           python3 Arena/compare_swift_cpp.py \
             --swift build/swift_eclipse_reference \
             --cpp build/Engine/gomoku_cli \
-            --pairs 1 --ms 75 \
+            --pairs 12 --ms 75 \
             --out Arena/evidence/headless-smoke.json
       - name: Upload reproducible aggregate parity report
         if: always() && hashFiles('Arena/evidence/headless-smoke.json') != ''
