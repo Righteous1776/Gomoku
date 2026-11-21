@@ -188,7 +188,9 @@ enum VeilGomokuUnifiedSearch {
         private func neighbors(radius: Int) -> [Int] {
             var seen = [Bool](repeating: false, count: capacity)
             var occupied = 0
-            let radius = max(1, min(3, radius))
+            // Radius may be trainer-selected for the verified checkpoint.
+            // The board size is the only structural bound, not legacy radius=3.
+            let radius = max(1, min(boardSize - 1, radius))
             for i in 0..<capacity where board[i] != 0 {
                 occupied += 1
                 let r = i / boardSize, c = i % boardSize
@@ -356,7 +358,7 @@ enum VeilGomokuUnifiedSearch {
                     return true
                 }
             }
-            for move in ordered(all, side: side, top: 28) {
+            for move in ordered(all, side: side, top: limits.width) {
                 if let firstAllowed, !firstAllowed.contains(move) { continue }
                 place(move, side)
                 let candidatesAfter = neighbors(radius: limits.candidateRadius)
@@ -568,7 +570,7 @@ enum VeilGomokuUnifiedSearch {
                          variation: [], rule: safe.isEmpty ? "no proven fork-free root" : "root fork safety verified"))
             var vcf: [Int] = []
             if limits.forcedLineDepth > 0 && proveFour(side: player,
-                 remaining: min(8, limits.forcedLineDepth), firstAllowed: Set(eligible), pv: &vcf),
+                 remaining: limits.forcedLineDepth, firstAllowed: Set(eligible), pv: &vcf),
                let first = vcf.first {
                 return conclude(first, score: mate - vcf.count, depth: vcf.count,
                                 pv: vcf, rule: "verified-forcing-four", roots: eligible.count)
