@@ -93,6 +93,13 @@ struct EclipseThinkingHUDView: View {
                                 item("平均 NPS", snapshot.averageNPS.map(String.init) ?? "未提供")
                             }
                             item("终止原因", snapshot.stopReason ?? "未提供")
+                            if let index = snapshot.visibleTeachingCandidate {
+                                item("已完成深度最佳落点 · 教学",
+                                     "第 \(index / 15 + 1) 行 · 第 \(index % 15 + 1) 列")
+                                Text("来自真实 C++ 完整迭代；只是当前搜索候选，非必胜证明。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             Text(snapshot.context == .formal
                                  ? "正式对局：落子前禁止显示 AI 候选、PV 与必防点。"
                                  : snapshot.context == .teaching
