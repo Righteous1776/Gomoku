@@ -60,11 +60,13 @@ public:
     // Optional per-search, read-only diagnostics sink. It must never choose a
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
+    using RankedRootsSink = std::function<void(const std::vector<int> &)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
                          const std::atomic<bool> *cancel = nullptr,
-                         const ProgressSink &progress = {});
+                         const ProgressSink &progress = {},
+                         const RankedRootsSink &ranked_roots = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
