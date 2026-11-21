@@ -1,0 +1,150 @@
+{
+  "schema": "eclipse.research.r07.public-evidence.v1",
+  "status": "RESEARCH_NOT_PROMOTED",
+  "generated_at_utc": "2026-11-21",
+  "rules": "15x15 freestyle",
+  "privacy": {
+    "includes_private_raw_games": false,
+    "includes_private_positions": false,
+    "includes_private_test_fixture": false,
+    "includes_private_derived_model_weights": false,
+    "private_source_counts_are_aggregated": true
+  },
+  "source_lineage": {
+    "r04": {
+      "trees": 239,
+      "features": 26,
+      "sha256": "b462dfda45c4c4a357680a95c2cf641d99ce68e5f430113eb5f779592cf6f18a"
+    },
+    "r07_base": {
+      "trees": 239,
+      "features": 34,
+      "sha256": "19f7cef62d974b3c7733aebf748e0e8445162e5cedb4127e91928bcd158e29ec",
+      "prediction_delta_256_probe": 0
+    },
+    "r07_candidates": [
+      {
+        "id": "R07-244",
+        "trees": 244,
+        "sha256": "4cb64cc6fa2e88b538523e77cc627e841af4e52c3d07d853ff167c074494e3f9"
+      },
+      {
+        "id": "R07-249",
+        "trees": 249,
+        "sha256": "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234"
+      },
+      {
+        "id": "R07-259",
+        "trees": 259,
+        "sha256": "cafa6e2b0380521f175d857a9c4383251b7b45128a42c769ce43cc39e04f84bf"
+      },
+      {
+        "id": "R07-274",
+        "trees": 274,
+        "sha256": "ec0c246db24d1a9a76346c4975a70507d87d83abad1d711ba3907d284991197c"
+      },
+      {
+        "id": "R07-289",
+        "trees": 289,
+        "sha256": "17d2c91dbaf8f93a950d7ad8ae038670d4d00f25914cde27fafda190f493343e"
+      }
+    ]
+  },
+  "input_counts": {
+    "private_snapshots_distinct": 7,
+    "private_terminal_events_accepted": 5356,
+    "public_winepy_files": 156,
+    "public_exact_unique_games": 122,
+    "private_train_groups": 11685,
+    "public_train_groups": 1438,
+    "synthetic_train_groups": 24000,
+    "total_train_groups": 37123,
+    "total_candidate_rows": 666475,
+    "validation_private_groups": 3293,
+    "validation_public_groups": 384,
+    "known_tactics": 60,
+    "previously_seeded_tactics": 1800,
+    "new_seeded_tactics": 900,
+    "weak_label_historical_positions": 40
+  },
+  "ranking_results": {
+    "R04": {
+      "private_top1": 2614,
+      "private_top3": 3086,
+      "public_top1": 285,
+      "public_top3": 360,
+      "known60_top1": 57,
+      "known60_top3": 58,
+      "real40_top1": 22,
+      "unique_block_rank": 1,
+      "synthetic1800_top1": 1713,
+      "synthetic900_top1": 859
+    },
+    "R07_249": {
+      "private_top1": 2614,
+      "private_top3": 3086,
+      "public_top1": 285,
+      "public_top3": 360,
+      "known60_top1": 57,
+      "known60_top3": 58,
+      "real40_top1": 21,
+      "unique_block_rank": 1,
+      "synthetic1800_top1": 1715,
+      "synthetic900_top1": 859
+    }
+  },
+  "gates": {
+    "R07_249_passed": 8,
+    "total": 9,
+    "failed": [
+      "real40_top1"
+    ],
+    "promoted": false
+  },
+  "paired_research_arena": {
+    "rules": "15x15 freestyle",
+    "alpha_beta_depth": 0,
+    "shared_immediate_win_and_unique_block_gate": true,
+    "swapped_openings": 512,
+    "games": 1024,
+    "wins_r07": 505,
+    "wins_r04": 501,
+    "draws": 18,
+    "neutral_pairs": 504,
+    "r07_double_win_pairs": 5,
+    "r04_double_win_pairs": 3,
+    "r07_score_rate": 0.501953125,
+    "paired_bootstrap_ci95": [
+      0.4971,
+      0.5078
+    ],
+    "black_wins": 642,
+    "white_wins": 364,
+    "latency_ms_r04": {
+      "p50": 0.861,
+      "p95": 1.571
+    },
+    "latency_ms_r07": {
+      "p50": 0.856,
+      "p95": 1.557
+    },
+    "elo_claimed": false,
+    "native_v9_games": 0
+  },
+  "provenance": {
+    "source_public_repo": "https://github.com/Karesis/Winepy",
+    "source_public_commit": "7651190e9d423869c9c1c83255e17703a5d4ae05",
+    "public_source_license": "MIT",
+    "unfetched_source": "Gomoku Party CC0 — not part of R07",
+    "local_r07_archive_sha256": "6b00ca26b53a61d70c0cc1d69a2c35cce74fe253b5f968087839a17b78f5f51f",
+    "local_r07_manifest_sha256": "e415677377beb459b968d12ce215fa27d6c35a3ef2ba96606f6664562e01eafb",
+    "local_r07_arena_log_sha256": "b9bda3a24da0e144441075e624b6836edc5e09be321a56ff19cee18373dd8f0a"
+  },
+  "limitations": [
+    "Historical actual moves are weak labels, not independently proven best moves.",
+    "Private and fixed test families were reused for iterative model selection; not blind generalization.",
+    "Some private and public games share opening families; lineage leakage risk remains.",
+    "Research ranker full games are not verified V9 engine or trained release games.",
+    "Original training model weights and personal records are not part of this PUBLIC metadata upload."
+  ]
+}
