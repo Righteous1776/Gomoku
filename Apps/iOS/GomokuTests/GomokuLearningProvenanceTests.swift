@@ -57,7 +57,9 @@ final class GomokuLearningProvenanceTests: XCTestCase {
         XCTAssertTrue(evidence.isVerifiedLocal(imported))
         let trusted = snapshot()
         XCTAssertEqual(trusted.validHumanGames, 1)
-        XCTAssertGreaterThan(trusted.snapshot.bonus(position: {
+        // Here the human (black) won. The AI's reply (white) in a lost
+        // game must be penalized rather than positively reinforced.
+        XCTAssertLessThan(trusted.snapshot.bonus(position: {
             var state = GomokuState()
             XCTAssertTrue(state.apply(index: 105, actor: .host))
             return AdaptiveBoardPosition.gomoku(state)

@@ -4,14 +4,23 @@ import XCTest
 
 @MainActor
 final class GomokuDeveloperFormationTests: XCTestCase {
-    private func path() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString)
-            .appendingPathComponent("gomoku-v1.json")
+    private func path() throws -> URL {
+        // Simulator runner temporary folders may be cleaned while file
+        // protection / Keychain operations are running. Use an explicitly
+        // allocated per-test Application Support directory instead.
+        let root = (FileManager.default.urls(
+            for: .applicationSupportDirectory, in: .userDomainMask
+        ).first ?? FileManager.default.temporaryDirectory)
+            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString,
+                                    isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: root, withIntermediateDirectories: true
+        )
+        return root.appendingPathComponent("gomoku-v1.json")
     }
 
     func testOnlyAuthorizedValidatedLessonsCanEnterSignedRepertoire() throws {
-        let file = path()
+        let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let store = GomokuDeveloperLessonLibrary(fileURL: file)
         let valid: [GomokuDeveloperLessonLibrary.Move] = [
@@ -43,7 +52,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
     }
 
     func testTamperingLocksReadOnlyAndPreservesDamagedOriginal() throws {
-        let file = path()
+        let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let writer = GomokuDeveloperLessonLibrary(fileURL: file)
         try writer.capture(
