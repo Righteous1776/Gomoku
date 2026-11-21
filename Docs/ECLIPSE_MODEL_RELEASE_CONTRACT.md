@@ -25,6 +25,10 @@ The seven original HIGH-profile native budgets remain precisely **130/260/520/95
 
 A newly trained revision becomes `ECLIPSE 1.1 Astra` or `1.1 Sol` only after its model family, actual loaded artifact SHA-256, separate engine interface, data provenance and strength gates are verified and the Owner authorizes promotion. Do not modify the bytes behind existing `1.0` model IDs.
 
+## Training Agent adaptive-search governance (Owner proposal)
+
+The specialized Training Agent governance charter is at [Docs/Operations/TRAINING_AGENT_CONSTITUTION.md](Operations/TRAINING_AGENT_CONSTITUTION.md). It defines Astra/Sol paired candidate training, adaptive-think early-stop evidence, hard-limit accounting, strict forced-tactic safety, separate search-stop metrics, private artifact handling, and Owner-only authorization of handoff / Node C. This charter is **proposed** until Owner review and merge. Existing production 130/260/520/950/1900/3800/5700 ms budgets and the exact strict handoff metadata schema remain unchanged. Extra adaptive diagnostics belong in a separate local/private evaluation sidecar until an authorized schema revision.
+
 ## Separate Training Agent handoff
 
 The training Agent must provide **privately**:
