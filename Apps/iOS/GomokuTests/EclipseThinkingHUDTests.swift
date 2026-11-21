@@ -69,6 +69,39 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertNil(tooEarly.averageNPS)
     }
 
+    func testCompletedRootCandidateNeverLeaksIntoFormalOrPostgameUI() {
+        var formal = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .formal,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: 3, stopReason: nil
+        )
+        formal.verifiedTeachingCandidate = 112 // malicious fixture
+        XCTAssertNil(formal.visibleTeachingCandidate)
+
+        var teaching = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: nil, stopReason: nil
+        )
+        teaching.verifiedTeachingCandidate = 112
+        XCTAssertNil(teaching.visibleTeachingCandidate) // depth not completed
+        teaching = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 12, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 2100,
+            visitedNodes: 4800, completedDepth: 3, stopReason: nil
+        )
+        teaching.verifiedTeachingCandidate = 112
+        XCTAssertEqual(teaching.visibleTeachingCandidate, 112)
+        teaching.verifiedTeachingCandidate = 225
+        XCTAssertNil(teaching.visibleTeachingCandidate)
+    }
+
     func testFormalCompetitionCannotLeakUncommittedCandidates() {
         XCTAssertFalse(
             EclipseThinkingHUDSnapshot.Context.formal.permitsUncommittedCandidates
