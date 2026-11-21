@@ -62,6 +62,13 @@ if(BUILD_TESTING)
   # Full paired matches run in a standalone CI job, never in the main fast CTest.
   add_executable(eclipse_v9_arena tests/arena_v9_rankers.cpp)
   target_link_libraries(eclipse_v9_arena PRIVATE eclipse_core)
+  add_executable(eclipse_r07_native_playable_tests tests/test_r07_native_playable.cpp)
+  target_include_directories(eclipse_r07_native_playable_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(eclipse_r07_native_playable_tests PRIVATE eclipse_core)
+  add_test(NAME eclipse_r07_native_playable
+    COMMAND eclipse_r07_native_playable_tests
+      ${CMAKE_SOURCE_DIR}/Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt)
+  set_tests_properties(eclipse_r07_native_playable PROPERTIES TIMEOUT 30)
   add_executable(eclipse_v9_compiled_binding_tests
     tests/test_v9_compiled_binding.cpp)
   target_link_libraries(eclipse_v9_compiled_binding_tests PRIVATE eclipse_core)

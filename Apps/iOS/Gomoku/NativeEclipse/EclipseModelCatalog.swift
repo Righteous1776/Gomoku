@@ -89,6 +89,9 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         }
     }
     var backendDescription: String {
+        if self == .astra30 {
+            return "C++20 · R07-249 真权重 · 34D 实验适配"
+        }
         switch backend {
         case .classicSwift: return "Swift Classic · 经典启发式"
         case .trainedUnifiedSwift: return "Swift Unified · 原生 R10/R12/R13"
