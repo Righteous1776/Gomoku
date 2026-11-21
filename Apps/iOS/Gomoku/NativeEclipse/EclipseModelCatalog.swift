@@ -1,36 +1,22 @@
 import Foundation
 
-/// ECLIPSE versioned, offline model-policy registry.
-///
-/// A model identity selects an actual execution path AND an immutable native
-/// search policy; it is not merely a renamed difficulty button.
-/// R14 ships one Classic-Swift backend (Luna) and six versions using the original
-/// trained Swift R10/R12/R13 unified backend. These are independently selectable
-/// SEARCH-POLICY models sharing a core, NOT seven separately fitted neural
-/// checkpoints. Experimental C++ is NOT silently advertised as a production
-/// model until full original Swift noninferiority is certified.
+/// A model family/version is NOT a search-budget multiplier.
+/// Training releases (including a future R29 checkpoint) MUST receive a new
+/// immutable version ONLY after independently verified artifact promotion.
 enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
     case luna10 = "eclipse-1.0-luna"
     case terra10 = "eclipse-1.0-terra"
     case sol10 = "eclipse-1.0-sol"
-    case sol11 = "eclipse-1.1-sol"
     case astra10 = "eclipse-1.0-astra"
-    case astra11 = "eclipse-1.1-astra"
-    case astra12 = "eclipse-1.2-astra"
 
     static let currentDefault: Self = .terra10
     static let selectionKey = "gomoku.eclipse.selected-model-id.v1"
+    static let featured: [Self] = [.astra10, .sol10, .terra10, .luna10]
 
     enum Backend: String, Sendable {
         case classicSwift = "classic-swift"
         case trainedUnifiedSwift = "trained-unified-swift"
     }
-
-    /// Strongest first, like a model chooser; not alphabetical.
-    static let featured: [Self] = [
-        .astra12, .astra11, .astra10, .sol11,
-        .sol10, .terra10, .luna10
-    ]
 
     var id: String { rawValue }
     var name: String {
@@ -38,101 +24,157 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
         case .luna10: return "1.0 Luna"
         case .terra10: return "1.0 Terra"
         case .sol10: return "1.0 Sol"
-        case .sol11: return "1.1 Sol"
         case .astra10: return "1.0 Astra"
-        case .astra11: return "1.1 Astra"
-        case .astra12: return "1.2 Astra"
         }
     }
     var family: String {
         switch self {
         case .luna10: return "Luna"
         case .terra10: return "Terra"
-        case .sol10, .sol11: return "Sol"
-        case .astra10, .astra11, .astra12: return "Astra"
-        }
-    }
-    var legacyDifficulty: BoardBotDifficulty {
-        switch self {
-        case .luna10: return .relaxed
-        case .terra10: return .balanced
-        case .sol10: return .advanced
-        case .sol11: return .master
-        case .astra10: return .grandmaster
-        case .astra11: return .legendary
-        case .astra12: return .zenith
+        case .sol10: return "Sol"
+        case .astra10: return "Astra"
         }
     }
     var backend: Backend {
         self == .luna10 ? .classicSwift : .trainedUnifiedSwift
     }
+    var usesTrainedUnifiedSearch: Bool { backend == .trainedUnifiedSwift }
+    var defaultComputeTier: EclipseComputeTier {
+        self == .astra10 ? .extreme : .standard
+    }
     var description: String {
         switch self {
-        case .luna10:
-            return "轻量经典推演 · 独立启用原生经典搜索"
-        case .terra10:
-            return "均衡防守 · 本地学习与训练型统一搜索"
-        case .sol10:
-            return "进阶攻防 · 扩展候选与强迫应手搜索"
-        case .sol11:
-            return "深入策略 · 增强搜索宽度和连续应手"
-        case .astra10:
-            return "高强度推演 · 宗师基础的 2× 预算"
-        case .astra11:
-            return "深层推演 · 宗师基础的 4× 预算"
-        case .astra12:
-            return "旗舰推演 · 宗师基础的 6× 预算"
+        case .luna10: return "经典轻量型 · 独立 Swift 传统搜索"
+        case .terra10: return "均衡型 · 训练排序与稳定攻防"
+        case .sol10: return "策略型 · 强迫搜索与中盘对抗"
+        case .astra10: return "旗舰算力型 · 深层组合与强迫搜索"
         }
     }
     var backendDescription: String {
         backend == .classicSwift
-            ? "Swift Classic · 原生规则与启发式"
-            : "Swift Unified · R10 训练排序 + R12/R13"
+            ? "Swift Classic · 经典启发式"
+            : "Swift Unified · 原生 R10/R12/R13"
+    }
+    var artifactKind: String {
+        backend == .classicSwift
+            ? "native-classic-policy-v1"
+            : "native-unified-r10-policy-v1"
+    }
+    var recommendedBudgetMilliseconds: Int {
+        GomokuBotBudget.forDifficulty(
+            EclipseModelSelection(model: self, compute: defaultComputeTier).legacyDifficulty,
+            profileLabel: "HIGH"
+        ).timeLimitMilliseconds
     }
 
-    /// Explicit time budget at full compute for consistent model comparisons.
-    /// This is not an observed battery drain, a guaranteed latency, or an Elo.
-    var fullComputeBudgetMilliseconds: Int {
-        GomokuBotBudget.forDifficulty(legacyDifficulty, profileLabel: "HIGH")
-            .timeLimitMilliseconds
-    }
-
-    /// The actual dispatch decision used by GomokuBot.chooseMove.
-    var usesTrainedUnifiedSearch: Bool {
-        backend == .trainedUnifiedSwift
-    }
-
-    /// Persist stable model IDs, not mutable display strings.
     static func fromStoredIdentifier(_ value: String?) -> Self? {
         guard let value else { return nil }
         return Self(rawValue: value)
     }
-
-    /// Archive migration: earlier games stored seven original tier raw values.
-    /// No editing old match bytes, so signed local match history stays intact.
+    static func fromLegacyDifficulty(_ legacy: BoardBotDifficulty) -> Self {
+        EclipseModelSelection.fromLegacyDifficulty(legacy).model
+    }
     static func fromArchiveValue(_ value: String) -> Self? {
-        if let model = Self(rawValue: value) { return model }
+        EclipseModelSelection.fromArchiveValue(value)?.model
+    }
+}
+
+/// An explicit, orthogonal choice: screenshot-style model + effort + speed.
+/// Compute changes *actual* GomokuBotBudget and UnifiedSearch limits, not a
+/// display label. The original seven native tiers remain intact internally.
+enum EclipseComputeTier: String, CaseIterable, Sendable, Identifiable {
+    case light, standard, high, extreme
+
+    static let selectionKey = "gomoku.eclipse.compute-tier.v1"
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .light: return "轻度"
+        case .standard: return "标准"
+        case .high: return "高"
+        case .extreme: return "极高"
+        }
+    }
+}
+
+struct EclipseModelSelection: Equatable, Sendable {
+    let model: EclipseModelID
+    let compute: EclipseComputeTier
+
+    var legacyDifficulty: BoardBotDifficulty {
+        switch model {
+        case .luna10:
+            switch compute {
+            case .light, .standard: return .relaxed
+            case .high: return .balanced
+            case .extreme: return .advanced
+            }
+        case .terra10:
+            switch compute {
+            case .light: return .relaxed
+            case .standard: return .balanced
+            case .high: return .advanced
+            case .extreme: return .master
+            }
+        case .sol10:
+            switch compute {
+            case .light: return .balanced
+            case .standard: return .advanced
+            case .high: return .master
+            case .extreme: return .grandmaster
+            }
+        case .astra10:
+            switch compute {
+            case .light: return .master
+            case .standard: return .grandmaster
+            case .high: return .legendary
+            case .extreme: return .zenith
+            }
+        }
+    }
+
+    var budgetMilliseconds: Int {
+        GomokuBotBudget.forDifficulty(
+            legacyDifficulty, profileLabel: "HIGH"
+        ).timeLimitMilliseconds
+    }
+
+    /// A separate model identity and compute option within one existing archive
+    /// String, preserving the signed Match V1 JSON shape and all older records.
+    var archiveValue: String { model.rawValue + "|" + compute.rawValue }
+
+    static func fromArchiveValue(_ value: String) -> Self? {
+        if value.contains("|") {
+            let parts = value.split(separator: "|", omittingEmptySubsequences: false)
+            guard parts.count == 2,
+                  let model = EclipseModelID(rawValue: String(parts[0])),
+                  let compute = EclipseComputeTier(rawValue: String(parts[1]))
+            else { return nil }
+            return Self(model: model, compute: compute)
+        }
+        if let model = EclipseModelID(rawValue: value) {
+            return Self(model: model, compute: model.defaultComputeTier)
+        }
+        // R14 draft archive identities remain readable without changing bytes.
+        switch value {
+        case "eclipse-1.1-sol": return Self(model: .sol10, compute: .high)
+        case "eclipse-1.1-astra": return Self(model: .astra10, compute: .high)
+        case "eclipse-1.2-astra": return Self(model: .astra10, compute: .extreme)
+        default: break
+        }
         guard let legacy = BoardBotDifficulty(rawValue: value) else { return nil }
         return fromLegacyDifficulty(legacy)
     }
 
     static func fromLegacyDifficulty(_ legacy: BoardBotDifficulty) -> Self {
         switch legacy {
-        case .relaxed: return .luna10
-        case .balanced: return .terra10
-        case .advanced: return .sol10
-        case .master: return .sol11
-        case .grandmaster: return .astra10
-        case .legendary: return .astra11
-        case .zenith: return .astra12
+        case .relaxed: return Self(model: .luna10, compute: .standard)
+        case .balanced: return Self(model: .terra10, compute: .standard)
+        case .advanced: return Self(model: .sol10, compute: .standard)
+        case .master: return Self(model: .sol10, compute: .high)
+        case .grandmaster: return Self(model: .astra10, compute: .standard)
+        case .legendary: return Self(model: .astra10, compute: .high)
+        case .zenith: return Self(model: .astra10, compute: .extreme)
         }
-    }
-
-    /// Versioned release/implementation metadata. A new trained checkpoint
-    /// must get a NEW immutable model ID, not replace an existing one in place.
-    var artifactKind: String {
-        backend == .classicSwift
-            ? "native-classic-policy-v1"
-            : "native-unified-r10-policy-v1"
     }
 }
