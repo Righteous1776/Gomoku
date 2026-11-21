@@ -105,9 +105,10 @@ struct EclipseThinkingHUDView: View {
                                     .foregroundColor(VeilTheme.secondaryText)
                             }
                             if !snapshot.visibleTeachingPVPrefix.isEmpty {
+                                let rootIsBlack = engine.toMove == 1
                                 let sequence = snapshot.visibleTeachingPVPrefix
                                     .enumerated().map { ply, index in
-                                        "\(ply % 2 == 0 ? "根方" : "应方") " +
+                                        "\( (ply % 2 == 0 ? rootIsBlack : !rootIsBlack) ? "黑" : "白") " +
                                         "(\(index % 15 + 1),\(index / 15 + 1))"
                                     }.joined(separator: " → ")
                                 item("搜索主变化前缀 · D\(snapshot.nativePVDepth ?? 0)",
@@ -126,12 +127,17 @@ struct EclipseThinkingHUDView: View {
                             Text(snapshot.context == .formal
                                  ? "正式对局：落子前禁止显示 AI 候选、PV 与必防点。"
                                  : snapshot.context == .teaching
-                                   ? "授权教学：候选/PV 接口尚未提供，不生成演示数据。"
+                                   ? "授权教学：仅展示真实原生证据；尚无对应数据时不会生成模拟内容。"
                                    : "赛后复盘：没有可验证 PV 时不显示假设路线。")
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("候选评分、热力图、PV、威胁证明：当前接口未提供")
+                            Text(snapshot.context == .formal
+                                 ? "候选评分、热力图、PV、威胁证明：正式对局不披露未落子信息。"
+                                 : snapshot.visibleTeachingRanks.isEmpty
+                                   && snapshot.visibleTeachingPVPrefix.isEmpty
+                                   ? "候选评分、热力图、PV、威胁证明：本步未获得可核验的原生数据。"
+                                   : "候选评分、热力图、PV：原生候选排序和合法前缀可用；原始评分、校准胜率及威胁证明未提供。")
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.tertiaryText)
                                 .fixedSize(horizontal: false, vertical: true)
