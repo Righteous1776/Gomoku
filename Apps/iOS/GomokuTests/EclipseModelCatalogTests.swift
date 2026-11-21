@@ -19,6 +19,57 @@ final class EclipseModelCatalogTests: XCTestCase {
         XCTAssertNil(EclipseModelID.fromStoredIdentifier("eclipse-r29-astra"))
     }
 
+    func testSecondGenerationAstraAndSolHaveSeparateImmutableIdentities() {
+        XCTAssertEqual(EclipseModelID.astra20.rawValue, "eclipse-2.0-astra")
+        XCTAssertEqual(EclipseModelID.sol20.rawValue, "eclipse-2.0-sol")
+        XCTAssertEqual(EclipseModelID.astra20.name, "2.0 Astra")
+        XCTAssertEqual(EclipseModelID.sol20.name, "2.0 Sol")
+        XCTAssertEqual(EclipseModelID.astra20.backend, .verifiedTrainedCpp)
+        XCTAssertEqual(EclipseModelID.sol20.backend, .verifiedTrainedCpp)
+        XCTAssertEqual(EclipseModelID.astra20.artifactKind, "cpp-lightgbm-ranker-26d-v9")
+        XCTAssertEqual(EclipseModelID.sol20.artifactKind, "cpp-lightgbm-ranker-26d-v9")
+        XCTAssertTrue(EclipseModelID.astra20.requiresVerifiedCheckpoint)
+        XCTAssertTrue(EclipseModelID.sol20.requiresVerifiedCheckpoint)
+        XCTAssertFalse(EclipseModelID.astra10.requiresVerifiedCheckpoint)
+        XCTAssertFalse(EclipseModelID.sol10.requiresVerifiedCheckpoint)
+
+        // A file in a research branch is NOT a verified native model.
+        XCTAssertEqual(EclipseModelID.featuredIncludingVerified(nil),
+                       EclipseModelID.featured)
+        XCTAssertEqual(EclipseModelID.featuredIncludingVerified(.astra10),
+                       EclipseModelID.featured)
+        XCTAssertEqual(EclipseModelID.featuredIncludingVerified(.astra20),
+                       [.astra20] + EclipseModelID.featured)
+        XCTAssertEqual(EclipseModelID.featuredIncludingVerified(.sol20),
+                       [.sol20] + EclipseModelID.featured)
+
+        let v2 = EclipseModelSelection(model: .astra20, compute: .extreme)
+        XCTAssertEqual(EclipseModelSelection.fromArchiveValue(v2.archiveValue), v2)
+        let v2Sol = EclipseModelSelection(model: .sol20, compute: .standard)
+        XCTAssertEqual(EclipseModelSelection.fromArchiveValue(v2Sol.archiveValue), v2Sol)
+        // Earlier 1.x IDs and the 1.2 Astra draft archive remain valid.
+        XCTAssertEqual(EclipseModelID.fromStoredIdentifier("eclipse-1.0-astra"), .astra10)
+        XCTAssertEqual(EclipseModelID.fromStoredIdentifier("eclipse-1.0-sol"), .sol10)
+        XCTAssertEqual(EclipseModelSelection.fromArchiveValue("eclipse-1.2-astra"),
+                       .init(model: .astra10, compute: .extreme))
+    }
+
+    func testUnloadedSecondGenerationCannotBeSelectedOrFalselyShownAsActive() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EclipseV9Models-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = NativeGomokuAppController(
+            archiveDirectory: root.appendingPathComponent("history"),
+            trainingDirectory: root.appendingPathComponent("training"))
+        XCTAssertEqual(game.selectedModel, .terra10)
+        XCTAssertFalse(game.availableModels.contains(.astra20))
+        XCTAssertFalse(game.availableModels.contains(.sol20))
+        game.selectModel(.astra20)
+        XCTAssertEqual(game.selectedModel, .terra10)
+        XCTAssertEqual(game.availableModels, EclipseModelID.featured)
+        XCTAssertTrue(game.fallbackWarning?.contains("2.0 Astra") == true)
+    }
+
     func testSevenOriginalNativeTiersRemainRepresentableAndReversible() {
         let expected: [BoardBotDifficulty] = [
             .relaxed, .balanced, .advanced, .master,
