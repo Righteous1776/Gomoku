@@ -19,7 +19,7 @@ struct EGEngine {
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
-    int adaptive_search_profile = 0;
+    std::atomic<int> adaptive_search_profile{0};
 };
 
 extern "C" {
@@ -146,12 +146,15 @@ void eg_cancel_search_v2(EGEngine *e) {
 }
 
 int eg_set_adaptive_search_profile_v4(EGEngine *e, int32_t profile) {
-    if (!e || profile < 0 || profile > 2) return 0;
-    e->adaptive_search_profile = profile;
+    if (!e || profile < 0 || profile > 2 ||
+        e->progress_running.load(std::memory_order_acquire)) return 0;
+    // Application initializes this setting before analysis. Atomic storage
+    // also prevents a data race if a caller violates that lifecycle.
+    e->adaptive_search_profile.store(profile, std::memory_order_release);
     return 1;
 }
 int eg_adaptive_search_profile_v4(const EGEngine *e) {
-    return e ? e->adaptive_search_profile : -1;
+    return e ? e->adaptive_search_profile.load(std::memory_order_acquire) : -1;
 }
 int eg_search_progress_abi_version(void) { return EG_SEARCH_PROGRESS_ABI_VERSION; }
 void eg_request_search_finish_v3(EGEngine *e) {
@@ -256,7 +259,8 @@ int eg_analyze_compute_policy_v2(
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
-            &e->finish_requested, publish, e->adaptive_search_profile);
+            &e->finish_requested, publish,
+            e->adaptive_search_profile.load(std::memory_order_acquire));
         e->progress_running.store(false, std::memory_order_seq_cst);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0))

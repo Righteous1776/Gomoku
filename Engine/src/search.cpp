@@ -516,9 +516,14 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         const int proof_fraction = std::clamp(
             16 + 6 * std::min(4, own_threats) +
                  2 * std::min(4, enemy_threats), 16, 52);
+        // Multiply after dividing to avoid signed overflow for unusually
+        // large trainer policies; the original maximum remains authoritative.
+        const auto bounded_ms = std::min<std::int64_t>(max_ms, until_max);
+        const auto proof_ms = (bounded_ms / 100) * proof_fraction +
+                              (bounded_ms % 100) * proof_fraction / 100;
         proof_deadline_ = std::min(
             deadline_, started + std::chrono::milliseconds(
-                std::max<std::int64_t>(1, max_ms * proof_fraction / 100)));
+                std::max<std::int64_t>(1, proof_ms)));
     }
     // Original Swift normalized root ranking is additive only after verified
     // mandatory tactics, and never changes a mate / forced-loss certificate.
