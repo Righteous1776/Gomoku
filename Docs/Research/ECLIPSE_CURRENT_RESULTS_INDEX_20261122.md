@@ -21,6 +21,7 @@
 - [R01–R07 聚合训练审计](./ECLIPSE_TRAINING_R01_R07_PUBLIC_AUDIT.md)
 - [R07 公共机器可读指标](../../Training/research/r07_public_metrics.json)
 - [R07 聚合指标一致性测试](../../Training/tests/test_r07_public_evidence.py)
+- [R07 实际研究代码快照（34D 特征、续训、配对研究对抗）](../../Training/research/r07/README.md)
 
 **重要**：仅上传公开聚合报告 / 可验证模型哈希，并没有把 R07 34D 权重作为生产模型提交。R07 模型源自含私人用户真人对局的研究训练，原始个人棋谱、真实对局位置和模型权重保留在受控本地交付件中。若将完整训练 ZIP 发布到公开仓库，将额外公开这些研究权重；本次不默认做这个不可逆披露。
 
