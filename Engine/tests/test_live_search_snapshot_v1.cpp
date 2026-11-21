@@ -124,6 +124,38 @@ int main() {
         CHECK(read(e.get()).state == EG_LIVE_SEARCH_IDLE);
     }
     CHECK(eg_ply_count(e.get()) >= 2);
-    std::cout << "ECLIPSE Stage B live ABI: atomic polling, serial, invalidation, "
+
+    // Actual shortlisted root rank comes from the same native analysis, not
+    // from a duplicate scorer or placeholder win-probability heatmap.
+    eg_reset(e.get());
+    CHECK(eg_play(e.get(), 112) == 1);
+    CHECK(eg_play(e.get(), 97) == 1);
+    p = policy();
+    p.max_depth = 1;
+    p.root_width = 5;
+    p.reply_width = 3;
+    EGComputeRunV2 ranking_run{};
+    ranking_run.size_bytes = sizeof(ranking_run);
+    CHECK(eg_analyze_compute_policy_v2(e.get(), &p,
+          nullptr, 0, nullptr, 0, &ranking_run) == 1);
+    EGRankedRootsSnapshotV1 ranks{};
+    ranks.size_bytes = sizeof(ranks);
+    CHECK(eg_read_ranked_roots_v1(e.get(), &ranks) == 1);
+    CHECK(ranks.search_serial == read(e.get()).search_serial);
+    CHECK(ranks.count > 0 && ranks.count <= 5);
+    std::array<bool, 225> seen{};
+    for (unsigned i = 0; i < ranks.count; ++i) {
+        const auto move = ranks.moves[i];
+        CHECK(move >= 0 && move < 225 && move != 112 && move != 97);
+        CHECK(!seen[move]);
+        seen[move] = true;
+    }
+    for (unsigned i=ranks.count; i<EG_LIVE_RANKED_ROOTS_MAX; ++i)
+        CHECK(ranks.moves[i] == -1);
+    eg_reset(e.get());
+    ranks.size_bytes = sizeof(ranks);
+    CHECK(eg_read_ranked_roots_v1(e.get(), &ranks) == 1);
+    CHECK(ranks.count == 0);
+    std::cout << "ECLIPSE Stage B/C2 live ABI: atomic polling, rank legality, serial, invalidation, "
                  "native proof and cancellation PASS\n";
 }
