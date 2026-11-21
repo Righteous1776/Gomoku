@@ -69,6 +69,23 @@ struct ComputePolicy {
 // previously supported callers and original Swift/C++ parity benchmarks.
 enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
 
+// Exact incremental candidate frontier. For each empty intersection it
+// records how many occupied intersections lie within the trainer-selected
+// Chebyshev radius. It never changes ranking or excludes legal candidates:
+// this is a cache of the old geometry scan, NOT a search pruning heuristic.
+class CandidateCoverage {
+public:
+    void reset(int radius, const std::array<std::uint8_t, kCells> &cells);
+    void add(int index);
+    void remove(int index);
+    std::vector<int> candidates(const std::array<std::uint8_t, kCells> &cells) const;
+    int coverage(int index) const { return cover_[index]; }
+private:
+    int radius_ = 2;
+    std::array<std::int16_t, kCells> cover_{};
+    void adjust(int index, int delta);
+};
+
 class Search {
 public:
     using ProgressObserver = std::function<void(int,int,int,int,std::uint64_t)>;
@@ -108,6 +125,8 @@ private:
     ProgressObserver progress_{};
     int adaptive_profile_ = 0;
     int candidate_radius_ = 2;
+    CandidateCoverage coverage_{};
+    bool use_incremental_coverage_ = false;
     int root_width_ = 18;
     int proof_width_ = 28;
     int reply_width_ = 14;

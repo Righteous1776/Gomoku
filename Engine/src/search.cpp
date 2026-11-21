@@ -20,6 +20,39 @@ std::uint64_t splitmix(std::uint64_t &state) {
 }
 } // namespace
 
+void CandidateCoverage::adjust(int index, int delta) {
+    const int row = index / kSide, col = index % kSide;
+    const int min_row = std::max(0, row - radius_);
+    const int max_row = std::min(kSide - 1, row + radius_);
+    const int min_col = std::max(0, col - radius_);
+    const int max_col = std::min(kSide - 1, col + radius_);
+    for (int r = min_row; r <= max_row; ++r)
+        for (int c = min_col; c <= max_col; ++c)
+            cover_[r * kSide + c] += static_cast<std::int16_t>(delta);
+}
+void CandidateCoverage::reset(
+    int radius, const std::array<std::uint8_t, kCells> &cells) {
+    radius_ = std::clamp(radius, 1, kSide - 1);
+    cover_.fill(0);
+    for (int i = 0; i < kCells; ++i)
+        if (cells[i] != 0) add(i);
+}
+void CandidateCoverage::add(int index) { adjust(index, +1); }
+void CandidateCoverage::remove(int index) { adjust(index, -1); }
+std::vector<int> CandidateCoverage::candidates(
+    const std::array<std::uint8_t, kCells> &cells) const {
+    std::vector<int> result;
+    result.reserve(kCells);
+    bool occupied = false;
+    for (int i = 0; i < kCells; ++i) {
+        if (cells[i] != 0) { occupied = true; continue; }
+        if (cover_[i] > 0) result.push_back(i);
+    }
+    // Exact legacy empty-board opening, including the centre intersection.
+    if (!occupied) return {112};
+    return result;
+}
+
 bool should_stop_adaptive(const AdaptiveSearchEvidence &e) {
     if (e.profile < 1 || e.profile > 2 || e.root_alternatives < 1 ||
         e.best_score <= -5'000'000) return false;
@@ -64,11 +97,13 @@ const std::array<std::uint64_t, 3> &Search::side_hash() {
 
 void Search::place(int index, int side) {
     cells_[index] = static_cast<std::uint8_t>(side);
+    if (use_incremental_coverage_) coverage_.add(index);
     hash_ ^= zobrist()[index][side];
     --free_;
 }
 void Search::unplace(int index, int side) {
     cells_[index] = 0;
+    if (use_incremental_coverage_) coverage_.remove(index);
     hash_ ^= zobrist()[index][side];
     ++free_;
 }
@@ -110,6 +145,8 @@ bool Search::winning_move(int index, int side) const {
 std::vector<int> Search::neighbors(int radius) const {
     if (free_ == kCells) return {112};
     radius = std::clamp(radius, 1, kSide - 1);
+    if (use_incremental_coverage_ && radius == candidate_radius_)
+        return coverage_.candidates(cells_);
     std::array<bool, kCells> visited{};
     for (int i = 0; i < kCells; ++i) {
         if (!cells_[i]) continue;
@@ -294,6 +331,13 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
         place(move, side);
         const auto after = neighbors(candidate_radius_);
         const auto ours = immediate_wins(side, after);
+        // A forcing-four chain MUST create at least one immediate
+        // completion. If it does not, an opponent win scan is dead work:
+        // none of the success/recursion branches can be reached.
+        if (adaptive_profile_ == 3 && ours.empty()) {
+            unplace(move, side);
+            continue;
+        }
         const auto theirs = immediate_wins(other(side), after);
         if (theirs.empty() && ours.size() >= 2) {
             pv = {move, ours.front()};
@@ -439,6 +483,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     // budgeting but DISABLES speculative shallow score-gap exits.
     // 1/2 remain isolated diagnostic variants pending opponent validation.
     adaptive_profile_ = std::clamp(adaptive_profile, 0, 3);
+    use_incremental_coverage_ = false;
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -476,6 +521,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     hash_ = 0;
     for (int i = 0; i < kCells; ++i)
         if (cells_[i]) hash_ ^= zobrist()[i][cells_[i]];
+    if (adaptive_profile_ == 3) {
+        coverage_.reset(candidate_radius_, cells_);
+        use_incremental_coverage_ = true;
+    }
     auto finish = [&](int move, SearchStopReason reason, int depth) {
         SearchResult result;
         result.move = move;
