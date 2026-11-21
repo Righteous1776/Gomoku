@@ -1,17 +1,17 @@
 {
   "schema": "eclipse.product-generation-identity.v1",
-  "product_generation": "1.0",
+  "product_generation": "2.0",
   "model_lineage": "V9",
-  "owner_naming_approval": "ECLIPSE 1.0 Astra and ECLIPSE 1.0 Sol share product version 1.0; Sol is separately distilled",
+  "owner_naming_approval": "ECLIPSE 2.0 Astra and ECLIPSE 2.0 Sol share product generation 2.0; Sol is a separately distilled checkpoint. Preserve all historical 1.x version IDs.",
   "product_state": "NAMED_RESEARCH_CANDIDATES_NOT_RELEASED",
   "generation_requires_new_trained_weights": true,
   "compute_policy_is_version_number": false,
   "package_reference": "ECLIPSE-V9-Astra-Sol-Handoff-20261121.zip",
   "models": [
     {
-      "product_id": "eclipse-1.0-astra",
-      "display_name": "1.0 Astra",
-      "full_name": "ECLIPSE 1.0 Astra",
+      "product_id": "eclipse-2.0-astra",
+      "display_name": "2.0 Astra",
+      "full_name": "ECLIPSE 2.0 Astra",
       "internal_training_revision": "V9",
       "role": "flagship",
       "n_features": 26,
@@ -23,9 +23,9 @@
       "production_loaded": false
     },
     {
-      "product_id": "eclipse-1.0-sol",
-      "display_name": "1.0 Sol",
-      "full_name": "ECLIPSE 1.0 Sol",
+      "product_id": "eclipse-2.0-sol",
+      "display_name": "2.0 Sol",
+      "full_name": "ECLIPSE 2.0 Sol",
       "internal_training_revision": "V9",
       "role": "distilled_lightweight",
       "trained_from_family": "Astra",
@@ -40,9 +40,11 @@
     }
   ],
   "caveats": [
+    "All existing 1.x identities, archived match labels and signed histories remain unchanged; 2.0 is not an alias for an old Swift budget.",
     "Astra and Sol share one product generation, but are distinct trained checkpoints",
     "Model names do not imply that C++ V2 has loaded them",
     "Old Swift R10 defaults stay until real checkpoint identity and owner promotion gate pass",
     "No raw private match histories or personal SQLite included"
-  ]
+  ],
+  "previous_generation": "1.x (historical Swift model catalog, preserved for old matches)"
 }
