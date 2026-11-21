@@ -1,6 +1,13 @@
 # ECLIPSE · 最新成果上传与集成索引（2026-11-22）
 
-> 面向 Gomoku Owner 的 GitHub 可追溯清单。**已上传/已编译/已合并/已发布是四个不同状态。** 此页保存研究证据与代码所在 PR，不宣称任何 Draft PR 已进入主线。
+> 面向 Gomoku Owner 的 GitHub 可追溯清单。**已上传/已编译/已合并/已发布是四个不同状态。**
+
+## 2026-11-22 · 版本状态补记（取代下方历史 Draft 快照的当前状态）
+
+- **Gomoku 应用：V2.0.0 / Build 200**；[整合 PR #62](https://github.com/Righteous1776/Gomoku/pull/62) 已真实合并到 `main`，合并提交 `d85d505e5da796c0807a5c5eabb0ed22649470a2`。
+- **新模型：ECLIPSE 3.0**；R07 五份 34D 森林作为单独**研究代际**，身份/原始 SHA/未晋级门禁见 [PR #63](https://github.com/Righteous1776/Gomoku/pull/63)。不能把其研究代际与 V9 Astra/Sol 2.0 的当前真实执行身份混淆。
+- R07 研究权重 [PR #61](https://github.com/Righteous1776/Gomoku/pull/61) 已作为 #62 合并历史中的第二父提交（`9d0dfdb65725afe39faa92239e83ab1300d48fbf`）纳入主线；**合并权重不等于 34D 已在 iOS 加载**。
+- 下表是 **2026-11-22 早些时间的历史 PR 检查快照**；其中“Draft / 非 main”指当时状态，不是目前仓库的最新状态。正式 `v2.0.0` GitHub Release 与签名能力必须单独检查；不能因为代码合并就宣称 IPA 已发布。
 
 ## 工程源码：均已有 GitHub 分支及 PR
 
