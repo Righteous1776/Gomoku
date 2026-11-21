@@ -345,6 +345,9 @@ int eg_analyze_compute_policy_v2(
     chosen.continuation_width = policy->continuation_width;
     chosen.forced_line_depth = policy->forced_line_depth;
     chosen.candidate_radius = policy->candidate_radius;
+    // Adaptive means optional, measured decision stopping; it never sets a
+    // hidden wall-clock or node ceiling. Budgeted V2 remains unchanged.
+    chosen.adaptive_convergence = policy->mode == EG_COMPUTE_MODE_ADAPTIVE;
     try {
         e->cancelled.store(false, std::memory_order_release);
         // Each VALID native execution gets a fresh serial. The engine is

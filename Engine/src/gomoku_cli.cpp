@@ -134,6 +134,7 @@ try {
             std::cout<<"{\"move\":"<<d.move<<",\"status\":"<<eg_status(engine.get())
                      <<",\"elapsed_ms\":"<<d.elapsed_ms<<",\"nodes\":"<<d.nodes
                      <<",\"completed_depth\":"<<d.completed_depth
+                     <<",\"stop_reason_code\":"<<d.reason
                      <<",\"applied_compute_policy\":{\"mode\":"<<p.mode
                      <<",\"max_wall_time_ms\":"<<p.max_wall_time_ms
                      <<",\"max_nodes\":"<<p.max_nodes

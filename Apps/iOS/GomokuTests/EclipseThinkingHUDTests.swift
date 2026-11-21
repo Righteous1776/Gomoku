@@ -89,6 +89,11 @@ final class EclipseThinkingHUDTests: XCTestCase {
             EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_TIME_LIMIT)),
             "搜索预算耗尽（时间或节点）"
         )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_STABLE_CONVERGENCE)),
+            "低战术风险 · 连续完整深度收敛，主动结束（非必胜证明）"
+        )
         XCTAssertNil(EclipseThinkingHUDSnapshot.nativeStopReason(nil))
         XCTAssertNil(EclipseThinkingHUDSnapshot.nativeStopReason(-27))
     }

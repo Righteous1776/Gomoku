@@ -18,7 +18,8 @@ enum class SearchStopReason : int {
     only_move = 3,
     no_move = 4,
     time_limit = 5,
-    cancelled = 6
+    cancelled = 6,
+    stable_convergence = 7 // heuristic plateau; NOT proven perfect play
 };
 
 struct SearchResult {
@@ -47,6 +48,9 @@ struct ComputePolicy {
     int continuation_width = 0;
     int forced_line_depth = 0;
     int candidate_radius = 2;
+    // Internal-only: comes from verified EG_COMPUTE_MODE_ADAPTIVE.
+    // No change to C ABI V2 binary layout or user-defined limits.
+    bool adaptive_convergence = false;
 };
 
 // An explicit research-only selection; legacy remains the default for all

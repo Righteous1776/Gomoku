@@ -91,6 +91,8 @@ int eg_best_move_root_policy_v1(const EGEngine *engine, int max_milliseconds,
 #define EG_COMPUTE_MODE_ADAPTIVE 0
 #define EG_COMPUTE_MODE_BUDGETED 1
 #define EG_SEARCH_REASON_CANCELLED 6
+/* Heuristic low-risk decision plateau. NOT a mathematical win certificate. */
+#define EG_SEARCH_REASON_STABLE_CONVERGENCE 7
 typedef struct EGComputePolicyV2 {
     uint32_t size_bytes;              /* must equal sizeof(EGComputePolicyV2) */
     uint32_t mode;                    /* ADAPTIVE with ms=0, BUDGETED with ms>0 */

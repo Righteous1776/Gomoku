@@ -100,6 +100,8 @@ struct EclipseThinkingHUDSnapshot: Equatable {
             return "搜索预算耗尽（时间或节点）"
         case Int32(EG_SEARCH_REASON_CANCELLED):
             return "引擎收到取消信号"
+        case Int32(EG_SEARCH_REASON_STABLE_CONVERGENCE):
+            return "低战术风险 · 连续完整深度收敛，主动结束（非必胜证明）"
         default: return nil
         }
     }
