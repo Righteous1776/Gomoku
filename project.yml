@@ -13,9 +13,9 @@ settings:
     CLANG_CXX_LIBRARY: libc++
     CODE_SIGN_STYLE: Automatic
     DEVELOPMENT_TEAM: ''
-    MARKETING_VERSION: '1.0.0'
+    MARKETING_VERSION: '2.0.0'
     # Gomoku app release line (independent from ECLIPSE model generation).
-    CURRENT_PROJECT_VERSION: '2'
+    CURRENT_PROJECT_VERSION: '200'
 targets:
   Gomoku:
     type: application
