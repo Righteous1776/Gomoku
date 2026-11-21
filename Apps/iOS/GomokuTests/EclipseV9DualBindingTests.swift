@@ -99,6 +99,30 @@ final class EclipseV9DualBindingTests: XCTestCase {
         XCTAssertEqual(models[.sol20]?.checkpointSHA256, solSHA)
     }
 
+    func testVerifiedLocalRepertoireReachesCppRootPolicy() throws {
+        var state = GomokuState()
+        XCTAssertTrue(state.apply(index: 112, actor: .host))
+        XCTAssertTrue(state.apply(index: 97, actor: .guest))
+        let local = AdaptiveBoardLearningSnapshot(
+            preferences: [
+                AdaptiveBoardPosition.gomoku(state): ["113": 400]
+            ],
+            rootAdjustments: ["113": 300],
+            predictedHumanReplies: [:],
+            trainingLevel: 0
+        )
+        let root = EclipseCppRootLearningPolicy.build(
+            state: state, player: state.currentPlayer,
+            learning: local, formation: .disabled
+        )
+        XCTAssertTrue(root.isValid)
+        XCTAssertEqual(root.allowed.count, 225)
+        XCTAssertEqual(root.bonuses[113], 700)
+        XCTAssertEqual(root.bonuses[112], 0)
+        XCTAssertEqual(root.bonuses[97], 0)
+        XCTAssertTrue(root.allowed.allSatisfy { $0 == 1 })
+    }
+
     func testSwiftToRealCppV2MoveForBothApprovedModels() throws {
         let manifest = EclipseTrainerProductionRegistry.loadAllFromBundle(
             Bundle(for: EclipseCppProductionAdapter.self)
@@ -116,6 +140,31 @@ final class EclipseV9DualBindingTests: XCTestCase {
             XCTAssertTrue(
                 (decision.engineLabel ?? "").contains(model.family)
             )
+            // Local repeated-tactic preference must never overpower a
+            // mandatory immediate defense, even at the maximum bonus range.
+            let favoredWrongMove = AdaptiveBoardLearningSnapshot(
+                preferences: [:],
+                rootAdjustments: ["63": 2_000, "64": -2_000],
+                predictedHumanReplies: [:],
+                trainingLevel: 0
+            )
+            var forcedBoard = GomokuState()
+            for move in uniqueBlockHistory {
+                XCTAssertTrue(forcedBoard.apply(
+                    index: move, actor: forcedBoard.currentPlayer
+                ))
+            }
+            let root = EclipseCppRootLearningPolicy.build(
+                state: forcedBoard, player: forcedBoard.currentPlayer,
+                learning: favoredWrongMove, formation: .disabled
+            )
+            XCTAssertEqual(root.bonuses[63], 2_000)
+            XCTAssertEqual(root.bonuses[64], -2_000)
+            XCTAssertEqual(try XCTUnwrap(
+                running.decide(
+                    policy: trainer.computePolicy, rootPolicy: root
+                )
+            ).index, 64)
             // A mismatched compute policy cannot bypass Training Agent
             // authorization, even if it could have produced the same move.
             let bad = EclipseTrainerComputePolicy(
