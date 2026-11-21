@@ -36,6 +36,9 @@ if(BUILD_TESTING)
   # Optional portable Python CLI smoke: only synthetic boards, no private data.
   find_package(Python3 QUIET COMPONENTS Interpreter)
   if(Python3_Interpreter_FOUND)
+    add_test(NAME eclipse_v9_compiled_forest_provenance
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/verify_v9_compiled_provenance.py)
     add_test(NAME eclipse_v9_cli_rankers
       COMMAND ${Python3_EXECUTABLE}
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_v9_cli_rankers.py
@@ -49,6 +52,11 @@ if(BUILD_TESTING)
   # Full paired matches run in a standalone CI job, never in the main fast CTest.
   add_executable(eclipse_v9_arena tests/arena_v9_rankers.cpp)
   target_link_libraries(eclipse_v9_arena PRIVATE eclipse_core)
+  add_executable(eclipse_v9_compiled_binding_tests
+    tests/test_v9_compiled_binding.cpp)
+  target_link_libraries(eclipse_v9_compiled_binding_tests PRIVATE eclipse_core)
+  add_test(NAME eclipse_v9_compiled_binding
+    COMMAND eclipse_v9_compiled_binding_tests)
   add_executable(eclipse_v9_unique_block_tests tests/test_v9_unique_block.cpp)
   target_link_libraries(eclipse_v9_unique_block_tests PRIVATE eclipse_core)
   add_test(NAME eclipse_v9_unique_block COMMAND eclipse_v9_unique_block_tests)
