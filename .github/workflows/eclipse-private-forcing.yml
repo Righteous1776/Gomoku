@@ -1,0 +1,22 @@
+name: ECLIPSE R12 private forcing proof (synthetic only)
+on:
+  pull_request:
+    paths:
+      - 'Arena/private_forcing_forks.py'
+      - 'Arena/tests/test_private_forcing_forks.py'
+      - '.github/workflows/eclipse-private-forcing.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forcing-proof-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure no private SQLite or forcing positions in Git
+        run: |
+          ! git ls-files | grep -Ei 'ECLIPSE_PrivateEvidence|ECLIPSE_PrivateForcing|VeilLink-GomokuLearning-.*\.sqlite'
+      - name: Independently prove double threats and reject snapshot count inflation
+        run: |
+          python3 -m unittest -v discover -s Arena/tests -p 'test_private_forcing_forks.py'
