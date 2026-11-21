@@ -23,6 +23,8 @@
 
 - `Engine/tests/test_adaptive_stop_v3.cpp`: exact V2 geometry echo, exact V3 stopping config echo, unmodified native game state, no-output-on-invalid, certified tactical win priority, single allowed legal root convergence, and original V2 compatibility.
 - `EclipseThinkingHUDTests`: adaptive stop reason display keeps heuristic early termination distinct from mathematical proof.
+- The additional V3 native regression includes a compulsory unique block, high requested depth under a finite hard time ceiling, and genuine V2 vs V3 behavior isolation. Proof-line ply count is **not** incorrectly reported as a completed iterative-search depth in V3.
+- The developer HUD shows completed-round stability, uncalibrated native candidate gap, complexity tier and **estimated** next depth cost. Missing values are hidden rather than rendered as zero. Local P50/P95 windows are partitioned by model SHA, compute-policy SHA **and execution backend** so V2/V3 never share a latency distribution.
 - **Pending until CI finishes:** exact-head CTest, iOS simulator XCTest/build, real iPhone/iPad performance, tactical regression suites, V2 versus V3 paired games with identical weights and budgets, 6x strength comparisons, and measured per-move P50/P95 + undersearch/timeout rates.
 - New instrumentation evidence will be valid only after enough independent games and threat puzzles; a shorter wall-clock alone is not proof of improved quality.
 
