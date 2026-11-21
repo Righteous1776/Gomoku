@@ -78,6 +78,16 @@ int eg_best_move_root_policy_v1(const EGEngine *e, int ms,
     *out = snapshot;
     return 1;
 }
+/* No R29/214-tree trainer artifact is compiled/loaded in THIS Git branch.
+ * Fail closed rather than falsely identifying the frozen R10 ranker as new.
+ * Training Agent will replace this identity implementation alongside an
+ * actual compiled/loaded trained scorer, not by injecting a manifest string.
+ */
+int eg_active_trained_checkpoint_sha256_v2(char *out, int capacity) {
+    (void)out;
+    (void)capacity;
+    return 0;
+}
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
