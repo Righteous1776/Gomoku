@@ -90,7 +90,7 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         let hash = String(repeating: "a", count: 64)
         let digest = try XCTUnwrap(policy.sha256)
         let token = try XCTUnwrap(EclipseVerifiedTrainerExecution(
-            model: .astra10, trainingRevision: "R29",
+            model: .astra20, trainingRevision: "R29",
             checkpointSHA256: hash, loadedCheckpointSHA256: hash,
             computePolicy: policy,
             approvedComputePolicySHA256: digest, loadedComputePolicySHA256: digest
@@ -103,7 +103,9 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
             trainingDirectory: dir.appendingPathComponent("training"),
             verifiedTrainerExecution: token)
         XCTAssertFalse(controller.trainerControlsCompute)
-        controller.selectModel(.astra10)
+        // The verified trainer token belongs to 2.0 Astra only; legacy
+        // 1.0 Astra must never masquerade as a loaded native model.
+        controller.selectModel(.astra20)
         XCTAssertTrue(controller.trainerControlsCompute)
         XCTAssertEqual(policy.budget().timeLimitMilliseconds, 0)
         controller.selectModel(.sol10)
