@@ -136,6 +136,37 @@ int eg_analyze_compute_policy_v2(
  */
 void eg_cancel_search_v2(EGEngine *engine);
 
+/* Issue #50 / Stage B: additive C ABI for true read-only live telemetry.
+ * A concurrent reader MAY call this during eg_analyze_compute_policy_v2.
+ * It never touches the search board or makes a move. Caller sets size_bytes
+ * to sizeof(EGSearchLiveSnapshotV1). On failure, out remains untouched.
+ * A new search serial starts at every valid V2 execution, including failure.
+ * Serial is scoped to ONE EGEngine; the app also checks its position revision.
+ * Nodes are sampled at bounded intervals; completed_depth only advances
+ * after an entire iteration is finished. best_move is -1 until a completed
+ * iteration and MUST be hidden in formal matches until the AI has played.
+ * reason is -1 while searching; there is NO normalized win probability,
+ * PV, tactical proof or calibrated evaluation in this ABI.
+ */
+#define EG_LIVE_SEARCH_ABI_VERSION 1
+#define EG_LIVE_SEARCH_IDLE 0
+#define EG_LIVE_SEARCH_RUNNING 1
+#define EG_LIVE_SEARCH_COMPLETE 2
+#define EG_LIVE_SEARCH_FAILED 3
+#define EG_LIVE_SEARCH_CANCELLED 4
+typedef struct EGSearchLiveSnapshotV1 {
+    uint32_t size_bytes;
+    uint32_t state;             /* EG_LIVE_SEARCH_* */
+    uint64_t search_serial;     /* monotonic per engine, never a game ID */
+    uint64_t visited_nodes;     /* sampled native nodes */
+    int32_t completed_depth;    /* entire iterations only */
+    int32_t best_move;          /* -1 if not yet completed */
+    int32_t reason;             /* -1 until final result, else EG_SEARCH_REASON_* */
+    int32_t reserved;           /* zero */
+    int64_t elapsed_ms;         /* monotonic steady-clock milliseconds */
+} EGSearchLiveSnapshotV1;
+int eg_read_live_search_v1(const EGEngine *engine, EGSearchLiveSnapshotV1 *out);
+
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
  * Mutators are forbidden while any search runs. eg_reset restores 0.
