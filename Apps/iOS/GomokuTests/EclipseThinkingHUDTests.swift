@@ -36,6 +36,50 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertEqual(snapshot.reason, 876)
     }
 
+    func testNativeRankSnapshotIsVersionedAndEmptyWhileIdle() {
+        guard let handle = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(handle) }
+        var reading = EGRankedRootsSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGRankedRootsSnapshotV1>.size)
+        XCTAssertEqual(eg_read_ranked_roots_v1(handle, &reading), 1)
+        XCTAssertEqual(reading.search_serial, 0)
+        XCTAssertEqual(reading.count, 0)
+        reading.size_bytes = 0
+        reading.count = 999
+        XCTAssertEqual(eg_read_ranked_roots_v1(handle, &reading), 0)
+        XCTAssertEqual(reading.count, 999)
+    }
+
+    func testTeachingRankListRejectsFormalAndMalformedCandidates() {
+        var view = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 9, context: .formal,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 800,
+            visitedNodes: 4096, completedDepth: 1, stopReason: nil
+        )
+        view.nativeRootRanks = [111, 112, 113]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 9, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 800,
+            visitedNodes: 4096, completedDepth: nil, stopReason: nil
+        )
+        view.nativeRootRanks = [111, 112, 113]
+        XCTAssertEqual(view.visibleTeachingRanks, [111, 112, 113])
+        view.nativeRootRanks = [111, 111]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view.nativeRootRanks = [225]
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+        view.nativeRootRanks = Array(0..<17)
+        XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
+    }
+
     func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
         XCTAssertEqual(
             EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_FORCED_WIN)),
@@ -93,7 +137,9 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: 3, stopReason: nil
         )
         formal.verifiedTeachingCandidate = 112 // malicious fixture
+        formal.nativeRootRanks = [112, 113, 98]
         XCTAssertNil(formal.visibleTeachingCandidate)
+        XCTAssertTrue(formal.visibleTeachingRanks.isEmpty)
 
         var teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
@@ -103,6 +149,8 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: nil, stopReason: nil
         )
         teaching.verifiedTeachingCandidate = 112
+        teaching.nativeRootRanks = [112, 113, 98]
+        XCTAssertEqual(teaching.visibleTeachingRanks, [112, 113, 98])
         XCTAssertNil(teaching.visibleTeachingCandidate) // depth not completed
         teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,

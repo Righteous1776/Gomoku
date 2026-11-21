@@ -167,6 +167,20 @@ typedef struct EGSearchLiveSnapshotV1 {
 } EGSearchLiveSnapshotV1;
 int eg_read_live_search_v1(const EGEngine *engine, EGSearchLiveSnapshotV1 *out);
 
+/* Stage C2: the exact top-16 ordered shortlist of the actual native search.
+ * No artificial second scorer call, win probability or calibrated scores.
+ * The board/candidate legality gate has already run when the ranks publish.
+ * A formal game MUST NOT display these positions before AI placement.
+ */
+#define EG_LIVE_RANKED_ROOTS_MAX 16
+typedef struct EGRankedRootsSnapshotV1 {
+    uint32_t size_bytes;
+    uint32_t count;            /* 0..16 */
+    uint64_t search_serial;
+    int32_t moves[EG_LIVE_RANKED_ROOTS_MAX]; /* 0..224, unused=-1 */
+} EGRankedRootsSnapshotV1;
+int eg_read_ranked_roots_v1(const EGEngine *engine, EGRankedRootsSnapshotV1 *out);
+
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
  * Mutators are forbidden while any search runs. eg_reset restores 0.

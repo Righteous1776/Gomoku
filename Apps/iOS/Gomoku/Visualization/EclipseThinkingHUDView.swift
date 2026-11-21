@@ -93,6 +93,17 @@ struct EclipseThinkingHUDView: View {
                                 item("平均 NPS", snapshot.averageNPS.map(String.init) ?? "未提供")
                             }
                             item("终止原因", snapshot.stopReason ?? "未提供")
+                            if !snapshot.visibleTeachingRanks.isEmpty {
+                                let leading = snapshot.visibleTeachingRanks.prefix(5)
+                                    .enumerated().map { rank, index in
+                                        "#\(rank + 1) (\(index % 15 + 1),\(index / 15 + 1))"
+                                    }.joined(separator: " · ")
+                                item("C++ 已筛选候选排序 · 共\(snapshot.visibleTeachingRanks.count)",
+                                     leading)
+                                Text("原生根节点排序热力图：仅代表候选优先级，不是胜率。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             if let index = snapshot.visibleTeachingCandidate {
                                 item("已完成深度最佳落点 · 教学",
                                      "第 \(index / 15 + 1) 行 · 第 \(index % 15 + 1) 列")
