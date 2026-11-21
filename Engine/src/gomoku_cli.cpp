@@ -145,8 +145,8 @@ try {
                      <<",\"candidate_radius\":"<<p.candidate_radius
                      <<"}" << (explicit_research_ranker
                          ? (research_ranker==EG_RESEARCH_RANKER_V9_ASTRA
-                             ? ",\\\"research_ranker\\\":\\\"v9-astra\\\"" : ",\\\"research_ranker\\\":\\\"v9-sol\\\"") : "")
-                     << ",\\\"engine_revision\\\":\\\""<<eg_engine_revision()
+                             ? ",\"research_ranker\":\"v9-astra\"" : ",\"research_ranker\":\"v9-sol\"") : "")
+                     << ",\"engine_revision\":\""<<eg_engine_revision()
                      <<"\"}\n";
             return d.move<0?1:0;
         }
