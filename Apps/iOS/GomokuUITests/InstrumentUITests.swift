@@ -41,22 +41,35 @@ final class InstrumentUITests: XCTestCase {
     func testVersionedModelSelectorActuallyChangesActiveEclipseModel() {
         let app = XCUIApplication()
         app.launch()
+        let picker = app.buttons["gomoku.eclipse.model.open"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 15))
+        picker.tap()
 
-        let selector = app.buttons["gomoku.eclipse.model.selector"]
-        XCTAssertTrue(selector.waitForExistence(timeout: 15))
-        scrollUntilHittable(selector, in: app)
-        selector.tap()
-
+        let luna = app.buttons["gomoku.eclipse.model.eclipse-1.0-luna"]
+        let terra = app.buttons["gomoku.eclipse.model.eclipse-1.0-terra"]
         let astra = app.buttons["gomoku.eclipse.model.eclipse-1.0-astra"]
-        XCTAssertTrue(astra.waitForExistence(timeout: 6))
-        XCTAssertTrue(app.buttons["gomoku.eclipse.model.eclipse-1.0-luna"].exists)
-        capture(app, named: "Gomoku-ECLIPSE-versioned-model-library")
-        astra.tap()
+        XCTAssertTrue(astra.waitForExistence(timeout: 8))
+        XCTAssertTrue(luna.exists)
+        capture(app, named: "Gomoku-ECLIPSE-R15-model-library")
 
-        let changed = app.buttons["gomoku.eclipse.model.selector"]
-        XCTAssertTrue(changed.waitForExistence(timeout: 6))
-        XCTAssertTrue((changed.label).contains("1.0 Astra"),
-                      "Model selection must change the bound runtime identity")
+        // Switch to a known different version first so this tests actual
+        // state transitions even if the simulator persisted Astra previously.
+        terra.tap()
+        XCTAssertTrue(app.staticTexts[
+            "你 vs ECLIPSE 1.0 Terra · 离线对局"
+        ].waitForExistence(timeout: 8))
+        picker.tap()
+        XCTAssertTrue(astra.waitForExistence(timeout: 8))
+        astra.tap()
+        XCTAssertTrue(app.staticTexts[
+            "你 vs ECLIPSE 1.0 Astra · 离线对局"
+        ].waitForExistence(timeout: 8))
+
+        // Compute is a separate real preference, not a fictitious model version.
+        let compute = app.buttons["gomoku.eclipse.compute.selector"]
+        scrollUntilHittable(compute, in: app)
+        compute.tap()
+        XCTAssertTrue(app.buttons["极高"].waitForExistence(timeout: 6))
     }
 
     func testInstrumentDayAndNightModesAreSelectable() {
