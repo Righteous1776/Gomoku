@@ -93,7 +93,9 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: 3, stopReason: nil
         )
         formal.verifiedTeachingCandidate = 112 // malicious fixture
+        formal.nativeRootRanks = [112, 113, 98]
         XCTAssertNil(formal.visibleTeachingCandidate)
+        XCTAssertTrue(formal.visibleTeachingRanks.isEmpty)
 
         var teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
@@ -103,6 +105,8 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: nil, stopReason: nil
         )
         teaching.verifiedTeachingCandidate = 112
+        teaching.nativeRootRanks = [112, 113, 98]
+        XCTAssertEqual(teaching.visibleTeachingRanks, [112, 113, 98])
         XCTAssertNil(teaching.visibleTeachingCandidate) // depth not completed
         teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
