@@ -63,7 +63,17 @@ def check():
     assert "VeilBoardTapSurface(enabled: enabled)" in board
     assert "hypot(dx, dy) <= step * 0.52" in board
     assert "private var eclipseRuntime: some View" in main
-    assert main.index("                    eclipseIdentity") < main.index("                    eclipseRuntime") < main.index("                    boardQuickControls") < main.index("                    board")
+    # Compare FULL component names, not string prefixes: 'board' is
+    # a prefix of 'boardQuickControls', so substring .index() is incorrect.
+    source_rows = [line.strip() for line in main.splitlines()]
+    live_order = [row for row in source_rows if row in {
+        "statusCard", "eclipseIdentity", "eclipseRuntime",
+        "boardQuickControls", "board", "advancedPanel",
+    }]
+    assert live_order == [
+        "statusCard", "eclipseIdentity", "eclipseRuntime",
+        "boardQuickControls", "board", "advancedPanel",
+    ], live_order
     print("VEILLINK ORIGINAL R17 PARITY: 4 exact UI blobs + native V2/Swift bridge + status/board hierarchy PASS")
 
 if __name__ == "__main__":
