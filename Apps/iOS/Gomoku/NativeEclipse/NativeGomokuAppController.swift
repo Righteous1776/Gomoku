@@ -248,13 +248,19 @@ final class NativeGomokuAppController: ObservableObject {
     }
 
     /// No invented positions, likelihoods, PV, or progress percentage.
-    /// Current C++ V2 has no live iteration callback: nodes/depth remain
-    /// nil until it actually returns. Swift live metrics are session-gated.
+    /// The additive C++ live ABI samples genuine native nodes and fully
+    /// completed iterations. Swift metrics remain session-gated. An idle or
+    /// unverifiable native reader never inherits unrelated Swift metrics.
     func thinkingHUDSnapshot(
         uptime: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> EclipseThinkingHUDSnapshot {
         let identity = isThinking ? activeThinkingRun : lastThinkingRun
         let metrics = isThinking ? realSearchMetrics : nil
+        // The adapter and its engine are owned by this actor until the run
+        // resolves. The C++ snapshot function is explicitly concurrent-read
+        // safe; generation/reset clears activeCppSearch before a new board.
+        let nativeRun = isThinking && identity?.backend == "C++20 V2"
+        let nativeLive = nativeRun ? activeCppSearch?.liveSearchSnapshot() : nil
         let liveElapsed: Int? = searchStartedUptime.map {
             Int(max(0, uptime - $0) * 1000)
         }
@@ -274,8 +280,12 @@ final class NativeGomokuAppController: ObservableObject {
             checkpointSHA256: identity?.checkpointSHA256,
             computePolicySHA256: identity?.computePolicySHA256,
             elapsedMilliseconds: live ? liveElapsed : lastDecisionMilliseconds,
-            visitedNodes: live ? metrics?.visitedNodes : lastDecisionNodes,
-            completedDepth: live ? metrics?.completedDepth : lastDecisionDepth,
+            visitedNodes: live
+                ? (nativeRun ? nativeLive?.nodes : metrics?.visitedNodes)
+                : lastDecisionNodes,
+            completedDepth: live
+                ? (nativeRun ? nativeLive?.completedDepth : metrics?.completedDepth)
+                : lastDecisionDepth,
             stopReason: live ? nil : lastThinkingStopReason
         )
     }
