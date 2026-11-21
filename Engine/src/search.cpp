@@ -172,6 +172,7 @@ std::vector<int> Search::ordered(const std::vector<int> &moves,
     sorted.reserve(moves.size());
     for (int i : moves) sorted.emplace_back(i, trained_model::score(cells_, i, side));
     std::sort(sorted.begin(), sorted.end(), [preferred](const auto &a, const auto &b) {
+        if (a.first == b.first) return false; // strict weak ordering, including self
         if (a.first == preferred) return true;
         if (b.first == preferred) return false;
         if (a.second == b.second) return a.first < b.first;
