@@ -1,4 +1,4 @@
-name: ECLIPSE R19 unsigned device IPA candidate
+name: Gomoku V1.0.0 RC1 icon-verified unsigned iPhone IPA
 on:
   pull_request:
     paths:
@@ -6,6 +6,8 @@ on:
       - 'Engine/**'
       - 'project.yml'
       - 'Scripts/check_private_bundle.py'
+      - 'Scripts/check_gomoku_release_identity.py'
+      - 'Scripts/check_app_icon.py'
       - '.github/workflows/eclipse-r19-unsigned-device-ipa.yml'
   workflow_dispatch:
 permissions:
@@ -22,17 +24,21 @@ jobs:
         run: python3 Scripts/check_private_bundle.py
       - name: Install project generator
         run: brew install xcodegen
-      - name: Generate current R19 iOS project
+      - name: Generate Gomoku V1.0.0 RC1 iOS project
         run: xcodegen generate --spec project.yml
       - name: Build actual Release iphoneos application with C++ V2 production path
         run: |
           xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
-      - name: Check built app privacy before packaging
+      - name: Verify original owner icon, Gomoku app version and privacy
         run: |
-          python3 Scripts/check_private_bundle.py \
-            --app DerivedData/Build/Products/Release-iphoneos/Gomoku.app
+          set -euo pipefail
+          test "$(git hash-object Apps/iOS/Gomoku/Assets.xcassets/AppIcon.appiconset/AppIcon.png)" = 760087e995445b8da5ce82a5c272da2f757f2c44
+          APP=DerivedData/Build/Products/Release-iphoneos/Gomoku.app
+          python3 Scripts/check_app_icon.py "$APP"
+          python3 Scripts/check_gomoku_release_identity.py --app "$APP"
+          python3 Scripts/check_private_bundle.py --app "$APP"
       - name: Package and hash explicitly UNSIGNED build
         run: |
           set -euo pipefail
@@ -41,17 +47,19 @@ jobs:
             artifacts/Payload/Gomoku.app
           (
             cd artifacts
-            zip -qr ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa Payload
-            shasum -a 256 ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa \
-              > ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.sha256
+            zip -qr Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa Payload
+            shasum -a 256 Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa \
+              > Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.sha256
           )
           python3 Scripts/check_private_bundle.py \
-            --ipa artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa
+            --ipa artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
+          python3 Scripts/check_gomoku_release_identity.py \
+            --ipa artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
       - name: Export actual unsigned device IPA (not stock iOS installable)
         uses: actions/upload-artifact@v4
         with:
-          name: ECLIPSE-R19-UNSIGNED-DEVICE-PREVIEW
+          name: Gomoku-V1.0.0-RC1-Build2-UNSIGNED-DEVICE
           path: |
-            artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa
-            artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.sha256
+            artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
+            artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.sha256
           retention-days: 7
