@@ -26,6 +26,10 @@ int main() {
     // A timer does not determine convergence: incomplete or unstable
     // searches must keep thinking regardless of time already elapsed.
     CHECK(!should_stop_adaptive({0, 12, 8, 5000, 0, 6, 2000}));
+    // V4 shipping safeguard: even VERY stable shallow scores do NOT
+    // license early exit before matched tactical/arena validation.
+    CHECK(!should_stop_adaptive({3, 3, 5, 100000, 0, 6, 2000}));
+    CHECK(!should_stop_adaptive({3, 12, 9, 100000, 4, 6, 2000}));
     CHECK(!should_stop_adaptive({1, 2, 2, 5000, 0, 6, 2000}));
     CHECK(!should_stop_adaptive({1, 4, 1, 5000, 0, 6, 2000}));
     CHECK(!should_stop_adaptive({1, 4, 3, 30, 0, 6, 2000}));
@@ -44,7 +48,10 @@ int main() {
     CHECK(engine!=nullptr);
     CHECK(eg_adaptive_search_profile_v4(engine.get())==0);
     CHECK(eg_set_adaptive_search_profile_v4(engine.get(),-1)==0);
-    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),3)==0);
+    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),4)==0);
+    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),3)==1);
+    CHECK(eg_adaptive_search_profile_v4(engine.get())==3);
+    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),1)==1);
     CHECK(eg_set_adaptive_search_profile_v4(engine.get(),1)==1);
     CHECK(eg_adaptive_search_profile_v4(engine.get())==1);
     auto p=policy();
@@ -60,7 +67,7 @@ int main() {
     CHECK(eg_ply_count(engine.get())==2);
     eg_reset(engine.get());
     CHECK(eg_adaptive_search_profile_v4(engine.get())==0);
-    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),2)==1);
+    CHECK(eg_set_adaptive_search_profile_v4(engine.get(),3)==1);
     // Rule-certified immediate win must be decided without waiting for
     // 30 seconds or for an arbitrary minimum number of search rounds.
     for(int i=0;i<4;++i) {

@@ -27,7 +27,7 @@ enum class SearchStopReason : int {
 // alone is insufficient: search must also separate runner-up alternatives,
 // and tactical positions demand deeper independent evidence.
 struct AdaptiveSearchEvidence {
-    int profile = 0;       // 0=legacy exhaustive, 1=responsive, 2=deliberate
+    int profile = 0;       // 0=legacy exhaustive, 1/2=experimental, 3=strength guard (no heuristic exit)
     int completed_depth = 0;
     int stable_rounds = 0;
     int score_margin = 0;

@@ -140,8 +140,10 @@ void eg_cancel_search_v2(EGEngine *engine);
 
 /* V4: product interaction only, distinct from signed V9 model policy.
  * This selects the confidence/stability-based exit strategy (not a timer):
- * 0=legacy exhaustive (used for benchmark replay), 1=responsive adaptive,
- * 2=deliberate adaptive. Must be set only while no search is running.
+ * 0=legacy exhaustive (used for benchmark replay), 1/2=experimental
+ * heuristics (NOT shipped for production game moves), 3=strength guard:
+ * preserves geometry-based early CERTIFIED wins and adaptive proof/PVS
+ * split, but disables unverified shallow score-margin convergence. Must be set only while no search is running.
  * The original EGComputePolicyV2, loaded model SHA and tactical safety
  * gates remain unchanged. 30s/8s are maximum safety budgets, not delays.
  */

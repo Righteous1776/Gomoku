@@ -432,7 +432,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     finish_signal_ = finish_early;
     finished_early_ = false;
     progress_ = progress;
-    adaptive_profile_ = std::clamp(adaptive_profile, 0, 2);
+    // Production strength guard (3) retains selective tactical proof
+    // budgeting but DISABLES speculative shallow score-gap exits.
+    // 1/2 remain isolated diagnostic variants pending opponent validation.
+    adaptive_profile_ = std::clamp(adaptive_profile, 0, 3);
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;

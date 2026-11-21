@@ -559,10 +559,11 @@ final class NativeGomokuAppController: ObservableObject {
                     learning: learning,
                     formation: activeFormation
                 )
-                // No 2s/4s countdown. The C++ engine itself decides when a
-                // completed search has enough independent evidence: best move
-                // stable across depths, runner-up score gap and real threats.
-                // Training Agent's 8s/30s maximum is still a safety ceiling.
+                // Strength rollback: the 3/4-ply score-margin convergence
+                // judged too soon and regressed real play. Stop using it in
+                // release. Keep certified wins, forced blocking and genuine
+                // measured search depth. Trainer's 30s/8s remain ceilings,
+                // not an instruction to wait until the deadline.
                 let poller = Task.detached(priority: .utility) {
                     while !Task.isCancelled {
                         if let progress = cppRuntime.liveProgress() {
@@ -578,7 +579,13 @@ final class NativeGomokuAppController: ObservableObject {
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
                     rootPolicy: rooted,
-                    adaptiveProfile: selectedMode == .economy ? 1 : 2
+                    // SHIP BLOCKER: do NOT enable weak profile 1/2 until
+                    // paired tactical games and Tianyuan-6 challenge positions
+                    // show that early stopping preserves actual move quality.
+                    // Production uses 3: real adaptive proof allocation,
+                    // original FULL depth and hard trainer maxima, no
+                    // shallow "stable enough" heuristic cut-off.
+                    adaptiveProfile: 3
                 )
                 poller.cancel()
                 guard !Task.isCancelled else { return }

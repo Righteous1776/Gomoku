@@ -444,19 +444,25 @@ struct InstrumentHomeView: View {
     }
 
     private var deepSearchToggle: some View {
-        Toggle(isOn: Binding(
-            get: { engine.searchMode == .full },
-            set: { engine.searchMode = $0 ? .full : .economy }
-        )) {
-            Text("深入分析").font(.caption.weight(.semibold))
+        Group {
+            if engine.trainerControlsCompute {
+                Label("棋力保护", systemImage: "shield.checkered")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(VeilTheme.goldBright)
+                    .accessibilityHint("已暂停未经对局验证的浅层提前落子；保留完整搜索深度及真实战术证明")
+            } else {
+                Toggle(isOn: Binding(
+                    get: { engine.searchMode == .full },
+                    set: { engine.searchMode = $0 ? .full : .economy }
+                )) {
+                    Text("深入分析").font(.caption.weight(.semibold))
+                }
+                .tint(VeilTheme.gold)
+            }
         }
-        .tint(VeilTheme.gold)
         .frame(minHeight: 44)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityIdentifier("gomoku.eclipse.search-mode")
-        .accessibilityHint(engine.trainerControlsCompute
-            ? "开启为审慎的自适应搜索、关闭为响应优先的自适应搜索；没有固定等待秒数"
-            : "关闭后使用原版 Swift 节能搜索")
     }
 
     private var board: some View {

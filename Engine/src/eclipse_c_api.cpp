@@ -146,7 +146,7 @@ void eg_cancel_search_v2(EGEngine *e) {
 }
 
 int eg_set_adaptive_search_profile_v4(EGEngine *e, int32_t profile) {
-    if (!e || profile < 0 || profile > 2 ||
+    if (!e || profile < 0 || profile > 3 ||
         e->progress_running.load(std::memory_order_acquire)) return 0;
     // Application initializes this setting before analysis. Atomic storage
     // also prevents a data race if a caller violates that lifecycle.
