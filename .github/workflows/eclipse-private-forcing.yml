@@ -19,4 +19,4 @@ jobs:
           ! git ls-files | grep -Ei 'ECLIPSE_PrivateEvidence|ECLIPSE_PrivateForcing|VeilLink-GomokuLearning-.*\.sqlite'
       - name: Independently prove double threats and reject snapshot count inflation
         run: |
-          python3 -m unittest -v discover -s Arena/tests -p 'test_private_forcing_forks.py'
+          python3 -m unittest discover -v -s Arena/tests -p 'test_private_forcing_forks.py'
