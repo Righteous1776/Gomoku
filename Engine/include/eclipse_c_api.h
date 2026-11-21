@@ -92,6 +92,7 @@ int eg_best_move_root_policy_v1(const EGEngine *engine, int max_milliseconds,
 #define EG_COMPUTE_MODE_BUDGETED 1
 #define EG_SEARCH_REASON_CANCELLED 6
 #define EG_SEARCH_REASON_USER_FINISH 7
+#define EG_SEARCH_REASON_ADAPTIVE_STABLE 8
 typedef struct EGComputePolicyV2 {
     uint32_t size_bytes;              /* must equal sizeof(EGComputePolicyV2) */
     uint32_t mode;                    /* ADAPTIVE with ms=0, BUDGETED with ms>0 */
@@ -136,6 +137,16 @@ int eg_analyze_compute_policy_v2(
  * The caller must NOT mutate/play/reset/destroy engine until search returns.
  */
 void eg_cancel_search_v2(EGEngine *engine);
+
+/* V4: product interaction only, distinct from signed V9 model policy.
+ * This selects the confidence/stability-based exit strategy (not a timer):
+ * 0=legacy exhaustive (used for benchmark replay), 1=responsive adaptive,
+ * 2=deliberate adaptive. Must be set only while no search is running.
+ * The original EGComputePolicyV2, loaded model SHA and tactical safety
+ * gates remain unchanged. 30s/8s are maximum safety budgets, not delays.
+ */
+int eg_set_adaptive_search_profile_v4(EGEngine *engine, int32_t profile);
+int eg_adaptive_search_profile_v4(const EGEngine *engine);
 
 /* V3 live native search: only explored root and TT-derived continuations,
  * never private training records. The UI revalidates paths and session.

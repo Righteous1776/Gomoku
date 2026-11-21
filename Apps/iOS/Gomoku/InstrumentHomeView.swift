@@ -313,7 +313,7 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("模型版本代表训练/算法世代，不代表思考时间。当前原版 Swift 使用历史预算仅为兼容与评测；训练 Agent 的新检查点可指定自适应搜索，没有固定的时间或节点上限。")
+                    Text("Gomoku 的 ECLIPSE 2.0 依据局面威胁和多轮搜索是否收敛决定何时落子；Astra 最多 30 秒、Sol 最多 8 秒是安全预算上限，不是固定倒计时。深入分析会采用更严格的收敛判据。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
@@ -398,7 +398,7 @@ struct InstrumentHomeView: View {
         }
         .disabled(engine.trainerControlsCompute)
         .accessibilityHint(engine.trainerControlsCompute
-            ? "训练模型仍由训练 Agent 核验；快速应答仅提前结束当前交互搜索"
+            ? "训练模型参数由训练 Agent 核验；落子时机由局面复杂度和多轮搜索稳定性自主判断"
             : "当前为原版 Swift 历史兼容策略；新的训练检查点不会被旧档位时间限制")
         .accessibilityIdentifier("gomoku.eclipse.compute.selector")
     }
@@ -408,13 +408,13 @@ struct InstrumentHomeView: View {
             get: { engine.searchMode == .full },
             set: { engine.searchMode = $0 ? .full : .economy }
         )) {
-            Text("深度搜索").font(.caption.weight(.semibold))
+            Text("深入分析").font(.caption.weight(.semibold))
         }
         .tint(VeilTheme.gold)
         .fixedSize(horizontal: true, vertical: false)
         .accessibilityIdentifier("gomoku.eclipse.search-mode")
         .accessibilityHint(engine.trainerControlsCompute
-            ? "关闭为快速应答：Astra约4秒、Sol约2秒；开启使用原始完整模型预算"
+            ? "开启为审慎的自适应搜索、关闭为响应优先的自适应搜索；没有固定等待秒数"
             : "关闭后使用原版 Swift 节能搜索")
     }
 

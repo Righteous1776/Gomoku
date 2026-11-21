@@ -20,6 +20,25 @@ std::uint64_t splitmix(std::uint64_t &state) {
 }
 } // namespace
 
+bool should_stop_adaptive(const AdaptiveSearchEvidence &e) {
+    if (e.profile < 1 || e.profile > 2 || e.root_alternatives < 1 ||
+        e.best_score <= -5'000'000) return false;
+    const bool tactical = e.tactical_windows > 0;
+    const int minimum_depth = tactical
+        ? (e.profile == 1 ? 5 : 6)
+        : (e.profile == 1 ? 3 : 4);
+    const int minimum_stability = tactical
+        ? 3 : (e.profile == 1 ? 2 : 3);
+    const int required_margin = tactical
+        ? (e.profile == 1 ? 1000 : 1800)
+        : (e.profile == 1 ? 180 : 350);
+    // A single fork-safe root still needs at least a completed depth;
+    // competing roots must be scored in the SAME fully completed round.
+    return e.completed_depth >= minimum_depth &&
+        e.stable_rounds >= minimum_stability &&
+        (e.root_alternatives == 1 || e.score_margin >= required_margin);
+}
+
 const std::array<std::array<std::uint64_t, 3>, kCells> &Search::zobrist() {
     static const auto keys = [] {
         std::array<std::array<std::uint64_t, 3>, kCells> result{};
@@ -148,6 +167,24 @@ int Search::fork_count(int side) const {
                         ++count;
                     }
                 }
+            }
+    return count;
+}
+
+int Search::threat_windows(int side) const {
+    int count = 0;
+    for (const auto &axis : kAxes)
+        for (int row = 0; row < kSide; ++row)
+            for (int col = 0; col < kSide; ++col) {
+                if (!inside(row + 4 * axis[0], col + 4 * axis[1])) continue;
+                int own = 0, enemy = 0;
+                for (int k = 0; k < 5; ++k) {
+                    const auto cell = cells_[(row + k * axis[0]) * kSide +
+                                             col + k * axis[1]];
+                    own += cell == side;
+                    enemy += cell == other(side);
+                }
+                if (enemy == 0 && own >= 3) ++count;
             }
     return count;
 }
@@ -385,7 +422,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                              const ComputePolicy *compute,
                              const std::atomic<bool> *cancel,
                              const std::atomic<bool> *finish_early,
-                             const ProgressObserver &progress) {
+                             const ProgressObserver &progress,
+                             int adaptive_profile) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -394,6 +432,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     finish_signal_ = finish_early;
     finished_early_ = false;
     progress_ = progress;
+    adaptive_profile_ = std::clamp(adaptive_profile, 0, 2);
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -463,6 +502,24 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         if (blocks.empty()) return finish(-1, SearchStopReason::no_move, 0);
         return finish(blocks.front(), SearchStopReason::forced_block, 0);
     }
+    // Threat complexity is geometric, not a timer. A forcing-four proof is
+    // impossible on this current turn if the mover has no unblocked three
+    // inside ANY five-window: one placement cannot create four from two.
+    // This prevents an opening search from spending all 30s 'proving' a
+    // non-existent immediate forcing-four line.
+    const int own_threats = adaptive_profile_ > 0 ? threat_windows(side) : 0;
+    const int enemy_threats = adaptive_profile_ > 0 ? threat_windows(other(side)) : 0;
+    const int tactical_complexity = own_threats + enemy_threats;
+    if (adaptive_profile_ > 0 && !open_ended) {
+        // Preserve a proportion of the trainer's maximum for real PVS search.
+        // A stronger threat earns more proof work, but never the whole clock.
+        const int proof_fraction = std::clamp(
+            16 + 6 * std::min(4, own_threats) +
+                 2 * std::min(4, enemy_threats), 16, 52);
+        proof_deadline_ = std::min(
+            deadline_, started + std::chrono::milliseconds(
+                std::max<std::int64_t>(1, max_ms * proof_fraction / 100)));
+    }
     // Original Swift normalized root ranking is additive only after verified
     // mandatory tactics, and never changes a mate / forced-loss certificate.
     auto root_ordered = [&](const std::vector<int> &candidates, int limit) {
@@ -530,7 +587,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
+    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40) &&
+        (adaptive_profile_ == 0 || own_threats > 0)) {
         std::vector<int> pv;
         if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty()) {
             if (progress_ && nodes_ > 0)
@@ -549,8 +607,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
+    int previous_completed_best = -1, stable_rounds = 0;
     for (int depth = 1; depth <= max_depth_; ++depth) {
-        int round_best = -1, round_score = -kInf;
+        int round_best = -1, round_score = -kInf, runner_up = -kInf;
         for (int move : ranked) {
             ++nodes_;
             if (limit_reached()) break;
@@ -562,16 +621,32 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             if (policy && std::abs(score) < kMate / 2)
                 score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
+                runner_up = round_score;
                 round_score = score;
                 round_best = move;
+            } else if (score > runner_up) {
+                runner_up = score;
             }
         }
         if (timed_out_) break;
         if (round_best >= 0) {
             incumbent = round_best;
             completed = depth;
+            stable_rounds = round_best == previous_completed_best
+                ? stable_rounds + 1 : 1;
+            previous_completed_best = round_best;
             report_root(incumbent, completed, side);
             if (round_score >= kMate / 2) break;
+            const int gap = runner_up == -kInf
+                ? kInf : round_score - runner_up;
+            if (should_stop_adaptive(AdaptiveSearchEvidence{
+                adaptive_profile_, completed, stable_rounds, gap,
+                tactical_complexity, static_cast<int>(ranked.size()),
+                round_score
+            })) {
+                return finish(incumbent, SearchStopReason::adaptive_stable,
+                              completed);
+            }
         }
     }
     return finish(incumbent, cancelled_ ? SearchStopReason::cancelled

@@ -19,6 +19,7 @@ struct EGEngine {
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
+    int adaptive_search_profile = 0;
 };
 
 extern "C" {
@@ -44,7 +45,7 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
 }
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0;}}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; e->adaptive_search_profile=0;}}
 int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
 int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -103,6 +104,7 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
     e->verified_v9_model = 0; // Research selection never inherits production attestation.
+    e->adaptive_search_profile = 0;
     return 1;
 }
 int eg_research_ranker_v3(const EGEngine *e) {
@@ -126,6 +128,7 @@ int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
         std::strncmp(actual, expected_sha256, 65) != 0) return 0;
     e->research_ranker = model;
     e->verified_v9_model = model;
+    e->adaptive_search_profile = 0;
     return 1;
 }
 int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
@@ -142,6 +145,14 @@ void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
 }
 
+int eg_set_adaptive_search_profile_v4(EGEngine *e, int32_t profile) {
+    if (!e || profile < 0 || profile > 2) return 0;
+    e->adaptive_search_profile = profile;
+    return 1;
+}
+int eg_adaptive_search_profile_v4(const EGEngine *e) {
+    return e ? e->adaptive_search_profile : -1;
+}
 int eg_search_progress_abi_version(void) { return EG_SEARCH_PROGRESS_ABI_VERSION; }
 void eg_request_search_finish_v3(EGEngine *e) {
     if (e) e->finish_requested.store(true, std::memory_order_release);
@@ -245,7 +256,7 @@ int eg_analyze_compute_policy_v2(
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
-            &e->finish_requested, publish);
+            &e->finish_requested, publish, e->adaptive_search_profile);
         e->progress_running.store(false, std::memory_order_seq_cst);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0))

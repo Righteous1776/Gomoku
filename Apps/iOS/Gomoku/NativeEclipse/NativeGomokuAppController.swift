@@ -559,17 +559,10 @@ final class NativeGomokuAppController: ObservableObject {
                     learning: learning,
                     formation: activeFormation
                 )
-                // The verified trainer policy remains immutable; the user
-                // may request a bounded *interactive* best-so-far answer.
-                let quickLimit: Int? = selectedMode == .economy
-                    ? (model == .astra20 ? 4_000 : 2_000) : nil
-                let softFinish: Task<Void, Never>? = quickLimit.map { ms in
-                    Task.detached(priority: .utility) {
-                        try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
-                        guard !Task.isCancelled else { return }
-                        cppRuntime.requestFastFinish()
-                    }
-                }
+                // No 2s/4s countdown. The C++ engine itself decides when a
+                // completed search has enough independent evidence: best move
+                // stable across depths, runner-up score gap and real threats.
+                // Training Agent's 8s/30s maximum is still a safety ceiling.
                 let poller = Task.detached(priority: .utility) {
                     while !Task.isCancelled {
                         if let progress = cppRuntime.liveProgress() {
@@ -584,9 +577,9 @@ final class NativeGomokuAppController: ObservableObject {
                 }
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
-                    rootPolicy: rooted
+                    rootPolicy: rooted,
+                    adaptiveProfile: selectedMode == .economy ? 1 : 2
                 )
-                softFinish?.cancel()
                 poller.cancel()
                 guard !Task.isCancelled else { return }
                 if let cppDecision {

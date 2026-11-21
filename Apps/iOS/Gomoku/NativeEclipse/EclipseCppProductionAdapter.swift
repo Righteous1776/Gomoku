@@ -166,13 +166,18 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// The search always executes off the MainActor.
     func decide(
         policy: EclipseTrainerComputePolicy,
-        rootPolicy: EclipseCppRootLearningPolicy? = nil
+        rootPolicy: EclipseCppRootLearningPolicy? = nil,
+        adaptiveProfile: Int32 = 0
     ) -> GomokuBotMove? {
         guard rootPolicy?.isValid != false,
               policy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
+        else { return nil }
+        // Product-level search convergence cannot change the verified model
+        // policy SHA, tree weights or trainer-selected search geometry.
+        guard eg_set_adaptive_search_profile_v4(engine, adaptiveProfile) == 1
         else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
@@ -231,8 +236,10 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
             engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2" +
-                (run.search.reason == EG_SEARCH_REASON_USER_FINISH
-                    ? " · 快速应答（非完整搜索）" : ""),
+                (run.search.reason == EG_SEARCH_REASON_ADAPTIVE_STABLE
+                    ? " · 局面稳定后自主收敛" :
+                    run.search.reason == EG_SEARCH_REASON_USER_FINISH
+                    ? " · 用户提前结束（非完整搜索）" : ""),
             completedDepth: Int(run.search.completed_depth)
         )
     }

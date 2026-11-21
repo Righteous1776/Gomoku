@@ -19,8 +19,23 @@ enum class SearchStopReason : int {
     no_move = 4,
     time_limit = 5,
     cancelled = 6,
-    user_finish = 7
+    user_finish = 7,
+    adaptive_stable = 8 // completed depths agree and root margin is verified
 };
+
+// Pure convergence rule: no wall-clock thresholds. A stable best move
+// alone is insufficient: search must also separate runner-up alternatives,
+// and tactical positions demand deeper independent evidence.
+struct AdaptiveSearchEvidence {
+    int profile = 0;       // 0=legacy exhaustive, 1=responsive, 2=deliberate
+    int completed_depth = 0;
+    int stable_rounds = 0;
+    int score_margin = 0;
+    int tactical_windows = 0;
+    int root_alternatives = 0;
+    int best_score = 0;
+};
+bool should_stop_adaptive(const AdaptiveSearchEvidence &evidence);
 
 struct SearchResult {
     int move = -1;
@@ -64,7 +79,8 @@ public:
                          const ComputePolicy *compute = nullptr,
                          const std::atomic<bool> *cancel = nullptr,
                          const std::atomic<bool> *finish_early = nullptr,
-                         const ProgressObserver &progress = {});
+                         const ProgressObserver &progress = {},
+                         int adaptive_profile = 0);
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -90,6 +106,7 @@ private:
     const std::atomic<bool> *finish_signal_ = nullptr;
     bool finished_early_ = false;
     ProgressObserver progress_{};
+    int adaptive_profile_ = 0;
     int candidate_radius_ = 2;
     int root_width_ = 18;
     int proof_width_ = 28;
@@ -116,6 +133,7 @@ private:
     std::vector<int> neighbors(int radius = 2) const;
     std::vector<int> immediate_wins(int side, const std::vector<int> &candidates) const;
     int fork_count(int side) const;
+    int threat_windows(int side) const;
     int pattern_priority(int index, int side) const;
     std::vector<int> ordered(const std::vector<int> &moves, int side,
                              int limit, int previous_best = -1) const;
