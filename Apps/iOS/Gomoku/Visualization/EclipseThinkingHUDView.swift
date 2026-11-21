@@ -68,6 +68,23 @@ struct EclipseThinkingHUDView: View {
                     .accessibilityIdentifier("gomoku.thinking-hud.level")
                 }
             }
+            if expanded && engine.developerTeachingMode
+                && engine.developerAuthorization.isAuthorized
+                && engine.status == 0 {
+                Button {
+                    engine.analyzeTeachingPosition()
+                } label: {
+                    Label(
+                        engine.isThinking ? "正在分析此局面" : "分析当前局面 · 不自动落子",
+                        systemImage: "cpu"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(VeilTheme.goldBright)
+                }
+                .buttonStyle(.plain)
+                .disabled(engine.isThinking)
+                .accessibilityIdentifier("gomoku.thinking-hud.teaching-analyze")
+            }
             if expanded {
                 // Only this footer refreshes. 2 Hz in foreground, 1 Hz for
                 // Reduce Motion / Low Power; no background stream or board
