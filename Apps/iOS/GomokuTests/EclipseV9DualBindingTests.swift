@@ -61,9 +61,9 @@ final class EclipseV9DualBindingTests: XCTestCase {
         XCTAssertEqual(accepted[.astra20]?.trainingRevision, "V9")
         XCTAssertEqual(accepted[.sol20]?.trainingRevision, "V9")
         XCTAssertEqual(
-            EclipseModelID.featuredIncludingVerified(
+            Array(EclipseModelID.featuredIncludingVerified(
                 Array(accepted.keys)
-            ).prefix(2),
+            ).prefix(2)),
             [.astra20, .sol20]
         )
     }
