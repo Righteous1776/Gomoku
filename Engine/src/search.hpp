@@ -1,6 +1,7 @@
 #pragma once
 #include "board.hpp"
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <unordered_map>
@@ -15,7 +16,8 @@ enum class SearchStopReason : int {
     forced_block = 2,
     only_move = 3,
     no_move = 4,
-    time_limit = 5
+    time_limit = 5,
+    cancelled = 6
 };
 
 struct SearchResult {
@@ -33,10 +35,25 @@ struct RootPolicy {
     std::array<int, kCells> bonus{};
 };
 
+// Research V2: an independently trained model owns its full search geometry.
+// Zero time/nodes = no imposed cutoff. Do not derive policy from old tiers.
+struct ComputePolicy {
+    std::int64_t max_wall_time_ms = 0;
+    std::uint64_t max_nodes = 0;
+    int max_depth = 1;
+    int root_width = 1;
+    int reply_width = 1;
+    int continuation_width = 0;
+    int forced_line_depth = 0;
+    int candidate_radius = 2;
+};
+
 class Search {
 public:
     SearchResult analyze(const Board &root, int milliseconds,
-                         const RootPolicy *policy = nullptr);
+                         const RootPolicy *policy = nullptr,
+                         const ComputePolicy *compute = nullptr,
+                         const std::atomic<bool> *cancel = nullptr);
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -55,6 +72,15 @@ private:
     std::uint64_t nodes_ = 0;
     std::uint64_t node_cap_ = 80'000;
     bool timed_out_ = false;
+    bool cancelled_ = false;
+    const std::atomic<bool> *cancel_signal_ = nullptr;
+    int candidate_radius_ = 2;
+    int root_width_ = 18;
+    int reply_width_ = 14;
+    int continuation_width_ = 14;
+    int forced_line_depth_ = 5;
+    int leaf_forced_blocks_ = 2;
+    int max_depth_ = 9;
     std::array<bool, kCells> allowed_proof_root_{};
     Clock::time_point deadline_{};
     Clock::time_point proof_deadline_{};
