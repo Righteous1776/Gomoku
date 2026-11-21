@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <limits>
 #include <numeric>
+#include <cstdlib>
 #include <utility>
 
 namespace eclipse {
@@ -394,7 +395,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                              const std::atomic<bool> *cancel,
                              const ProgressSink &progress,
                              const RankedRootsSink &ranked_roots,
-                             const PVSink &pv) {
+                             const PVSink &pv,
+                             const AdaptiveStopPolicy *adaptive) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -414,10 +416,11 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     leaf_forced_blocks_ = compute ? compute->forced_line_depth : 2;
     table_.clear();
     allowed_proof_root_.fill(false);
-    // Research API convention: 0 means no imposed wall-clock deadline.
-    // Positive time budgets come from the training agent or experiment
-    // caller. Do not silently clamp a requested 30s / 90s to 20s.
-    const std::int64_t max_ms = compute ? compute->max_wall_time_ms
+    // V2 convention remains unchanged: zero is open-ended. Opt-in V3
+    // replaces ONLY that unbounded deadline with the trainer-selected
+    // finite complex-position ceiling; simple positions finish earlier.
+    const std::int64_t max_ms = adaptive ? adaptive->complex_budget_ms
+        : compute ? compute->max_wall_time_ms
         : static_cast<std::int64_t>(std::max(0, milliseconds));
     const bool open_ended = max_ms == 0;
     const auto until_max = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -441,8 +444,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     hash_ = 0;
     for (int i = 0; i < kCells; ++i)
         if (cells_[i]) hash_ ^= zobrist()[i][cells_[i]];
+    AdaptiveStopEvidence evidence{};
     auto finish = [&](int move, SearchStopReason reason, int depth) {
         SearchResult result;
+        result.adaptive = evidence;
         result.move = move;
         result.reason = reason;
         result.completed_depth = depth;
@@ -539,12 +544,29 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
+    const bool tactical_risk =
+        fork_count(side) > 0 || fork_count(other(side)) > 0 ||
+        std::any_of(risks.begin(), risks.end(),
+            [](const auto &r) { return r.second > 0; });
+    if (adaptive) {
+        // Proof phase must not consume the entire complex ceiling when the
+        // current position is quiet. A detected fork risk earns substantially
+        // more proof time, but every stage remains under the same hard cap.
+        const auto proof_ms = tactical_risk
+            ? std::max<std::int64_t>(adaptive->clear_budget_ms,
+                adaptive->complex_budget_ms / 3)
+            : std::max<std::int64_t>(100, adaptive->clear_budget_ms / 2);
+        proof_deadline_ = std::min(deadline_,
+            started + std::chrono::milliseconds(proof_ms));
+    }
     for (const int i : eligible) allowed_proof_root_[i] = true;
     if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
         if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
+            // The historical V2 reports proof-line length here. In V3,
+            // completed_depth must mean ONLY fully searched root iterations.
             return finish(pv.front(), SearchStopReason::forced_win,
-                          static_cast<int>(pv.size()));
+                          adaptive ? 0 : static_cast<int>(pv.size()));
     }
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
@@ -553,11 +575,19 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
+    // An unsafe fork response makes the position high-complexity even if
+    // the model repeats a favorite move. A stable move is NOT a proof.
+    int stable_completed = 0;
+    int previous_move = -1;
+    int previous_score = 0;
+    std::uint64_t previous_iteration_nodes = 0;
     // Report exactly the shortlist this search actually uses, once per
     // search. This is rank order, NOT probability or a shared score scale.
     if (ranked_roots) ranked_roots(ranked);
     for (int depth = 1; depth <= max_depth_; ++depth) {
-        int round_best = -1, round_score = -kInf;
+        const auto round_started = Clock::now();
+        const auto nodes_before_round = nodes_;
+        int round_best = -1, round_score = -kInf, runner_up = -kInf;
         for (int move : ranked) {
             ++nodes_;
             if (limit_reached()) break;
@@ -568,8 +598,11 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             if (policy && std::abs(score) < kMate / 2)
                 score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
+                runner_up = round_score;
                 round_score = score;
                 round_best = move;
+            } else if (score > runner_up) {
+                runner_up = score;
             }
         }
         if (timed_out_) break;
@@ -582,6 +615,81 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             if (pv) pv(completed, extract_verified_pv_prefix(
                 incumbent, side, completed));
             if (round_score >= kMate / 2) break;
+
+            if (adaptive) {
+                // Only fully completed root rounds can affect the decision.
+                const auto finished_at = Clock::now();
+                const auto round_ms = std::max<std::int64_t>(1,
+                    std::chrono::duration_cast<std::chrono::milliseconds>(
+                        finished_at - round_started).count());
+                const auto round_nodes = nodes_ - nodes_before_round;
+                const auto elapsed = std::chrono::duration_cast<
+                    std::chrono::milliseconds>(finished_at - started).count();
+                const int gap = runner_up == -kInf ? kInf :
+                    std::max(0, round_score - runner_up);
+                const bool same_move = previous_move == incumbent;
+                stable_completed = same_move ? stable_completed + 1 : 1;
+                // Oscillating search scores reveal a possible horizon effect;
+                // their scale is native engine units, not a win probability.
+                const bool quiet_score = same_move &&
+                    std::llabs(static_cast<long long>(round_score) -
+                               static_cast<long long>(previous_score))
+                        <= static_cast<long long>(adaptive->min_score_gap) * 2;
+                const bool ambiguous = runner_up != -kInf &&
+                    gap < adaptive->min_score_gap;
+                const bool uncertain = stable_completed <
+                    adaptive->stable_rounds || !quiet_score;
+                evidence.score_gap = gap;
+                evidence.stable_rounds = stable_completed;
+                // A close second-best move is NOT automatically a deep
+                // tactical crisis if the same choice remains stable across
+                // completed depths. Keep it uncertain, not always 45s.
+                evidence.complexity = tactical_risk ||
+                    (ambiguous && stable_completed < adaptive->stable_rounds)
+                        ? 2 : (uncertain || ambiguous) ? 1 : 0;
+                // Forecast one MORE depth from actual cost growth. This
+                // estimate is telemetry for efficient stopping, not a
+                // promise that the next round will take precisely this long.
+                const double growth = previous_iteration_nodes > 0
+                    ? std::clamp(
+                        static_cast<double>(round_nodes) /
+                        static_cast<double>(previous_iteration_nodes),
+                        1.25, 10.0)
+                    : 2.0;
+                const auto prediction = std::min<double>(
+                    static_cast<double>(adaptive->complex_budget_ms),
+                    static_cast<double>(round_ms) * growth);
+                evidence.predicted_next_ms =
+                    std::max<std::int64_t>(1, static_cast<std::int64_t>(prediction));
+                previous_iteration_nodes = std::max<std::uint64_t>(1, round_nodes);
+                previous_move = incumbent;
+                previous_score = round_score;
+                if (depth >= adaptive->minimum_depth &&
+                    stable_completed >= adaptive->stable_rounds &&
+                    quiet_score && !tactical_risk && !ambiguous)
+                    return finish(incumbent,
+                        SearchStopReason::adaptive_converged, depth);
+
+                // The cap is POSITION DEPENDENT: clear positions receive a
+                // small budget, uncertain ones more, tactical/ambiguous the
+                // largest. The final ceiling is still finite. We stop BEFORE
+                // spending a predicted unfinishable next depth when possible.
+                if (depth < max_depth_ && depth >= adaptive->minimum_depth) {
+                    const auto useful_ms = evidence.complexity == 2
+                        ? adaptive->complex_budget_ms
+                        : evidence.complexity == 1
+                            ? adaptive->uncertain_budget_ms
+                            : adaptive->clear_budget_ms;
+                    if (elapsed >= useful_ms)
+                        return finish(incumbent,
+                            SearchStopReason::adaptive_effort_cap, depth);
+                    const auto remaining_ms = useful_ms - elapsed;
+                    if (evidence.predicted_next_ms >
+                        remaining_ms - remaining_ms / 10)
+                        return finish(incumbent,
+                            SearchStopReason::adaptive_next_depth_cost, depth);
+                }
+            }
         }
     }
     return finish(incumbent, cancelled_ ? SearchStopReason::cancelled

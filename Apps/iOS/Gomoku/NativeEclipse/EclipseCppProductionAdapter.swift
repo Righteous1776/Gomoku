@@ -245,15 +245,42 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         config.forced_line_depth = Int32(policy.forcedLineDepth)
         config.candidate_radius = Int32(policy.candidateRadius)
 
+        // Owner-authorized V3 stopping governs ONLY adaptive timing.
+        // Trainer-selected depth, candidate widths and verified model SHA
+        // remain intact; legacy budgeted/V2 and maxDepth=1 are untouched.
+        let useAdaptiveV3 = policy.mode == .adaptive && policy.maxDepth >= 2
+        guard !useAdaptiveV3 || eg_adaptive_stop_abi_version() == 3 else {
+            return nil // Never silently fall back to unbounded thinking.
+        }
+        var stopping = EGAdaptiveStopConfigV3()
+        stopping.size_bytes = UInt32(MemoryLayout<EGAdaptiveStopConfigV3>.size)
+        stopping.minimum_depth = Int32(min(3, policy.maxDepth))
+        stopping.stable_rounds = Int32(min(3, policy.maxDepth))
+        stopping.minimum_score_gap = 1800
+        // Finite ceilings, not fixed per-move think times: safe early
+        // convergence is faster, an ambiguous/tactical board gets longer.
+        stopping.clear_budget_ms = 1200
+        stopping.uncertain_budget_ms = 6000
+        stopping.complex_budget_ms = 45000
+
+        var adaptiveRun = EGAdaptiveRunV3()
+        adaptiveRun.size_bytes = UInt32(MemoryLayout<EGAdaptiveRunV3>.size)
         var run = EGComputeRunV2()
         run.size_bytes = UInt32(MemoryLayout<EGComputeRunV2>.size)
         let executed: Int32
         if let rootPolicy {
-            // Always pass a complete 225-cell allowed mask. Never narrow the
-            // candidates before mandatory tactical and fork checks.
+            // Use the IDENTICAL complete root mask and bonuses for V2/V3.
             executed = rootPolicy.allowed.withUnsafeBufferPointer { allowed in
                 rootPolicy.bonuses.withUnsafeBufferPointer { bonuses in
-                    eg_analyze_compute_policy_v2(
+                    if useAdaptiveV3 {
+                        return eg_analyze_compute_policy_v3(
+                            engine, &config, &stopping,
+                            allowed.baseAddress, Int32(allowed.count),
+                            bonuses.baseAddress, Int32(bonuses.count),
+                            &adaptiveRun
+                        )
+                    }
+                    return eg_analyze_compute_policy_v2(
                         engine, &config,
                         allowed.baseAddress, Int32(allowed.count),
                         bonuses.baseAddress, Int32(bonuses.count),
@@ -261,10 +288,28 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
                     )
                 }
             }
+        } else if useAdaptiveV3 {
+            executed = eg_analyze_compute_policy_v3(
+                engine, &config, &stopping, nil, 0, nil, 0, &adaptiveRun
+            )
         } else {
             executed = eg_analyze_compute_policy_v2(
                 engine, &config, nil, 0, nil, 0, &run
             )
+        }
+        if useAdaptiveV3 && executed == 1 {
+            // Fail closed if ABI or applied stopping control differs.
+            guard adaptiveRun.size_bytes ==
+                    UInt32(MemoryLayout<EGAdaptiveRunV3>.size),
+                  adaptiveRun.applied_stopping.size_bytes == stopping.size_bytes,
+                  adaptiveRun.applied_stopping.minimum_depth == stopping.minimum_depth,
+                  adaptiveRun.applied_stopping.stable_rounds == stopping.stable_rounds,
+                  adaptiveRun.applied_stopping.minimum_score_gap == stopping.minimum_score_gap,
+                  adaptiveRun.applied_stopping.clear_budget_ms == stopping.clear_budget_ms,
+                  adaptiveRun.applied_stopping.uncertain_budget_ms == stopping.uncertain_budget_ms,
+                  adaptiveRun.applied_stopping.complex_budget_ms == stopping.complex_budget_ms
+            else { return nil }
+            run = adaptiveRun.base
         }
         guard executed == 1,
             run.size_bytes == UInt32(MemoryLayout<EGComputeRunV2>.size),
@@ -287,9 +332,21 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2",
+            engineLabel: "ECLIPSE 2.0 \(model.family) · " +
+                (useAdaptiveV3 ? "C++20 V3 自适应收敛" : "C++20 V2"),
             completedDepth: Int(run.search.completed_depth),
-            nativeStopReason: run.search.reason
+            nativeStopReason: run.search.reason,
+            // A proof preflight has no finished iterative-deepening rounds.
+            // Do not fill it with fabricated zero-gap convergence metrics.
+            adaptiveEvidence: useAdaptiveV3
+                && adaptiveRun.predicted_next_depth_ms > 0
+                ? EclipseAdaptiveStopEvidence(
+                    stableCompletedRounds: Int(adaptiveRun.stable_rounds_observed),
+                    nativeScoreGap: Int(adaptiveRun.native_score_gap),
+                    complexityTier: Int(adaptiveRun.complexity_tier),
+                    estimatedNextDepthMilliseconds:
+                        Int(clamping: adaptiveRun.predicted_next_depth_ms)
+                  ) : nil
         )
     }
 }

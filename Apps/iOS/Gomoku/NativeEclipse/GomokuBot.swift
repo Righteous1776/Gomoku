@@ -1,5 +1,15 @@
 import Foundation
 
+/// An actual native V3 stopping observation, not a winning probability or
+/// a mathematical proof. Values are only comparable under the same scorer,
+/// model/checkpoint, policy and platform measurement conditions.
+struct EclipseAdaptiveStopEvidence: Equatable, Sendable {
+    let stableCompletedRounds: Int
+    let nativeScoreGap: Int
+    let complexityTier: Int
+    let estimatedNextDepthMilliseconds: Int
+}
+
 struct GomokuBotMove: Equatable, Sendable {
     let index: Int
     let score: Int
@@ -11,6 +21,7 @@ struct GomokuBotMove: Equatable, Sendable {
     var completedDepth: Int? = nil
     /// Actual C++ V2 search-stop enum; Swift path leaves it unavailable.
     var nativeStopReason: Int32? = nil
+    var adaptiveEvidence: EclipseAdaptiveStopEvidence? = nil
 }
 
 struct GomokuBotBudget: Equatable, Sendable {

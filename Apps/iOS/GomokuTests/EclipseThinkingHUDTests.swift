@@ -148,6 +148,28 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertEqual(snapshot.shortStatus, "教学分析已完成 · 未落子")
     }
 
+    func testAdaptiveV3StopReasonsAreNotMisreportedAsMathematicalProof() {
+        XCTAssertEqual(eg_adaptive_stop_abi_version(), 3)
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_CONVERGED)
+            ),
+            "启发式稳定收敛 · 非必胜证明"
+        )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_NEXT_DEPTH_COST)
+            ),
+            "预计下一完整深度收益不足以抵消计算成本"
+        )
+        XCTAssertEqual(
+            EclipseThinkingHUDSnapshot.nativeStopReason(
+                Int32(EG_SEARCH_REASON_ADAPTIVE_EFFORT_CAP)
+            ),
+            "自适应有效算力预算已达到"
+        )
+    }
+
     func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
         XCTAssertEqual(
             EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_FORCED_WIN)),

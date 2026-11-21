@@ -290,11 +290,12 @@ int eg_read_ranked_roots_v1(const EGEngine *e, EGRankedRootsSnapshotV1 *out) {
     return 0;
 }
 
-int eg_analyze_compute_policy_v2(
+static int analyze_compute_impl(
     EGEngine *e, const EGComputePolicyV2 *policy,
     const uint8_t *allowed, int32_t allowed_capacity,
     const int32_t *bonuses, int32_t bonus_capacity,
-    EGComputeRunV2 *out) {
+    EGComputeRunV2 *out, const EGAdaptiveStopConfigV3 *stop,
+    eclipse::AdaptiveStopEvidence *out_evidence) {
     if (!e || !policy || !out ||
         policy->size_bytes != sizeof(EGComputePolicyV2) ||
         out->size_bytes != sizeof(EGComputeRunV2) ||
@@ -313,6 +314,21 @@ int eg_analyze_compute_policy_v2(
         policy->forced_line_depth > eclipse::kCells ||
         policy->candidate_radius < 1 ||
         policy->candidate_radius >= eclipse::kSide)
+        return 0;
+    // V3 is explicitly opt-in: prevent budgeted policies or malformed
+    // settings from silently changing the legacy trainer contract.
+    if (stop &&
+        (policy->mode != EG_COMPUTE_MODE_ADAPTIVE ||
+         policy->max_wall_time_ms != 0 ||
+         stop->size_bytes != sizeof(EGAdaptiveStopConfigV3) ||
+         stop->reserved != 0 || stop->reserved2 != 0 ||
+         stop->minimum_depth < 1 || stop->minimum_depth > policy->max_depth ||
+         stop->stable_rounds < 2 || stop->stable_rounds > policy->max_depth ||
+         stop->minimum_score_gap < 1 || stop->minimum_score_gap > 100000 ||
+         stop->clear_budget_ms < 1 ||
+         stop->uncertain_budget_ms < stop->clear_budget_ms ||
+         stop->complex_budget_ms < stop->uncertain_budget_ms ||
+         stop->complex_budget_ms > 120000))
         return 0;
     if ((!allowed || !bonuses) ?
         (allowed != nullptr || bonuses != nullptr ||
@@ -342,6 +358,15 @@ int eg_analyze_compute_policy_v2(
     chosen.continuation_width = policy->continuation_width;
     chosen.forced_line_depth = policy->forced_line_depth;
     chosen.candidate_radius = policy->candidate_radius;
+    eclipse::AdaptiveStopPolicy adaptive{};
+    if (stop) {
+        adaptive.minimum_depth = stop->minimum_depth;
+        adaptive.stable_rounds = stop->stable_rounds;
+        adaptive.min_score_gap = stop->minimum_score_gap;
+        adaptive.clear_budget_ms = stop->clear_budget_ms;
+        adaptive.uncertain_budget_ms = stop->uncertain_budget_ms;
+        adaptive.complex_budget_ms = stop->complex_budget_ms;
+    }
     try {
         e->cancelled.store(false, std::memory_order_release);
         // Each VALID native execution gets a fresh serial. The engine is
@@ -374,7 +399,8 @@ int eg_analyze_compute_policy_v2(
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
-            observer, root_observer, pv_observer);
+            observer, root_observer, pv_observer,
+            stop ? &adaptive : nullptr);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0)) {
             publish_live(e, found.reason == eclipse::SearchStopReason::cancelled
@@ -393,6 +419,7 @@ int eg_analyze_compute_policy_v2(
         snapshot.search.reason = static_cast<int32_t>(found.reason);
         snapshot.applied_policy = *policy; // exact caller-owned config echo
         *out = snapshot; // commit only on full success
+        if (out_evidence) *out_evidence = found.adaptive;
         publish_live(e, EG_LIVE_SEARCH_COMPLETE, found.nodes,
                      found.completed_depth, found.move,
                      static_cast<int32_t>(found.reason), found.elapsed_ms);
@@ -404,6 +431,42 @@ int eg_analyze_compute_policy_v2(
         return 0;
     }
 }
+int eg_analyze_compute_policy_v2(
+    EGEngine *e, const EGComputePolicyV2 *policy,
+    const uint8_t *allowed, int32_t allowed_capacity,
+    const int32_t *bonuses, int32_t bonus_capacity,
+    EGComputeRunV2 *out) {
+    return analyze_compute_impl(e, policy, allowed, allowed_capacity,
+                                bonuses, bonus_capacity, out, nullptr, nullptr);
+}
+int eg_adaptive_stop_abi_version(void) { return EG_ADAPTIVE_STOP_ABI_VERSION; }
+int eg_analyze_compute_policy_v3(
+    EGEngine *e, const EGComputePolicyV2 *policy,
+    const EGAdaptiveStopConfigV3 *stop,
+    const uint8_t *allowed, int32_t allowed_capacity,
+    const int32_t *bonuses, int32_t bonus_capacity,
+    EGAdaptiveRunV3 *out) {
+    if (!out || !stop || out->size_bytes != sizeof(EGAdaptiveRunV3) ||
+        out->reserved != 0 || out->reserved2 != 0)
+        return 0;
+    EGComputeRunV2 base{};
+    base.size_bytes = sizeof(base);
+    eclipse::AdaptiveStopEvidence evidence{};
+    if (!analyze_compute_impl(e, policy, allowed, allowed_capacity,
+                              bonuses, bonus_capacity, &base, stop, &evidence))
+        return 0;
+    EGAdaptiveRunV3 snapshot{};
+    snapshot.size_bytes = sizeof(snapshot);
+    snapshot.base = base;
+    snapshot.applied_stopping = *stop;
+    snapshot.stable_rounds_observed = evidence.stable_rounds;
+    snapshot.native_score_gap = evidence.score_gap;
+    snapshot.complexity_tier = evidence.complexity;
+    snapshot.predicted_next_depth_ms = evidence.predicted_next_ms;
+    *out = snapshot;
+    return 1;
+}
+
 int eg_copy_board(const EGEngine *e,std::uint8_t *out225,int capacity){
     if(!e||!out225||capacity<eclipse::kCells)return -1;
     std::copy(e->board.cells.begin(),e->board.cells.end(),out225);

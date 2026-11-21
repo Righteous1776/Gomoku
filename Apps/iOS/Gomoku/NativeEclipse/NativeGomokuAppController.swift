@@ -24,6 +24,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var activeThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingStopReason: String?
+    @Published private(set) var lastAdaptiveSearchEvidence: EclipseAdaptiveStopEvidence?
     private var searchStartedUptime: TimeInterval?
     // Ephemeral measured latencies only: isolated by executed SHA/policy,
     // bounded to 16 signatures x 128 samples, no private game records.
@@ -238,7 +239,7 @@ final class NativeGomokuAppController: ObservableObject {
 
     var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
         if isThinking {
-            if activeThinkingRun?.backend == "C++20 V2" {
+            if activeThinkingRun?.backend.hasPrefix("C++20 V") == true {
                 guard let native = activeCppSearch?.liveSearchSnapshot() else {
                     return nil
                 }
@@ -278,10 +279,10 @@ final class NativeGomokuAppController: ObservableObject {
         let teachingReview = !isThinking && developerTeachingMode
             && developerAuthorization.isAuthorized
             && lastThinkingRun?.positionRevision == state.moveCount
-            && lastThinkingRun?.backend == "C++20 V2"
+            && lastThinkingRun?.backend.hasPrefix("C++20 V") == true
             && activeCppSearch != nil
         let nativeRun = (isThinking || teachingReview)
-            && identity?.backend == "C++20 V2"
+            && identity?.backend.hasPrefix("C++20 V") == true
         let nativeLive = nativeRun ? activeCppSearch?.liveSearchSnapshot() : nil
         let liveElapsed: Int? = searchStartedUptime.map {
             Int(max(0, uptime - $0) * 1000)
@@ -311,6 +312,7 @@ final class NativeGomokuAppController: ObservableObject {
             stopReason: live ? nil : lastThinkingStopReason
         )
         snapshot.hasTeachingReview = teachingReview
+        snapshot.adaptiveEvidence = live ? nil : lastAdaptiveSearchEvidence
         // The native engine may publish a best move for a FULLY completed
         // iteration. Only authenticated developer teaching may observe it.
         // Formally played matches do not store this move in the HUD.
@@ -365,9 +367,12 @@ final class NativeGomokuAppController: ObservableObject {
     func currentNativeLatencySummary() -> EclipseNativeLatencyStatistics.Summary? {
         guard !isThinking, let id = lastThinkingRun,
               let checkpoint = id.checkpointSHA256,
-              let policy = id.computePolicySHA256 else { return nil }
+              let policy = id.computePolicySHA256,
+              let execution = lastExecutionBackend else { return nil }
+        // V2 and V3 can share a model/checkpoint SHA and the trainer's
+        // geometric compute SHA while having DIFFERENT termination rules.
         return EclipseNativeLatencyStatistics.summarize(
-            nativeLatencyBySignature[checkpoint + ":" + policy] ?? []
+            nativeLatencyBySignature[checkpoint + ":" + policy + ":" + execution] ?? []
         )
     }
 
@@ -421,6 +426,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = resumed
         sessionID = previous.id
@@ -467,6 +473,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = GomokuState()
         sessionID = UUID().uuidString
@@ -505,6 +512,7 @@ final class NativeGomokuAppController: ObservableObject {
             activeCppSearch = nil
             lastThinkingRun = nil
             lastThinkingStopReason = nil
+            lastAdaptiveSearchEvidence = nil
             lastDecisionNodes = nil
             lastDecisionDepth = nil
             lastDecisionMilliseconds = nil
@@ -578,6 +586,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         searchStartedUptime = nil
         state = GomokuState()
         archivedMoves.removeAll()
@@ -639,6 +648,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeCppSearch = runtime
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         lastDecisionNodes = nil
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
@@ -649,7 +659,10 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
-            backend: "C++20 V2", modelName: model.name,
+            backend: trainer.computePolicy.mode == .adaptive
+                && trainer.computePolicy.maxDepth >= 2
+                ? "C++20 V3 adaptive" : "C++20 V2",
+            modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
             computePolicySHA256: trainer.computePolicy.sha256
         )
@@ -739,6 +752,7 @@ final class NativeGomokuAppController: ObservableObject {
         }
         // Keep this completed, idle native handle only for read-only review.
         // A manually staged move or reset immediately drops its evidence.
+        lastAdaptiveSearchEvidence = decision.adaptiveEvidence
         lastDecisionNodes = decision.nodes
         lastDecisionDepth = decision.completedDepth
         lastDecisionMilliseconds = decision.elapsedMilliseconds
@@ -778,13 +792,17 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        lastAdaptiveSearchEvidence = nil
         // The native runtime has been freshly created and attested at this
         // exact position. If that failed, do NOT claim selected Astra/Sol.
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
-            backend: usingCpp ? "C++20 V2" :
+            backend: usingCpp
+                ? (verifiedTrainer?.computePolicy.mode == .adaptive
+                   && (verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 2
+                    ? "C++20 V3 adaptive" : "C++20 V2") :
                 (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
             modelName: usingCpp || !model.requiresVerifiedCheckpoint
                 ? model.name : nil,
@@ -929,6 +947,7 @@ final class NativeGomokuAppController: ObservableObject {
             : EclipseThinkingHUDSnapshot.nativeStopReason(
                 trainerRevision != nil ? decision?.nativeStopReason : nil
             )
+        lastAdaptiveSearchEvidence = cppFailed ? nil : decision?.adaptiveEvidence
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
@@ -970,7 +989,8 @@ final class NativeGomokuAppController: ObservableObject {
                let verified = lastThinkingRun,
                let checkpoint = verified.checkpointSHA256,
                let policy = verified.computePolicySHA256 {
-                let signature = checkpoint + ":" + policy
+                let signature = checkpoint + ":" + policy + ":" +
+                    (decision.engineLabel ?? "C++20 unknown")
                 if nativeLatencyBySignature[signature] == nil {
                     nativeLatencyOrder.append(signature)
                     if nativeLatencyOrder.count > 16 {

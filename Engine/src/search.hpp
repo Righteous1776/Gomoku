@@ -18,7 +18,18 @@ enum class SearchStopReason : int {
     only_move = 3,
     no_move = 4,
     time_limit = 5,
-    cancelled = 6
+    cancelled = 6,
+    // Adaptive V3 only: evidence-based, not mathematical certainty.
+    adaptive_converged = 7,
+    adaptive_effort_cap = 8,
+    adaptive_next_depth_cost = 9
+};
+
+struct AdaptiveStopEvidence {
+    int stable_rounds = 0;
+    int score_gap = 0;      // native search score units; NOT win probability
+    int complexity = 0;     // 0 clear / 1 uncertain / 2 tactical or ambiguous
+    std::int64_t predicted_next_ms = 0; // measured node growth estimate
 };
 
 struct SearchResult {
@@ -27,6 +38,7 @@ struct SearchResult {
     int completed_depth = 0;
     int elapsed_ms = 0;
     SearchStopReason reason = SearchStopReason::no_move;
+    AdaptiveStopEvidence adaptive{};
 };
 
 // V1 bounded root policy from the unchanged Swift learning/formation layer.
@@ -49,6 +61,19 @@ struct ComputePolicy {
     int candidate_radius = 2;
 };
 
+// Versioned opt-in termination policy. It never changes move ordering,
+// tactical rules, trained weights or trainer-owned search geometry. The
+// three time values are CEILINGS, not mandatory think durations. Adaptive
+// decisions can finish earlier when conservative convergence is observed.
+struct AdaptiveStopPolicy {
+    int minimum_depth = 3;
+    int stable_rounds = 3;
+    int min_score_gap = 1800; // native static search units, uncalibrated
+    std::int64_t clear_budget_ms = 1200;
+    std::int64_t uncertain_budget_ms = 5000;
+    std::int64_t complex_budget_ms = 20000;
+};
+
 // An explicit research-only selection; legacy remains the default for all
 // previously supported callers and original Swift/C++ parity benchmarks.
 enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
@@ -68,7 +93,8 @@ public:
                          const std::atomic<bool> *cancel = nullptr,
                          const ProgressSink &progress = {},
                          const RankedRootsSink &ranked_roots = {},
-                         const PVSink &pv = {});
+                         const PVSink &pv = {},
+                         const AdaptiveStopPolicy *adaptive = nullptr);
     int best_move(const Board &root, int milliseconds);
 
 private:

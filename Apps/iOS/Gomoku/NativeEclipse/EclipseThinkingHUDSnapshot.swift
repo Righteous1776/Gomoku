@@ -41,6 +41,9 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Its native engine snapshot has finished and remains reviewable until
     /// the board, model or developer authorization changes.
     var hasTeachingReview: Bool = false
+    /// A completed V3 search's real convergence and compute-cost evidence;
+    /// hidden until the move finishes or authorized teaching review begins.
+    var adaptiveEvidence: EclipseAdaptiveStopEvidence? = nil
     var nativeRootRanks: [Int] = []
     /// A validated *prefix*, not a guaranteed full-depth PV or proof tree.
     /// Caller has replayed every move on the actual 15×15 board.
@@ -105,6 +108,12 @@ struct EclipseThinkingHUDSnapshot: Equatable {
             return "搜索预算耗尽（时间或节点）"
         case Int32(EG_SEARCH_REASON_CANCELLED):
             return "引擎收到取消信号"
+        case Int32(EG_SEARCH_REASON_ADAPTIVE_CONVERGED):
+            return "启发式稳定收敛 · 非必胜证明"
+        case Int32(EG_SEARCH_REASON_ADAPTIVE_EFFORT_CAP):
+            return "自适应有效算力预算已达到"
+        case Int32(EG_SEARCH_REASON_ADAPTIVE_NEXT_DEPTH_COST):
+            return "预计下一完整深度收益不足以抵消计算成本"
         default: return nil
         }
     }
