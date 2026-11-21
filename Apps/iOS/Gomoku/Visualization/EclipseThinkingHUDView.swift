@@ -171,6 +171,21 @@ struct EclipseThinkingHUDView: View {
                                 .foregroundColor(VeilTheme.secondaryText)
                         }
                         if level == .developer {
+                            if let evidence = snapshot.adaptiveEvidence {
+                                item("真实完整深度稳定轮数",
+                                     String(evidence.stableCompletedRounds))
+                                item("原生最佳与次佳分差 · 未校准",
+                                     String(evidence.nativeScoreGap))
+                                item("观测局面复杂度",
+                                     evidence.complexityTier == 2 ? "高 · 战术/分歧"
+                                     : evidence.complexityTier == 1 ? "中 · 待确认"
+                                     : "低 · 已趋稳")
+                                item("下一深度预计耗时 · 预测值",
+                                     "\(evidence.estimatedNextDepthMilliseconds) ms")
+                                Text("仅为同模型同策略内部搜索证据，不代表必胜概率；预测耗时不等于实测耗时。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             if let sample = engine.currentNativeLatencySummary() {
                                 item("同模型/策略本机样本数", String(sample.count))
                                 HStack(spacing: 7) {
