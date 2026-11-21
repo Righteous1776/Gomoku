@@ -77,28 +77,36 @@ final class NativeGomokuAppController: ObservableObject {
     private var activeCppSearch: EclipseCppProductionAdapter?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
-    private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
+    private let verifiedTrainerExecutions:
+        [EclipseModelID: EclipseVerifiedTrainerExecution]
+    private var verifiedTrainerExecution: EclipseVerifiedTrainerExecution? {
+        verifiedTrainerExecutions[selectedModel]
+    }
 
-    /// The new 2.x model library is not selectable just because its research
-    /// weights exist in GitHub. We must see its real checkpoint loaded by the
-    /// live C++ scorer, identical to the training Agent's approved identity.
+    /// Each 2.0 forest is independently compiled, attested and selectable.
+    /// A manifest entry alone never enables the model.
+    var verifiedSelectableModels: [EclipseModelID] {
+        // loadAllFromBundle has ALREADY verified each exact C++ forest during
+        // app initialization. Do not create extra native engines on each
+        // SwiftUI redraw; C++ make()/decide() re-attest active bytes per turn.
+        [.astra20, .sol20].filter {
+            verifiedTrainerExecutions[$0] != nil
+        }
+    }
+
+    /// Compatibility with single-checkpoint inspection surfaces.
     var verifiedSelectableModel: EclipseModelID? {
-        guard let trainer = verifiedTrainerExecution,
-              trainer.model.requiresVerifiedCheckpoint,
-              EclipseCppProductionAdapter.loadedCheckpointSHA256()
-                  == trainer.checkpointSHA256
-        else { return nil }
-        return trainer.model
+        verifiedSelectableModels.first
     }
 
     var availableModels: [EclipseModelID] {
-        EclipseModelID.featuredIncludingVerified(verifiedSelectableModel)
+        EclipseModelID.featuredIncludingVerified(verifiedSelectableModels)
     }
 
     var trainerControlsCompute: Bool {
-        verifiedTrainerExecution?.model == selectedModel
-            && (!selectedModel.requiresVerifiedCheckpoint
-                || verifiedSelectableModel == selectedModel)
+        selectedModel.requiresVerifiedCheckpoint
+            && verifiedTrainerExecution != nil
+            && verifiedSelectableModels.contains(selectedModel)
     }
     private let localMatchEvidence: GomokuLocalMatchEvidence
     private var sessionHasLocalProvenance = true
@@ -119,9 +127,14 @@ final class NativeGomokuAppController: ObservableObject {
         // binding at launch, without requiring DEBUG tools or a manual
         // injection. Isolated XCTest archive roots remain deterministic.
         let productionInstall = archiveDirectory == nil && trainingDirectory == nil
-        self.verifiedTrainerExecution = verifiedTrainerExecution
-            ?? (productionInstall
-                ? EclipseTrainerProductionRegistry.loadFromBundle() : nil)
+        if let explicit = verifiedTrainerExecution {
+            self.verifiedTrainerExecutions = [explicit.model: explicit]
+        } else if productionInstall {
+            self.verifiedTrainerExecutions =
+                EclipseTrainerProductionRegistry.loadAllFromBundle()
+        } else {
+            self.verifiedTrainerExecutions = [:]
+        }
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         let root = archive.directory.deletingLastPathComponent()
@@ -138,15 +151,18 @@ final class NativeGomokuAppController: ObservableObject {
             // explicit user choices always override this default.
             if UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
-            ) == nil, let trained = self.verifiedTrainerExecution {
-                selectedModel = trained.model
-                computeTier = trained.model.defaultComputeTier
+            ) == nil,
+                let first = [EclipseModelID.astra20, .sol20].first(
+                    where: { self.verifiedSelectableModels.contains($0) }
+                ) {
+                selectedModel = first
+                computeTier = first.defaultComputeTier
             }
             if let stored = UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
                 if !saved.model.requiresVerifiedCheckpoint
-                    || verifiedSelectableModel == saved.model {
+                    || verifiedSelectableModels.contains(saved.model) {
                     selectedModel = saved.model
                     computeTier = saved.compute
                 } else {
@@ -190,7 +206,7 @@ final class NativeGomokuAppController: ObservableObject {
     /// match and avoids misattributing its result to the wrong model.
     func selectModel(_ model: EclipseModelID) {
         guard model != selectedModel else { return }
-        if model.requiresVerifiedCheckpoint && verifiedSelectableModel != model {
+        if model.requiresVerifiedCheckpoint && !verifiedSelectableModels.contains(model) {
             fallbackWarning = "\(model.name) 尚无通过核验的实际 C++ 训练检查点，不能冒充已上线模型。"
             return
         }
@@ -510,12 +526,31 @@ final class NativeGomokuAppController: ObservableObject {
         )
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
+            // Preserve the original ECLIPSE local learning and owner-defined
+            // formation on BOTH Swift and C++ routes. Only verified local
+            // evidence influences the C++ root bonuses; no private training
+            // history is copied into the model or emitted over the ABI.
+            let learning = GomokuLearningRepertoire.build(
+                journalDirectory: journalDirectory,
+                archiveDirectory: archiveDirectory,
+                currentMoves: existingMoves,
+                humanStone: humanStone,
+                includeNativeSelfPlay: useNativeTraining
+            ).snapshot.applying(lessonInfluence)
+            guard !Task.isCancelled else { return }
             // The official architecture first dispatches a verified trained
             // model through native C++ V2. This is the same production worker
             // path as original Swift, not a separate developer-only game.
             if let cppRuntime, let verifiedTrainer {
+                let rooted = EclipseCppRootLearningPolicy.build(
+                    state: boardAtStart,
+                    player: boardAtStart.currentPlayer,
+                    learning: learning,
+                    formation: activeFormation
+                )
                 let cppDecision = cppRuntime.decide(
-                    policy: verifiedTrainer.computePolicy
+                    policy: verifiedTrainer.computePolicy,
+                    rootPolicy: rooted
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
@@ -530,16 +565,8 @@ final class NativeGomokuAppController: ObservableObject {
                 // success. Continue through the trusted original Swift route
                 // only if the user has not cancelled the session.
             }
-            // Construct from verified records off the main/UI actor. The exact
-            // immutable snapshot is used for this decision, not display only.
-            let learning = GomokuLearningRepertoire.build(
-                journalDirectory: journalDirectory,
-                archiveDirectory: archiveDirectory,
-                currentMoves: existingMoves,
-                humanStone: humanStone,
-                includeNativeSelfPlay: useNativeTraining
-            ).snapshot.applying(lessonInfluence)
-            guard !Task.isCancelled else { return }
+            // The SAME already-validated local snapshot feeds the original
+            // Swift fallback, preserving exact provenance and game semantics.
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
@@ -600,9 +627,16 @@ final class NativeGomokuAppController: ObservableObject {
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
-            lastExecutedModel = executedModel
+            // Never claim "2.0 Astra/Sol" actually played when a missing or
+            // failed native C++ V9 scorer forced the original Swift fallback.
+            let verifiedV9Played = !executedModel.requiresVerifiedCheckpoint
+                || trainerRevision != nil
+            lastExecutedModel = verifiedV9Played ? executedModel : nil
             lastExecutedTrainerRevision = trainerRevision
             lastExecutionBackend = decision.engineLabel ?? "ECLIPSE Swift"
+            if !verifiedV9Played {
+                fallbackWarning = "本手实际由原版 Swift 接管，尚未执行验证的 2.0 训练模型；不能计入 Astra/Sol 棋力。"
+            }
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"

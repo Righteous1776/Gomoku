@@ -2,9 +2,10 @@ import Foundation
 
 /// Production model binding supplied by the specialized Training Agent.
 ///
-/// The actual 214-tree/R29 C++ scorer is built/installed by the Training
-/// Agent, not synthesized from an old R10 model. This registry merely binds
-/// that already-loaded C++ checkpoint to the real AppController.
+/// Astra V9 (314 trees) and Sol V9 (160 trees) are distinct compiled forests.
+/// Their complete exported nodes and original source digests are checked
+/// by the mandatory engine provenance gate. This registry binds them to the
+/// app without combining model identity, compute policy or saved match IDs.
 enum EclipseTrainerProductionRegistry {
     private struct Binding: Decodable {
         let schema: String
@@ -27,6 +28,7 @@ enum EclipseTrainerProductionRegistry {
     /// This file is a public-safe *identity + policy*, never training records
     /// or private forest checkpoint bytes. App code does not fabricate it.
     static let bundledManifestName = "ECLIPSE_ACTIVE_MODEL"
+    static let bundledCatalogName = "ECLIPSE_ACTIVE_MODELS"
 
     static func resolve(
         manifestData: Data,
@@ -53,6 +55,7 @@ enum EclipseTrainerProductionRegistry {
                 Binding.self, from: manifestData
             ), manifest.schema == "eclipse.production-model-binding.v1",
             let model = EclipseModelID(rawValue: manifest.modelID),
+            model.requiresVerifiedCheckpoint,
             let actuallyLoaded = cppLoadedCheckpointSHA256,
             actuallyLoaded == manifest.checkpointSHA256,
             let actualPolicySHA256 = manifest.computePolicy.sha256,
@@ -68,6 +71,59 @@ enum EclipseTrainerProductionRegistry {
             approvedComputePolicySHA256: actualPolicySHA256,
             loadedComputePolicySHA256: actualPolicySHA256
         )
+    }
+
+    /// Both 2.0 checkpoints can be independently selected in one installed
+    /// application. Source check sums MUST be confirmed by the live C++ V4
+    /// forest binding, not merely present in this resource JSON.
+    static func resolveCatalog(
+        manifestData: Data,
+        compiledIdentity: (EclipseModelID, String) -> String?
+    ) -> [EclipseModelID: EclipseVerifiedTrainerExecution] {
+        guard let object = try? JSONSerialization.jsonObject(
+            with: manifestData
+        ) as? [String: Any],
+            Set(object.keys) == Set(["schema", "models"]),
+            object["schema"] as? String
+                == "eclipse.production-model-catalog.v2",
+            let entries = object["models"] as? [[String: Any]],
+            entries.count == 2
+        else { return [:] }
+        var result: [EclipseModelID: EclipseVerifiedTrainerExecution] = [:]
+        for item in entries {
+            guard let id = item["model_id"] as? String,
+                  let model = EclipseModelID(rawValue: id),
+                  model.requiresVerifiedCheckpoint,
+                  result[model] == nil,
+                  let checksum = item["checkpoint_sha256"] as? String,
+                  let source = try? JSONSerialization.data(
+                    withJSONObject: item, options: [.sortedKeys]
+                  ),
+                  let loaded = compiledIdentity(model, checksum),
+                  let bound = resolve(
+                    manifestData: source,
+                    cppLoadedCheckpointSHA256: loaded
+                  )
+            else { return [:] }
+            result[model] = bound
+        }
+        guard result[.astra20] != nil, result[.sol20] != nil
+        else { return [:] }
+        return result
+    }
+
+    /// Safe public app resource, storing metadata and two policy digests, not
+    /// users' matches. Reject the whole catalog if either model is corrupted.
+    static func loadAllFromBundle(_ bundle: Bundle = .main)
+        -> [EclipseModelID: EclipseVerifiedTrainerExecution] {
+        guard let url = bundle.url(
+            forResource: bundledCatalogName, withExtension: "json"
+        ), let data = try? Data(contentsOf: url) else { return [:] }
+        return resolveCatalog(manifestData: data) { model, checksum in
+            EclipseCppProductionAdapter.loadedCheckpointSHA256(
+                for: model, expectedSHA256: checksum
+            )
+        }
     }
 
     static func loadFromBundle(_ bundle: Bundle = .main)

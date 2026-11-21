@@ -39,12 +39,28 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(checks["wood board retains safe edge taps"])
 
-    def test_unfolded_runtime_gauge_is_rejected(self):
+    def test_missing_original_r17_live_runtime_is_rejected(self):
         self.sources["home"] = self.sources["home"].replace(
-            "if showsInstruments {", "if true {", 1
+            "                    eclipseRuntime\n", "", 1
         )
         checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(checks["original runtime instrument stays folded"])
+        self.assertFalse(checks["source-aligned game hierarchy"])
+
+    def test_r17_runtime_cannot_be_folded_away(self):
+        self.sources["home"] = self.sources["home"].replace(
+            "private var eclipseRuntime: some View",
+            "private var hiddenRuntime: some View", 1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks["R17 VeilLink source runtime is live above controls"])
+
+    def test_veillink_original_adaptive_status_grid_is_required(self):
+        self.sources["home"] = self.sources["home"].replace(
+            "GridItem(.adaptive(minimum: 84), spacing: 8)",
+            "GridItem(.fixed(80))", 1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks["source-aligned adaptive status grid"])
 
     def test_ungated_stone_impact_is_rejected(self):
         self.sources["board"] = self.sources["board"].replace(

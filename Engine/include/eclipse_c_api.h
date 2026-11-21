@@ -153,6 +153,26 @@ void eg_cancel_search_v2(EGEngine *engine);
 int eg_select_research_ranker_v3(EGEngine *engine, int32_t ranker);
 int eg_research_ranker_v3(const EGEngine *engine); /* -1 if NULL */
 
+/* ECLIPSE 2.0 production-oriented dual-model binding (V9 Astra/Sol).
+ * SHA is the exact *source LightGBM file* digest, verified by
+ * Engine/tools/verify_v9_compiled_provenance.py against EVERY compiled tree.
+ * This pin does NOT claim original Swift 6x strength parity, a developer
+ * signature or user authorization to publish private training records.
+ *
+ * Caller must supply the expected 64-char lowercase SHA. A successful
+ * select binds precisely one compiled forest to this engine for V2 analysis;
+ * the post-selection read returns identity of THIS engine's active ranker.
+ * Reset or a legacy research selector invalidates verification.
+ * All selectors/mutators must be called only while searches are idle.
+ */
+#define EG_COMPILED_V9_MODEL_ABI_VERSION 4
+int eg_select_compiled_v9_model_v4(EGEngine *engine,
+                                    int32_t model,
+                                    const char *expected_sha256);
+int eg_active_compiled_v9_sha256_v4(const EGEngine *engine,
+                                    char *out65, int32_t capacity);
+
+
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */
 int eg_status(const EGEngine *engine); /* 0 ongoing, 1 black win, 2 white win, 3 draw */

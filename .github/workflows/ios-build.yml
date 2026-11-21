@@ -41,6 +41,10 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Assert Gomoku app icon and version exist in simulator build
+        run: |
+          python3 Scripts/check_gomoku_release_identity.py --app DerivedData/Build/Products/Debug-iphonesimulator/Gomoku.app
+          python3 Scripts/check_app_icon.py DerivedData/Build/Products/Debug-iphonesimulator/Gomoku.app
       - name: Run XCTest on an available iPhone simulator
         run: |
           set -o pipefail

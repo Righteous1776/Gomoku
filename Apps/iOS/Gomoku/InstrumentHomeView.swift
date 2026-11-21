@@ -11,7 +11,6 @@ struct InstrumentHomeView: View {
     @State private var showingDeveloperLab = false
     @State private var showingCoach = false
     @State private var showsAdvanced = false
-    @State private var showsInstruments = false
     @State private var showsEclipseTrace = false
     @State private var showsModelSelection = false
     @State private var pendingModel: EclipseModelID?
@@ -35,6 +34,7 @@ struct InstrumentHomeView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     statusCard
                     eclipseIdentity
+                    eclipseRuntime
                     boardQuickControls
                     board
                     if engine.status != 0 { resultCard }
@@ -45,7 +45,7 @@ struct InstrumentHomeView: View {
                 .frame(maxWidth: .infinity)
             }
             .scrollIndicators(.hidden)
-            .background(VeilInstrumentBackground())
+            .background(VeilAmbientBackground())
             .navigationTitle("五子棋 · 人机")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -137,7 +137,10 @@ struct InstrumentHomeView: View {
                     VeilIndicatorLamp(active: canPlaceStone, color: VeilTheme.goldBright)
                 }
             }
-            HStack(spacing: 7) {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 84), spacing: 8)],
+                spacing: 8
+            ) {
                 statusMetric("实际引擎", engine.lastExecutionBackend
                     ?? (engine.trainerControlsCompute
                         ? "C++ V2 / 待核验" : "Swift / 历史兼容"))
@@ -206,6 +209,20 @@ struct InstrumentHomeView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
         }
+    }
+
+    // Original VeilLink GameLobbyView.swift LocalAIGameView lines 428–435.
+    // Always-visible native R17 instrument, fed only by measured values.
+    private var eclipseRuntime: some View {
+        VeilEclipseRuntimeInstruments(
+            running: showingSearch && engine.searchStartedAt != nil,
+            start: showingSearch ? engine.searchStartedAt : nil,
+            lastNodes: engine.lastDecisionNodes,
+            lastMilliseconds: engine.lastDecisionMilliseconds,
+            trainedGames: engine.trainedGames
+        )
+        .veilCard()
+        .accessibilityIdentifier("gomoku.eclipse.r17-runtime")
     }
 
     /// In regular widths the same compact VeilLink row is retained; larger
@@ -566,29 +583,6 @@ struct InstrumentHomeView: View {
             coachSection
 
             Button {
-                showsInstruments.toggle()
-            } label: {
-                HStack {
-                    Label("ECLIPSE / 实测仪表", systemImage: "cpu.fill")
-                        .font(.caption.weight(.semibold))
-                    Spacer()
-                    Image(systemName: showsInstruments ? "chevron.up" : "chevron.down")
-                }
-                .foregroundColor(VeilTheme.goldBright)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("gomoku.eclipse.instruments.toggle")
-            if showsInstruments {
-                VeilEclipseRuntimeInstruments(
-                    running: showingSearch,
-                    start: showingSearch ? engine.searchStartedAt : nil,
-                    lastNodes: engine.lastDecisionNodes,
-                    lastMilliseconds: engine.lastDecisionMilliseconds,
-                    trainedGames: engine.trainedGames
-                )
-            }
-
-            Button {
                 showingDeveloperLab = true
             } label: {
                 Label("开发训练室 · 设备身份验证", systemImage: "lock.shield")
@@ -763,6 +757,10 @@ struct InstrumentHomeView: View {
             Text("仪器风格固定；仅切换浅色、深色或跟随系统。")
                 .font(.caption2)
                 .foregroundColor(VeilTheme.secondaryText)
+            Text("Gomoku V\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") \("RC1") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")")
+                .font(.caption2.monospacedDigit())
+                .foregroundColor(VeilTheme.secondaryText)
+                .accessibilityIdentifier("gomoku.app.version")
         }
         .veilCard()
     }

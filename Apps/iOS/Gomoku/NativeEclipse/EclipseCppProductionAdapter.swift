@@ -12,9 +12,33 @@ import Foundation
 final class EclipseCppProductionAdapter: @unchecked Sendable {
     private let engine: OpaquePointer
     private let checkpointSHA256: String
+    private let model: EclipseModelID
+    private let approvedComputePolicySHA256: String
 
-    private init?(history: [Int], checkpointSHA256: String) {
-        guard let created = eg_create() else { return nil }
+    /// The compiled Astra and Sol forests have DISTINCT immutable identities.
+    private static func nativeRanker(_ model: EclipseModelID) -> Int32? {
+        switch model {
+        case .astra20: return Int32(EG_RESEARCH_RANKER_V9_ASTRA)
+        case .sol20: return Int32(EG_RESEARCH_RANKER_V9_SOL)
+        default: return nil
+        }
+    }
+
+    private init?(
+        history: [Int], model: EclipseModelID, checkpointSHA256: String,
+        approvedComputePolicySHA256: String
+    ) {
+        guard let selected = Self.nativeRanker(model),
+              let created = eg_create() else { return nil }
+        let bound = checkpointSHA256.withCString {
+            eg_select_compiled_v9_model_v4(created, selected, $0)
+        }
+        guard bound == 1,
+              Self.activeCheckpointSHA256(of: created) == checkpointSHA256
+        else {
+            eg_destroy(created)
+            return nil
+        }
         for index in history {
             guard (0..<225).contains(index),
                   eg_play(created, Int32(index)) == 1 else {
@@ -28,6 +52,8 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         }
         engine = created
         self.checkpointSHA256 = checkpointSHA256
+        self.model = model
+        self.approvedComputePolicySHA256 = approvedComputePolicySHA256
     }
 
     deinit { eg_destroy(engine) }
@@ -51,6 +77,43 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         return text
     }
 
+    /// Read identity of the ACTIVE forest of this engine instance, never a
+    /// model-picker label or the old global R10 research checkpoint stub.
+    private static func activeCheckpointSHA256(
+        of engine: OpaquePointer
+    ) -> String? {
+        var bytes = [CChar](repeating: 0, count: 65)
+        let read = bytes.withUnsafeMutableBufferPointer { buffer in
+            eg_active_compiled_v9_sha256_v4(
+                engine, buffer.baseAddress, Int32(buffer.count)
+            )
+        }
+        guard read == 64, bytes[64] == 0 else { return nil }
+        let raw = bytes.prefix(64).map { UInt8(bitPattern: $0) }
+        guard let digest = String(bytes: raw, encoding: .utf8),
+              digest.count == 64,
+              digest.utf8.allSatisfy({
+                ($0 >= 48 && $0 <= 57) || ($0 >= 97 && $0 <= 102)
+              }) else { return nil }
+        return digest
+    }
+
+    /// Used for discovery only: create a temporary native engine and prove
+    /// it can bind this *specific* model and the expected source SHA.
+    static func loadedCheckpointSHA256(
+        for model: EclipseModelID, expectedSHA256: String
+    ) -> String? {
+        guard let selected = nativeRanker(model),
+              expectedSHA256.count == 64,
+              let handle = eg_create() else { return nil }
+        defer { eg_destroy(handle) }
+        let ok = expectedSHA256.withCString {
+            eg_select_compiled_v9_model_v4(handle, selected, $0)
+        }
+        guard ok == 1 else { return nil }
+        return activeCheckpointSHA256(of: handle)
+    }
+
     /// Runtime dispatch authority: real C++ loaded model and trainer handoff
     /// must agree byte-for-byte. Merely having a C++ ABI does not suffice.
     static func make(
@@ -58,10 +121,15 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         trainer: EclipseVerifiedTrainerExecution
     ) -> EclipseCppProductionAdapter? {
         guard eg_compute_policy_abi_version() == 2,
-              loadedCheckpointSHA256() == trainer.checkpointSHA256
+              let policyDigest = trainer.computePolicy.sha256,
+              loadedCheckpointSHA256(
+                for: trainer.model, expectedSHA256: trainer.checkpointSHA256
+              ) == trainer.checkpointSHA256
         else { return nil }
         return EclipseCppProductionAdapter(
-            history: history, checkpointSHA256: trainer.checkpointSHA256
+            history: history, model: trainer.model,
+            checkpointSHA256: trainer.checkpointSHA256,
+            approvedComputePolicySHA256: policyDigest
         )
     }
 
@@ -76,10 +144,15 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// no separate model budget overriding the Training Agent's policy.
     /// The search always executes off the MainActor.
     func decide(
-        policy: EclipseTrainerComputePolicy
+        policy: EclipseTrainerComputePolicy,
+        rootPolicy: EclipseCppRootLearningPolicy? = nil
     ) -> GomokuBotMove? {
-        guard policy.isValid, let actual = Self.loadedCheckpointSHA256(),
-              actual == checkpointSHA256 else { return nil }
+        guard rootPolicy?.isValid != false,
+              policy.isValid,
+              policy.sha256 == approvedComputePolicySHA256,
+              Self.nativeRanker(model) == eg_research_ranker_v3(engine),
+              Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
+        else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
         config.mode = policy.mode == .adaptive
@@ -96,9 +169,26 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
 
         var run = EGComputeRunV2()
         run.size_bytes = UInt32(MemoryLayout<EGComputeRunV2>.size)
-        guard eg_analyze_compute_policy_v2(
-            engine, &config, nil, 0, nil, 0, &run
-        ) == 1,
+        let executed: Int32
+        if let rootPolicy {
+            // Always pass a complete 225-cell allowed mask. Never narrow the
+            // candidates before mandatory tactical and fork checks.
+            executed = rootPolicy.allowed.withUnsafeBufferPointer { allowed in
+                rootPolicy.bonuses.withUnsafeBufferPointer { bonuses in
+                    eg_analyze_compute_policy_v2(
+                        engine, &config,
+                        allowed.baseAddress, Int32(allowed.count),
+                        bonuses.baseAddress, Int32(bonuses.count),
+                        &run
+                    )
+                }
+            }
+        } else {
+            executed = eg_analyze_compute_policy_v2(
+                engine, &config, nil, 0, nil, 0, &run
+            )
+        }
+        guard executed == 1,
             run.size_bytes == UInt32(MemoryLayout<EGComputeRunV2>.size),
             run.search.size_bytes ==
                 UInt32(MemoryLayout<EGSearchDiagnosticsV1>.size),
@@ -119,7 +209,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE C++20 V2",
+            engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2",
             completedDepth: Int(run.search.completed_depth)
         )
     }

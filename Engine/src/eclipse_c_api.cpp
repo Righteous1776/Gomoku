@@ -3,6 +3,7 @@
 #include "search.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <limits>
 #include <new>
 
@@ -11,6 +12,7 @@ struct EGEngine {
     std::atomic<bool> cancelled{false};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
+    int verified_v9_model = 0;
 };
 
 extern "C" {
@@ -36,7 +38,7 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
 }
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY;}}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0;}}
 int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
 int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -94,10 +96,40 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
     if (!e || ranker < EG_RESEARCH_RANKER_LEGACY ||
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
+    e->verified_v9_model = 0; // Research selection never inherits production attestation.
     return 1;
 }
 int eg_research_ranker_v3(const EGEngine *e) {
     return e ? e->research_ranker : -1;
+}
+// These are source-model SHA256 pins. The full C++ tree export is verified
+// against the raw files in mandatory CI, not inferred from a model label.
+static constexpr char kAstraV9LightGBMSHA[] =
+    "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d";
+static constexpr char kSolV9LightGBMSHA[] =
+    "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd";
+static const char *compiled_v9_sha(int model) {
+    if (model == EG_RESEARCH_RANKER_V9_ASTRA) return kAstraV9LightGBMSHA;
+    if (model == EG_RESEARCH_RANKER_V9_SOL) return kSolV9LightGBMSHA;
+    return nullptr;
+}
+int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
+                                    const char *expected_sha256) {
+    const char *actual = compiled_v9_sha(model);
+    if (!e || !actual || !expected_sha256 ||
+        std::strncmp(actual, expected_sha256, 65) != 0) return 0;
+    e->research_ranker = model;
+    e->verified_v9_model = model;
+    return 1;
+}
+int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
+                                    char *out, int32_t capacity) {
+    if (!e || !out || capacity < 65 ||
+        e->verified_v9_model != e->research_ranker) return 0;
+    const char *actual = compiled_v9_sha(e->verified_v9_model);
+    if (!actual) return 0;
+    std::memcpy(out, actual, 65);
+    return 64;
 }
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {

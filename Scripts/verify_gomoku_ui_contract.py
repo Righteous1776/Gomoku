@@ -38,7 +38,8 @@ def evaluate_sources(sources):
     layout_body = layout[1].split(".padding(14)", 1)[0] if len(layout) == 2 else ""
     rows = [line.strip() for line in layout_body.splitlines()]
     hierarchy = [row for row in rows if row in {
-        "statusCard", "eclipseIdentity", "boardQuickControls", "board",
+        "statusCard", "eclipseIdentity", "eclipseRuntime",
+        "boardQuickControls", "board",
         "advancedPanel"
     }]
 
@@ -67,10 +68,14 @@ def evaluate_sources(sources):
             and "VeilBoardTapSurface(enabled: enabled)" in board
             and "hypot(dx, dy) <= step * 0.52" in board,
         "one upper ECLIPSE identity": home.count("VeilEclipseIdentityCard(") == 1,
-        "original runtime instrument stays folded":
+        "original VeilLink card background": ".background(VeilAmbientBackground())" in home,
+        "source-aligned adaptive status grid": "GridItem(.adaptive(minimum: 84), spacing: 8)" in home,
+        "R17 VeilLink source runtime is live above controls":
             home.count("VeilEclipseRuntimeInstruments(") == 1
-            and "if showsInstruments {" in home
-            and "struct VeilEclipseRuntimeInstruments: View" in runtime,
+            and "private var eclipseRuntime: some View" in home
+            and 'accessibilityIdentifier("gomoku.eclipse.r17-runtime")' in home
+            and "struct VeilEclipseRuntimeInstruments: View" in runtime
+            and "showsInstruments" not in home,
         "native board tap surface":
             "GomokuBoardView(" in home
             and "VeilBoardTapSurface(enabled: enabled)" in board,
@@ -78,7 +83,7 @@ def evaluate_sources(sources):
             "!eclipseSessionID.isEmpty && !reduceMotion" in pulse
             and ".allowsHitTesting(false)" in pulse,
         "source-aligned game hierarchy":
-            hierarchy == ["statusCard", "eclipseIdentity",
+            hierarchy == ["statusCard", "eclipseIdentity", "eclipseRuntime",
                           "boardQuickControls", "board", "advancedPanel"],
         "training below board and behind disclosure":
             "if showsAdvanced {" in home
