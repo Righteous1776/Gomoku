@@ -11,7 +11,7 @@ final class EclipseTrainerProductionRegistryTests: XCTestCase {
     ) throws -> Data {
         let record: [String: Any] = [
             "schema": "eclipse.production-model-binding.v1",
-            "model_id": "eclipse-1.0-astra",
+            "model_id": "eclipse-2.0-astra",
             "training_revision": "R29",
             "checkpoint_sha256": checkpoint,
             "compute_policy_sha256": policyHash,
@@ -46,7 +46,7 @@ final class EclipseTrainerProductionRegistryTests: XCTestCase {
             manifestData: blob, cppLoadedCheckpointSHA256: sampleDigest
         )
         XCTAssertEqual(resolved?.checkpointSHA256, sampleDigest)
-        XCTAssertEqual(resolved?.model, .astra10)
+        XCTAssertEqual(resolved?.model, .astra20)
         XCTAssertEqual(resolved?.trainingRevision, "R29")
         XCTAssertEqual(resolved?.computePolicy.maxWallTimeMilliseconds, nil)
         XCTAssertNil(EclipseTrainerProductionRegistry.resolve(
@@ -56,6 +56,32 @@ final class EclipseTrainerProductionRegistryTests: XCTestCase {
             manifestData: blob,
             cppLoadedCheckpointSHA256: String(repeating: "a", count: 64)
         ))
+    }
+
+    func testDistilledSolSharesVersionButNotAstraCheckpointIdentity() throws {
+        let policy = EclipseTrainerComputePolicy(
+            mode: .adaptive, maxWallTimeMilliseconds: nil, maxNodes: nil,
+            maxDepth: 15, rootWidth: 60, replyWidth: 40,
+            continuationWidth: 30, forcedLineDepth: 10, candidateRadius: 5
+        )
+        let astraDigest = String(repeating: "a", count: 64)
+        let solDigest = String(repeating: "b", count: 64)
+        var record = try XCTUnwrap(JSONSerialization.jsonObject(
+            with: manifest(
+                checkpoint: solDigest,
+                policyHash: try XCTUnwrap(policy.sha256)
+            )
+        ) as? [String: Any])
+        record["model_id"] = "eclipse-2.0-sol"
+        let solManifest = try JSONSerialization.data(withJSONObject: record)
+        let sol = EclipseTrainerProductionRegistry.resolve(
+            manifestData: solManifest, cppLoadedCheckpointSHA256: solDigest
+        )
+        XCTAssertEqual(sol?.model, .sol20)
+        XCTAssertEqual(sol?.checkpointSHA256, solDigest)
+        XCTAssertNil(EclipseTrainerProductionRegistry.resolve(
+            manifestData: solManifest, cppLoadedCheckpointSHA256: astraDigest
+        ), "An Astra-loaded native scorer must never impersonate a Sol checkpoint")
     }
 
     func testIncorrectPolicyDigestAndPrivateFieldsAreRefused() throws {
