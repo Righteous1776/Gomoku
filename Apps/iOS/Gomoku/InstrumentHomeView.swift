@@ -15,6 +15,7 @@ struct InstrumentHomeView: View {
     @State private var showsEclipseTrace = false
     @State private var showsModelSelection = false
     @State private var pendingModel: EclipseModelID?
+    @State private var pendingCompute: EclipseComputeTier?
     @State private var matchExportURL: URL?
 
     @Environment(\.colorScheme) private var scheme
@@ -65,6 +66,23 @@ struct InstrumentHomeView: View {
         }
         .sheet(isPresented: $showsModelSelection) {
             modelSelectionSheet
+        }
+        .confirmationDialog(
+            "更改算力将结束当前对局并重开",
+            isPresented: Binding(
+                get: { pendingCompute != nil },
+                set: { if !$0 { pendingCompute = nil } }
+            )
+        ) {
+            if let tier = pendingCompute {
+                Button("切换至 \(tier.title)算力并重开") {
+                    engine.selectComputeTier(tier)
+                    pendingCompute = nil
+                }
+            }
+            Button("取消", role: .cancel) { pendingCompute = nil }
+        } message: {
+            Text("选择后将重新启动一局棋，旧棋局数据仍保持原来的模型和算力归属。")
         }
         .sheet(isPresented: $showingCoach) {
             GomokuCoachView(engine: engine)
@@ -189,10 +207,15 @@ struct InstrumentHomeView: View {
             HStack(spacing: 12) {
                 modelSelector
                 Spacer(minLength: 3)
+                computeSelector
                 deepSearchToggle
             }
             VStack(alignment: .leading, spacing: 10) {
-                modelSelector
+                HStack(spacing: 12) {
+                    modelSelector
+                    Spacer(minLength: 4)
+                    computeSelector
+                }
                 deepSearchToggle
             }
         }
@@ -265,7 +288,7 @@ struct InstrumentHomeView: View {
                                             .foregroundColor(VeilTheme.goldBright)
                                             .accessibilityLabel("当前模型")
                                     }
-                                    Text("\(model.fullComputeBudgetMilliseconds)ms")
+                                    Text("\(model.recommendedBudgetMilliseconds)ms")
                                         .font(.caption2.monospacedDigit())
                                         .foregroundColor(VeilTheme.secondaryText)
                                 }
@@ -281,7 +304,7 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("模型版本是可复现的 Swift 搜索策略包，而非七份独立神经网络权重。Luna 使用经典搜索，其余型号使用 R10 训练排序和不同搜索配置；切换当前对局的模型将重开棋局。")
+                    Text("版本号只代表模型世代，算力强度单独设置。Luna 为经典 Swift 搜索，其余复用经训练的 Swift Unified 主链；新版本必须经过训练检查点与棋力验收，不能单靠增加算力提升版本号。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
@@ -334,6 +357,36 @@ struct InstrumentHomeView: View {
             engine.selectModel(model)
             showsModelSelection = false
         }
+    }
+
+    private var computeSelector: some View {
+        Menu {
+            ForEach(EclipseComputeTier.allCases) { tier in
+                Button {
+                    guard tier != engine.computeTier else { return }
+                    if engine.state.moveCount > 0 || engine.isThinking {
+                        pendingCompute = tier
+                    } else {
+                        engine.selectComputeTier(tier)
+                    }
+                } label: {
+                    if tier == engine.computeTier {
+                        Label(tier.title, systemImage: "checkmark")
+                    } else {
+                        Text(tier.title)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Text("算力")
+                Text(engine.computeTier.title).foregroundColor(VeilTheme.goldBright)
+                Image(systemName: "chevron.up.chevron.down")
+            }
+            .font(.caption.weight(.medium))
+            .foregroundColor(VeilTheme.text)
+        }
+        .accessibilityIdentifier("gomoku.eclipse.compute.selector")
     }
 
     private var deepSearchToggle: some View {
