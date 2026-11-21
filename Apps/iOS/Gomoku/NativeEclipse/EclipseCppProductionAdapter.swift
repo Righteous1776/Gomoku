@@ -335,7 +335,15 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             engineLabel: "ECLIPSE 2.0 \(model.family) · " +
                 (useAdaptiveV3 ? "C++20 V3 自适应收敛" : "C++20 V2"),
             completedDepth: Int(run.search.completed_depth),
-            nativeStopReason: run.search.reason
+            nativeStopReason: run.search.reason,
+            adaptiveEvidence: useAdaptiveV3
+                ? EclipseAdaptiveStopEvidence(
+                    stableCompletedRounds: Int(adaptiveRun.stable_rounds_observed),
+                    nativeScoreGap: Int(adaptiveRun.native_score_gap),
+                    complexityTier: Int(adaptiveRun.complexity_tier),
+                    estimatedNextDepthMilliseconds:
+                        Int(clamping: adaptiveRun.predicted_next_depth_ms)
+                  ) : nil
         )
     }
 }
