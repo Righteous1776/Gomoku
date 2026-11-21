@@ -98,6 +98,55 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertTrue(view.visibleTeachingRanks.isEmpty)
     }
 
+    @MainActor
+    func testUnauthorizedTeachingAnalysisCannotMoveOrStartSearch() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let controller = NativeGomokuAppController(
+            archiveDirectory: root.appendingPathComponent("archive"),
+            trainingDirectory: root.appendingPathComponent("training")
+        )
+        let prior = controller.state
+        controller.analyzeTeachingPosition()
+        XCTAssertEqual(controller.state, prior)
+        XCTAssertFalse(controller.isThinking)
+        XCTAssertNil(controller.thinkingHUDSnapshot().searchID)
+    }
+
+    func testTeachingReviewRequiresMatchingContextEvenAfterNativeSearch() {
+        var snapshot = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 6, context: .formal,
+            isSearching: false, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 900,
+            visitedNodes: 5000, completedDepth: 2, stopReason: nil
+        )
+        snapshot.hasTeachingReview = true
+        snapshot.verifiedTeachingCandidate = 112
+        snapshot.nativeRootRanks = [112, 113]
+        snapshot.nativePVDepth = 2
+        snapshot.nativePVPrefix = [112, 113]
+        XCTAssertNil(snapshot.visibleTeachingCandidate)
+        XCTAssertTrue(snapshot.visibleTeachingRanks.isEmpty)
+        XCTAssertTrue(snapshot.visibleTeachingPVPrefix.isEmpty)
+        snapshot = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 6, context: .teaching,
+            isSearching: false, backend: "C++20 V2",
+            executedModel: "2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 900,
+            visitedNodes: 5000, completedDepth: 2, stopReason: nil
+        )
+        snapshot.hasTeachingReview = true
+        snapshot.verifiedTeachingCandidate = 112
+        snapshot.nativeRootRanks = [112, 113]
+        snapshot.nativePVDepth = 2
+        snapshot.nativePVPrefix = [112, 113]
+        XCTAssertEqual(snapshot.visibleTeachingCandidate, 112)
+        XCTAssertEqual(snapshot.visibleTeachingRanks, [112, 113])
+        XCTAssertEqual(snapshot.visibleTeachingPVPrefix, [112, 113])
+    }
+
     func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
         XCTAssertEqual(
             EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_FORCED_WIN)),
