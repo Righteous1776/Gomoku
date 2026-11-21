@@ -110,6 +110,14 @@ typedef struct EGComputeRunV2 {
     EGSearchDiagnosticsV1 search;    /* one actual search, never a rerun */
     EGComputePolicyV2 applied_policy;/* exact received parameter roundtrip */
 } EGComputeRunV2;
+/* Actual trainer artifact identity, NOT the general C++ engine revision.
+ * The default R10 prototype deliberately reports zero because no external
+ * trainer checkpoint was actually loaded into this binary. Once the training
+ * agent's C++ model loader is integrated, it MUST source this from the
+ * model instance that supplies live inference (not untrusted caller metadata).
+ * Returns 64 lowercase hexadecimal characters + NUL only on success.
+ */
+int eg_active_trained_checkpoint_sha256_v2(char *out65, int capacity);
 int eg_compute_policy_abi_version(void);
 /* If root constraints are unused pass both pointers NULL and both capacities 0.
  * To use learned Swift root constraints pass both arrays with capacities 225.
