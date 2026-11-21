@@ -623,7 +623,8 @@ final class NativeGomokuAppController: ObservableObject {
     /// 2.0 Astra/Sol backend is required for live ranked/PV evidence.
     func analyzeTeachingPosition() {
         guard developerTeachingMode, developerAuthorization.isAuthorized,
-              !isThinking, status == 0 else { return }
+              !isThinking, !isNativeTraining, !isBootstrappingSeed,
+              status == 0 else { return }
         guard let trainer = verifiedTrainerExecution,
               let runtime = EclipseCppProductionAdapter.make(
                 history: archivedMoves.map(\.index), trainer: trainer
@@ -706,8 +707,20 @@ final class NativeGomokuAppController: ObservableObject {
         runtime: EclipseCppProductionAdapter
     ) {
         guard token == generation, state == original,
-              developerTeachingMode, developerAuthorization.isAuthorized,
               activeCppSearch === runtime else { return }
+        // Authorization can expire during a long native search. It must
+        // terminate the HUD without retaining a candidate or PV.
+        guard developerTeachingMode, developerAuthorization.isAuthorized else {
+            activeCppSearch = nil
+            activeThinkingRun = nil
+            lastThinkingRun = nil
+            isThinking = false
+            searchStartedAt = nil
+            searchStartedUptime = nil
+            searchTask = nil
+            developerMessage = "开发者验证已过期；本次分析证据已丢弃。"
+            return
+        }
         lastThinkingRun = activeThinkingRun
         activeThinkingRun = nil
         searchStartedUptime = nil
