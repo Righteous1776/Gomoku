@@ -84,6 +84,21 @@ final class EclipseV9DualBindingTests: XCTestCase {
         ) { _, _ in nil }.isEmpty)
     }
 
+    func testAppBundleContainsBothValidV9ModelBindings() {
+        // The metadata must be included in the ACTUAL application binary's
+        // bundle; passing the isolated decoder test is not sufficient.
+        let appBundle = Bundle(for: EclipseCppProductionAdapter.self)
+        XCTAssertNotNil(appBundle.url(
+            forResource: "ECLIPSE_ACTIVE_MODELS", withExtension: "json"
+        ))
+        let models = EclipseTrainerProductionRegistry.loadAllFromBundle(
+            appBundle
+        )
+        XCTAssertEqual(models.count, 2)
+        XCTAssertEqual(models[.astra20]?.checkpointSHA256, astraSHA)
+        XCTAssertEqual(models[.sol20]?.checkpointSHA256, solSHA)
+    }
+
     func testRealCompiledV9RuntimeBindsTwoDifferentForestHashes() {
         let actualAstra = EclipseCppProductionAdapter.loadedCheckpointSHA256(
             for: .astra20, expectedSHA256: astraSHA
