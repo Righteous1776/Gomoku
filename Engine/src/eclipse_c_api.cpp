@@ -7,6 +7,26 @@
 struct EGEngine {eclipse::Board board;};
 
 extern "C" {
+int eg_rules_abi_version(void){return EG_RULES_ABI_VERSION;}
+int eg_rules_replay_v1(const int32_t *moves, int32_t count,
+                       uint8_t *out225, int32_t capacity,
+                       int32_t *out_to_move, int32_t *out_status) {
+    if (!out225 || !out_to_move || !out_status || capacity < eclipse::kCells ||
+        count < 0 || count > eclipse::kCells || (count && !moves)) return 0;
+    eclipse::Board reference;
+    for (int32_t i = 0; i < count; ++i) {
+        if (!reference.play(moves[i])) return 0;
+    }
+    // Commit output only after verifying the COMPLETE history. An illegal
+    // replay must never leak partial boards or mutate previous snapshots.
+    std::copy(reference.cells.begin(), reference.cells.end(), out225);
+    // Current C++ prototype flips the side even when the last move ends the
+    // game. Swift GomokuState retains the last mover on terminal positions.
+    *out_to_move = reference.outcome == 0
+        ? reference.turn : (count % 2 == 1 ? 1 : 2);
+    *out_status = reference.outcome;
+    return 1;
+}
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
 void eg_reset(EGEngine *e){if(e)e->board.reset();}

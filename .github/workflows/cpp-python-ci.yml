@@ -37,6 +37,8 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Python tests
         run: python3 -m unittest discover -s Training/tests -v
+      - name: C++ / Python independent freestyle rules parity
+        run: python3 Training/check_cpp_rules_parity.py --engine build/Engine/gomoku_cli
       - name: Smoke generate one self-play game
         run: python3 Training/selfplay.py --engine build/Engine/gomoku_cli --games 1 --ms 2 --out Training/outputs/smoke.jsonl
       - name: Validate dataset
