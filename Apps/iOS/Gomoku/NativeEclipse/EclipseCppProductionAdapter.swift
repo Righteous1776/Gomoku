@@ -336,7 +336,10 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
                 (useAdaptiveV3 ? "C++20 V3 自适应收敛" : "C++20 V2"),
             completedDepth: Int(run.search.completed_depth),
             nativeStopReason: run.search.reason,
+            // A proof preflight has no finished iterative-deepening rounds.
+            // Do not fill it with fabricated zero-gap convergence metrics.
             adaptiveEvidence: useAdaptiveV3
+                && adaptiveRun.predicted_next_depth_ms > 0
                 ? EclipseAdaptiveStopEvidence(
                     stableCompletedRounds: Int(adaptiveRun.stable_rounds_observed),
                     nativeScoreGap: Int(adaptiveRun.native_score_gap),
