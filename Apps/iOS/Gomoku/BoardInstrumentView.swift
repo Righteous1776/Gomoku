@@ -62,6 +62,9 @@ struct GomokuBoardView: View {
     var eclipseSessionID = ""
     var eclipseBoardTurn = 0
     var eclipseMatchPlaying = true
+    /// Optional real C++ completed-depth candidate provider. Only the
+    /// developer-authorized teaching path supplies a non-nil value.
+    var eclipseTeachingCandidate: (() -> Int?)? = nil
     let onMove: (Int) -> Void
 
     private let starPoints = [48, 56, 112, 168, 176]
@@ -101,6 +104,36 @@ struct GomokuBoardView: View {
                         )
                         .frame(width: side, height: side)
                         .allowsHitTesting(false)
+                    }
+
+                    // Lightweight, NON-interactive teaching hint on the
+                    // original wood board. The formal match never enables
+                    // this provider. Do not invent a best move when C++ has
+                    // not completed one full depth.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let candidateProvider = eclipseTeachingCandidate {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            if let index = candidateProvider(),
+                               (0..<225).contains(index),
+                               state.value(at: index) == 0 {
+                                let point = gomokuPoint(
+                                    index: index, margin: margin, step: step
+                                )
+                                Circle()
+                                    .stroke(
+                                        VeilTheme.goldBright.opacity(0.85),
+                                        style: StrokeStyle(lineWidth: 1.3, dash: [3, 3])
+                                    )
+                                    .frame(width: step * 0.9, height: step * 0.9)
+                                    .position(point)
+                                    .accessibilityLabel("教学：完整搜索深度的最佳候选落点")
+                            }
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                     }
 
                     if state.winningLine.count >= 5,
