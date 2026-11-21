@@ -38,6 +38,19 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Actual ranked C++ root shortlist, truncated to 16. Only authorized
     /// teaching may render it and the board controller rechecks legality.
     var nativeRootRanks: [Int] = []
+    /// Legally replayed actual completed-depth TT continuation, max 16.
+    /// May be shorter than depth. NEVER counts as a mathematical proof.
+    var nativeCompletedPV: [Int] = []
+
+    var visibleTeachingPV: [Int] {
+        guard context == .teaching, isSearching,
+              (completedDepth ?? 0) > 0,
+              !nativeCompletedPV.isEmpty,
+              nativeCompletedPV.count <= (completedDepth ?? 0),
+              nativeCompletedPV.count <= 16,
+              nativeCompletedPV.first == visibleTeachingCandidate else { return [] }
+        return nativeCompletedPV
+    }
 
     var visibleTeachingRanks: [Int] {
         guard context == .teaching, isSearching else { return [] }
@@ -120,5 +133,32 @@ enum EclipseNativeLatencyStatistics {
         return Summary(count: sorted.count,
                        p50Milliseconds: nearestRank(0.5),
                        p95Milliseconds: nearestRank(0.95))
+    }
+}
+
+
+/// A strict, non-mutating match-rule replay for native PV. Search-sourced
+/// moves are NOT trusted merely because the C ABI returned legal indices.
+/// All opponent replies must be played in alternating colors on the real
+/// current 15x15 board, stopping at an actual terminal position.
+enum EclipseThinkingHUDPVReplay {
+    static func validate(
+        _ proposed: [Int],
+        from board: GomokuState,
+        depth: Int,
+        expectedFirstMove: Int
+    ) -> [Int]? {
+        guard (1...16).contains(proposed.count),
+              proposed.count <= depth,
+              proposed.first == expectedFirstMove else { return nil }
+        var replay = board
+        for move in proposed {
+            guard (0..<225).contains(move),
+                  replay.winner == nil, !replay.isDraw,
+                  replay.value(at: move) == 0,
+                  replay.apply(index: move, actor: replay.currentPlayer)
+            else { return nil }
+        }
+        return proposed
     }
 }
