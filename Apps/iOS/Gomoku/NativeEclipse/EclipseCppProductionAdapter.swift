@@ -9,6 +9,16 @@ import Foundation
 ///
 /// The public R17 prototype still contains R10 ordering but no R29/214-tree
 /// loaded checkpoint. It must not silently impersonate the latest trained AI.
+/// Each reading is from one actual C++ search, never from a generated timer
+/// or guessed best move. Only nodes and completed depth reach the formal HUD.
+struct EclipseCppLiveSearchReading: Equatable {
+    let searchSerial: UInt64
+    let running: Bool
+    let nodes: Int
+    let completedDepth: Int?
+    let bestMoveForAuthorizedReview: Int?
+}
+
 final class EclipseCppProductionAdapter: @unchecked Sendable {
     private let engine: OpaquePointer
     private let checkpointSHA256: String
@@ -138,6 +148,29 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// Do NOT play, reset, or destroy the native engine while search runs.
     func cancel() {
         eg_cancel_search_v2(engine)
+    }
+
+    /// The C++ ABI uses atomic, sequence-checked reads. The SwiftUI layer
+    /// polls at no more than its existing 2 Hz budget. This never calls a
+    /// search or mutates the board; no live candidate reaches formal matches.
+    func liveSearchSnapshot() -> EclipseCppLiveSearchReading? {
+        var reading = EGSearchLiveSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGSearchLiveSnapshotV1>.size)
+        guard eg_read_live_search_v1(engine, &reading) == 1,
+              reading.size_bytes == UInt32(MemoryLayout<EGSearchLiveSnapshotV1>.size),
+              reading.search_serial > 0,
+              reading.state == UInt32(EG_LIVE_SEARCH_RUNNING)
+                || reading.state == UInt32(EG_LIVE_SEARCH_COMPLETE)
+        else { return nil }
+        return EclipseCppLiveSearchReading(
+            searchSerial: reading.search_serial,
+            running: reading.state == UInt32(EG_LIVE_SEARCH_RUNNING),
+            nodes: Int(clamping: reading.visited_nodes),
+            completedDepth: reading.completed_depth > 0
+                ? Int(reading.completed_depth) : nil,
+            bestMoveForAuthorizedReview: (0..<225).contains(Int(reading.best_move))
+                ? Int(reading.best_move) : nil
+        )
     }
 
     /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,

@@ -25,6 +25,10 @@ if(BUILD_TESTING)
   target_link_libraries(eclipse_compute_policy_v2_tests PRIVATE eclipse_core Threads::Threads)
   add_test(NAME eclipse_compute_policy_v2 COMMAND eclipse_compute_policy_v2_tests)
   set_tests_properties(eclipse_compute_policy_v2 PROPERTIES TIMEOUT 30)
+  add_executable(eclipse_live_search_snapshot_v1_tests tests/test_live_search_snapshot_v1.cpp)
+  target_link_libraries(eclipse_live_search_snapshot_v1_tests PRIVATE eclipse_core Threads::Threads)
+  add_test(NAME eclipse_live_search_snapshot_v1 COMMAND eclipse_live_search_snapshot_v1_tests)
+  set_tests_properties(eclipse_live_search_snapshot_v1 PROPERTIES TIMEOUT 30)
   # V9 synthetic mandatory-defense regression, exercised through the real R19
   # C ABI V2 search path, independent of any staged LightGBM checkpoint.
   # Compile the actual staged Astra V9 (314) and Sol V9 (160) forests
