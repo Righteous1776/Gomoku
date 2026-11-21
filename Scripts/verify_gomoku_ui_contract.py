@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Source contract for the original VeilLink ECLIPSE instrument migration.
 
-Checks interactive behavior (foldout/gesture isolation), not the old R17.2
-blanket prohibition on a genuine, reduced-motion-gated landing pulse.
-The iOS simulator and physical screenshot gates remain separate.
+Checks original VeilLink LocalAIGameView top-level hierarchy, original
+display/material wiring and unchanged native board hit geometry. ECLIPSE
+2.0 model controls remain standalone adapters, not aesthetic replacements.
+The simulator and physical screenshot gates remain separate.
 """
 from pathlib import Path
 
@@ -34,12 +35,12 @@ def evaluate_sources(sources):
 
     # Compare complete layout rows, not substring positions: "board" is
     # also a prefix of "boardQuickControls".
-    layout = home.split("LazyVStack(alignment: .leading, spacing: 14) {", 1)
+    layout = home.split("VStack(spacing: 14) {", 1)
     layout_body = layout[1].split(".padding(14)", 1)[0] if len(layout) == 2 else ""
     rows = [line.strip() for line in layout_body.splitlines()]
     hierarchy = [row for row in rows if row in {
         "statusCard", "eclipseIdentity", "boardQuickControls", "board",
-        "advancedPanel"
+        "advancedPanel", "VeilEclipseRuntimeInstruments("
     }]
 
     # Scope the gesture assertion to the genuine move-impact effect only.
@@ -67,9 +68,10 @@ def evaluate_sources(sources):
             and "VeilBoardTapSurface(enabled: enabled)" in board
             and "hypot(dx, dy) <= step * 0.52" in board,
         "one upper ECLIPSE identity": home.count("VeilEclipseIdentityCard(") == 1,
-        "original runtime instrument stays folded":
+        "original VeilLink runtime instrument is visible between identity and controls":
             home.count("VeilEclipseRuntimeInstruments(") == 1
-            and "if showsInstruments {" in home
+            and "if showsInstruments {" not in home
+            and 'accessibilityIdentifier("gomoku.eclipse.runtime-source-card")' in home
             and "struct VeilEclipseRuntimeInstruments: View" in runtime,
         "native board tap surface":
             "GomokuBoardView(" in home
@@ -79,7 +81,10 @@ def evaluate_sources(sources):
             and ".allowsHitTesting(false)" in pulse,
         "source-aligned game hierarchy":
             hierarchy == ["statusCard", "eclipseIdentity",
-                          "boardQuickControls", "board", "advancedPanel"],
+                          "VeilEclipseRuntimeInstruments(",
+                          "boardQuickControls", "board", "advancedPanel"]
+            and ".background(VeilAmbientBackground())" in home
+            and ".veilCard()" in home,
         "training below board and behind disclosure":
             "if showsAdvanced {" in home
             and "gomoku.training.advanced.toggle" in home
@@ -102,6 +107,14 @@ def evaluate_sources(sources):
             and "VeilEclipseBoardThoughtField(" in board,
         "analysis is a separate read-only presentation":
             "VeilEclipseTraceSheet(" in home
+            and "VeilEclipseComputeConsole(" in identity,
+        "VeilLink status layout uses original adaptive readout grid":
+            "LazyVGrid(" in home
+            and "GridItem(.adaptive(minimum: 84), spacing: 8)" in home
+            and "statusMetric(\"联网\", \"不需要\")" in home,
+        "VeilLink identity uses original copy and measured elapsed clock":
+            'Text("VeilLink Native Intelligence")' in identity
+            and 'String(format: "%.1fs"' in identity
             and "VeilEclipseComputeConsole(" in identity,
         "day/night/system palette remains user selectable":
             'Picker("颜色模式", selection: $appearance.colorMode)' in home

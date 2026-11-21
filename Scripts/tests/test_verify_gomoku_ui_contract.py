@@ -39,12 +39,34 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(checks["wood board retains safe edge taps"])
 
-    def test_unfolded_runtime_gauge_is_rejected(self):
+    def test_runtime_instrument_cannot_be_hidden_or_reordered(self):
         self.sources["home"] = self.sources["home"].replace(
-            "if showsInstruments {", "if true {", 1
+            "VeilEclipseRuntimeInstruments(",
+            "if showsInstruments { VeilEclipseRuntimeInstruments(", 1
         )
         checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(checks["original runtime instrument stays folded"])
+        self.assertFalse(checks[
+            "original VeilLink runtime instrument is visible between identity and controls"
+        ])
+
+    def test_veillink_layout_order_cannot_be_rearranged(self):
+        self.sources["home"] = self.sources["home"].replace(
+            "                    eclipseIdentity\n",
+            "                    boardQuickControls\n                    eclipseIdentity\n",
+            1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks["source-aligned game hierarchy"])
+
+    def test_veillink_identity_brand_is_pinned(self):
+        self.sources["identity"] = self.sources["identity"].replace(
+            'Text("VeilLink Native Intelligence")',
+            'Text("Custom Cyber AI")', 1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(checks[
+            "VeilLink identity uses original copy and measured elapsed clock"
+        ])
 
     def test_ungated_stone_impact_is_rejected(self):
         self.sources["board"] = self.sources["board"].replace(
