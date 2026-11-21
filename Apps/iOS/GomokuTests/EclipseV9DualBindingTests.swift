@@ -99,6 +99,40 @@ final class EclipseV9DualBindingTests: XCTestCase {
         XCTAssertEqual(models[.sol20]?.checkpointSHA256, solSHA)
     }
 
+    func testSwiftToRealCppV2MoveForBothApprovedModels() throws {
+        let manifest = EclipseTrainerProductionRegistry.loadAllFromBundle(
+            Bundle(for: EclipseCppProductionAdapter.self)
+        )
+        let uniqueBlockHistory = [10, 4, 79, 19, 95, 34, 111, 49]
+        for model in [EclipseModelID.astra20, .sol20] {
+            let trainer = try XCTUnwrap(manifest[model])
+            let running = try XCTUnwrap(EclipseCppProductionAdapter.make(
+                history: uniqueBlockHistory, trainer: trainer
+            ))
+            let decision = try XCTUnwrap(running.decide(
+                policy: trainer.computePolicy
+            ))
+            XCTAssertEqual(decision.index, 64)
+            XCTAssertTrue(
+                (decision.engineLabel ?? "").contains(model.family)
+            )
+            // A mismatched compute policy cannot bypass Training Agent
+            // authorization, even if it could have produced the same move.
+            let bad = EclipseTrainerComputePolicy(
+                mode: .budgeted,
+                maxWallTimeMilliseconds: 100,
+                maxNodes: 1_000,
+                maxDepth: 1,
+                rootWidth: 1,
+                replyWidth: 1,
+                continuationWidth: 1,
+                forcedLineDepth: 0,
+                candidateRadius: 2
+            )
+            XCTAssertNil(running.decide(policy: bad))
+        }
+    }
+
     func testRealCompiledV9RuntimeBindsTwoDifferentForestHashes() {
         let actualAstra = EclipseCppProductionAdapter.loadedCheckpointSHA256(
             for: .astra20, expectedSHA256: astraSHA
