@@ -16,6 +16,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastDecisionDepth: Int?
     @Published private(set) var lastDecisionMilliseconds: Int?
     @Published private(set) var lastExecutedModel: EclipseModelID?
+    @Published private(set) var lastExecutedTrainerRevision: String?
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
@@ -74,6 +75,11 @@ final class NativeGomokuAppController: ObservableObject {
     private var searchTask: Task<Void, Never>?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
+    private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
+
+    var trainerControlsCompute: Bool {
+        verifiedTrainerExecution?.model == selectedModel
+    }
     private let localMatchEvidence: GomokuLocalMatchEvidence
     private var sessionHasLocalProvenance = true
     private lazy var transfer = GomokuMatchTransfer(archive: archive)
@@ -84,7 +90,12 @@ final class NativeGomokuAppController: ObservableObject {
     private var trainingGeneration = UUID()
     private let trainingWriteGate = GomokuTrainingWriteGate()
 
-    init(archiveDirectory: URL? = nil, trainingDirectory: URL? = nil) {
+    init(
+        archiveDirectory: URL? = nil,
+        trainingDirectory: URL? = nil,
+        verifiedTrainerExecution: EclipseVerifiedTrainerExecution? = nil
+    ) {
+        self.verifiedTrainerExecution = verifiedTrainerExecution
         archive = VeilGomokuMatchArchive(directory: archiveDirectory)
         trainingJournal = GomokuNativeTrainingJournal(directory: trainingDirectory)
         let root = archive.directory.deletingLastPathComponent()
@@ -233,6 +244,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
         lastExecutedModel = nil
+        lastExecutedTrainerRevision = nil
         recoveryAvailable = false
         refresh()
         if Int32(state.currentPlayer == .host ? 1 : 2) != humanColor {
@@ -265,6 +277,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
         lastExecutedModel = nil
+        lastExecutedTrainerRevision = nil
         fallbackWarning = nil
         refresh()
         if !humanIsBlack && !developerTeachingMode { scheduleAI() }
@@ -391,6 +404,8 @@ final class NativeGomokuAppController: ObservableObject {
         let model = selectedModel
         let selectedTier = currentModelSelection.legacyDifficulty
         let selectedMode = searchMode
+        let verifiedTrainer = verifiedTrainerExecution?.model == model
+            ? verifiedTrainerExecution : nil
         isThinking = true
         searchStartedAt = Date()
         fallbackWarning = nil
@@ -438,9 +453,13 @@ final class NativeGomokuAppController: ObservableObject {
                 includeNativeSelfPlay: useNativeTraining
             ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
-            let budget = GomokuBotBudget.forDifficulty(
-                selectedTier, profileLabel: selectedMode.budgetProfileLabel
-            ).reinforced(by: learning.trainingLevel)
+            // A verified training Agent checkpoint owns its real compute
+            // policy. Never pass it through legacy tier multipliers, hidden
+            // time limits or local reinforcement caps.
+            let budget = verifiedTrainer?.computePolicy.budget()
+                ?? GomokuBotBudget.forDifficulty(
+                    selectedTier, profileLabel: selectedMode.budgetProfileLabel
+                ).reinforced(by: learning.trainingLevel)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,
                 for: boardAtStart.currentPlayer,
@@ -450,20 +469,23 @@ final class NativeGomokuAppController: ObservableObject {
                 diagnosticEclipseUnified: model.usesTrainedUnifiedSearch,
                 difficultyRawValue: model.usesTrainedUnifiedSearch
                     ? selectedTier.rawValue : nil,
+                trainerSearchLimits: verifiedTrainer?.computePolicy.unifiedLimits(),
                 onExploredLine: observer,
                 onSearchTrace: metricObserver
             )
             guard !Task.isCancelled else { return }
             await self?.applyDecision(
                 decision, boardAtStart: boardAtStart, token: token,
-                executedModel: model
+                executedModel: model,
+                trainerRevision: verifiedTrainer?.trainingRevision
             )
         }
     }
 
     private func applyDecision(
         _ decision: GomokuBotMove?, boardAtStart: GomokuState, token: UUID,
-        executedModel: EclipseModelID
+        executedModel: EclipseModelID,
+        trainerRevision: String?
     ) {
         // The detached worker never captures mutable actor-isolated self in a
         // concurrently executing MainActor.run closure (Swift 6 safe).
@@ -479,11 +501,13 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
+        lastExecutedTrainerRevision = nil
         let selectedIndex: Int
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
             lastExecutedModel = executedModel
+            lastExecutedTrainerRevision = trainerRevision
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
