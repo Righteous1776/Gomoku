@@ -279,8 +279,8 @@ final class NativeGomokuAppController: ObservableObject {
         }
         let live = isThinking && activeThinkingRun != nil
         let context: EclipseThinkingHUDSnapshot.Context =
-            developerTeachingMode ? .teaching :
-                (status == 0 ? .formal : .postgame)
+            developerTeachingMode && developerAuthorization.isAuthorized
+                ? .teaching : (status == 0 ? .formal : .postgame)
         var snapshot = EclipseThinkingHUDSnapshot(
             searchID: identity?.id,
             positionRevision: identity?.positionRevision ?? state.moveCount,
