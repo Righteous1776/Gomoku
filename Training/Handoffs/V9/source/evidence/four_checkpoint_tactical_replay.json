@@ -1,0 +1,68 @@
+{
+  "scenario": "single-synthetic-unique-block-from-deterministic-fixtures",
+  "black": [
+    10,
+    79,
+    95,
+    111
+  ],
+  "white": [
+    4,
+    19,
+    34,
+    49
+  ],
+  "to_move": "black",
+  "forced_unique_block_move": 64,
+  "models": {
+    "Astra_254_baseline": {
+      "chosen": 64,
+      "correct": true,
+      "best_score": 2.5722017877968395,
+      "block_move_score": 2.5722017877968395,
+      "block_move_rank": 1,
+      "top3": [
+        64,
+        63,
+        127
+      ]
+    },
+    "Astra_314_candidate": {
+      "chosen": 63,
+      "correct": false,
+      "best_score": 2.7058128356625986,
+      "block_move_score": 2.3760387947604027,
+      "block_move_rank": 3,
+      "top3": [
+        63,
+        127,
+        64
+      ]
+    },
+    "Sol_120_baseline": {
+      "chosen": 63,
+      "correct": false,
+      "best_score": 3.6723121617063867,
+      "block_move_score": 2.5030043476744797,
+      "block_move_rank": 3,
+      "top3": [
+        63,
+        127,
+        64
+      ]
+    },
+    "Sol_160_candidate": {
+      "chosen": 63,
+      "correct": false,
+      "best_score": 3.730596723615498,
+      "block_move_score": 2.357107338355264,
+      "block_move_rank": 3,
+      "top3": [
+        63,
+        127,
+        64
+      ]
+    }
+  },
+  "disclaimer": "Only static ranker scoring. Engine immediate block overrides ordering, so not actual match strength."
+}
