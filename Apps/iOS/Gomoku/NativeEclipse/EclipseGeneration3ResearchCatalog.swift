@@ -55,7 +55,7 @@ struct EclipseGeneration3ResearchCatalog: Decodable, Sendable {
               catalog.generation == "3.0",
               catalog.label == "ECLIPSE 3.0",
               catalog.flagshipAliasId == "eclipse-3.0-astra",
-              catalog.flagshipAliasName == "Astra 3.0",
+              catalog.flagshipAliasName == "3.0 Astra",
               catalog.flagshipCheckpointId == "eclipse-3.0-r07-249",
               !catalog.productionEnabled,
               !catalog.iosRuntimeLoaded,
