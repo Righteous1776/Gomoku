@@ -38,6 +38,27 @@ final class InstrumentUITests: XCTestCase {
         XCTAssertFalse(learningTitle.exists)
     }
 
+    func testVersionedModelSelectorActuallyChangesActiveEclipseModel() {
+        let app = XCUIApplication()
+        app.launch()
+
+        let selector = app.buttons["gomoku.eclipse.model.selector"]
+        XCTAssertTrue(selector.waitForExistence(timeout: 15))
+        scrollUntilHittable(selector, in: app)
+        selector.tap()
+
+        let astra = app.buttons["gomoku.eclipse.model.eclipse-1.2-astra"]
+        XCTAssertTrue(astra.waitForExistence(timeout: 6))
+        XCTAssertTrue(app.buttons["gomoku.eclipse.model.eclipse-1.0-luna"].exists)
+        capture(app, named: "Gomoku-ECLIPSE-versioned-model-library")
+        astra.tap()
+
+        let changed = app.buttons["gomoku.eclipse.model.selector"]
+        XCTAssertTrue(changed.waitForExistence(timeout: 6))
+        XCTAssertTrue((changed.label).contains("1.2 Astra"),
+                      "Model selection must change the bound runtime identity")
+    }
+
     func testInstrumentDayAndNightModesAreSelectable() {
         let app = XCUIApplication()
         app.launch()
