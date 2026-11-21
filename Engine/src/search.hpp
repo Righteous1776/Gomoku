@@ -94,6 +94,7 @@ private:
     ProgressSink progress_{};
     int last_completed_depth_ = 0;
     int last_best_move_ = -1;
+    std::uint64_t last_progress_nodes_ = 0;
     int candidate_radius_ = 2;
     int root_width_ = 18;
     int proof_width_ = 28;
