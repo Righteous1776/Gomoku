@@ -65,6 +65,7 @@ struct GomokuBoardView: View {
     /// Optional real C++ completed-depth candidate provider. Only the
     /// developer-authorized teaching path supplies a non-nil value.
     var eclipseTeachingCandidate: (() -> Int?)? = nil
+    var eclipseTeachingRootRanks: (() -> [Int])? = nil
     let onMove: (Int) -> Void
 
     private let starPoints = [48, 56, 112, 168, 176]
@@ -104,6 +105,41 @@ struct GomokuBoardView: View {
                         )
                         .frame(width: side, height: side)
                         .allowsHitTesting(false)
+                    }
+
+                    // Real native root shortlist in rank order, cap 16.
+                    // This is NOT a probability heatmap: ordinal intensity
+                    // merely reflects which roots the search considered first.
+                    // Rate-limited to the HUD budget; never intercepts touches.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let ranksProvider = eclipseTeachingRootRanks {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            let ranked = ranksProvider()
+                            Canvas(opaque: false, rendersAsynchronously: false) { context, _ in
+                                for (rank, index) in ranked.prefix(16).enumerated() {
+                                    guard (0..<225).contains(index),
+                                          state.value(at: index) == 0 else { continue }
+                                    let point = gomokuPoint(
+                                        index: index, margin: margin, step: step
+                                    )
+                                    let intensity = 1.0 - Double(rank) / 16.0
+                                    let radius = step * 0.36
+                                    let halo = Path(ellipseIn: CGRect(
+                                        x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2
+                                    ))
+                                    context.fill(halo, with: .color(
+                                        VeilTheme.goldBright.opacity(0.08 + 0.35 * intensity)
+                                    ))
+                                }
+                            }
+                            .frame(width: side, height: side)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                     }
 
                     // Lightweight, NON-interactive teaching hint on the
