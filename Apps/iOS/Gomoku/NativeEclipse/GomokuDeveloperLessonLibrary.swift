@@ -39,10 +39,12 @@ final class GomokuDeveloperLessonLibrary {
     }
 
     private let fileURL: URL
+    private let suppliedKey: Data?
     private(set) var lessons: [Lesson] = []
     private(set) var requiresRecovery = false
 
-    init(fileURL: URL? = nil) {
+    init(fileURL: URL? = nil, testingKey: Data? = nil) {
+        self.suppliedKey = testingKey
         if let fileURL { self.fileURL = fileURL }
         else {
             let root = FileManager.default.urls(
@@ -127,7 +129,7 @@ final class GomokuDeveloperLessonLibrary {
 
     private func save() throws {
         guard !requiresRecovery else { throw LibraryError.damagedStore }
-        let key = try Self.macKey(createIfMissing: true)
+        let key = try suppliedKey ?? Self.macKey(createIfMissing: true)
         let code = Data(HMAC<SHA256>.authenticationCode(
             for: try Self.canonical(lessons), using: SymmetricKey(data: key)
         ))
@@ -153,7 +155,7 @@ final class GomokuDeveloperLessonLibrary {
                 requiresRecovery = true
                 return
             }
-            let key = try Self.macKey(createIfMissing: false)
+            let key = try suppliedKey ?? Self.macKey(createIfMissing: false)
             let calculated = Data(HMAC<SHA256>.authenticationCode(
                 for: try Self.canonical(envelope.lessons),
                 using: SymmetricKey(data: key)
