@@ -76,9 +76,19 @@ int main() {
     s = stopping();
     p.mode = EG_COMPUTE_MODE_BUDGETED;
     p.max_wall_time_ms = 200;
+    // Explicit V3 must not override the trainer's shorter hard ceiling.
     CHECK(eg_analyze_compute_policy_v3(e.get(), &p, &s,
         nullptr,0,nullptr,0,&result) == 0);
     CHECK(std::memcmp(&result, &previous, sizeof(result)) == 0);
+    p.max_wall_time_ms = 3500;
+    // The same finite trainer budget CAN opt in to V3 and retains its
+    // exact approved policy bytes. This is the actual Astra/Sol V9 mode.
+    result = out_run();
+    CHECK(eg_analyze_compute_policy_v3(e.get(), &p, &s,
+        nullptr,0,nullptr,0,&result) == 1);
+    CHECK(std::memcmp(&result.base.applied_policy, &p, sizeof(p)) == 0);
+    CHECK(std::memcmp(&result.applied_stopping, &s, sizeof(s)) == 0);
+    CHECK(result.base.search.reason == EG_SEARCH_REASON_FORCED_WIN);
 
     // Mandatory defense may not be bypassed to claim a quicker stable move.
     eg_reset(e.get());
