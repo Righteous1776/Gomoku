@@ -56,6 +56,15 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
             checks["impact respects reduced motion and cannot intercept taps"]
         )
 
+    def test_wide_ipad_cockpit_must_retain_responsive_breakpoint(self):
+        self.sources["home"] = self.sources["home"].replace(
+            "viewport.size.width >= 900", "viewport.size.width >= 9999", 1
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(
+            checks["wide iPad cockpit and compact split-view fallback"]
+        )
+
     def test_missing_instrument_theme_fails(self):
         self.sources["appearance"] = self.sources["appearance"].replace(
             "let selection: VeilAppearanceSelection = .instrumentAuto",

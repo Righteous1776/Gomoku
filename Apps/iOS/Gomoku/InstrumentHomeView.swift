@@ -31,26 +31,52 @@ struct InstrumentHomeView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 12) {
-                    // Preserve the model/analysis launch above the board.
-                    // Detailed settings are below the play surface.
-                    eclipseIdentity
-                    boardQuickControls
-                    board
-                    liveSearchRibbon
-                    if engine.status != 0 { resultCard }
-                    statusCard
-                    advancedPanel
+            GeometryReader { viewport in
+                ScrollView {
+                    if viewport.size.width >= 900 {
+                        // Regular-width iPad landscape: a playable tabletop
+                        // beside a separate cockpit, not a stretched iPhone.
+                        HStack(alignment: .top, spacing: 18) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                eclipseIdentity
+                                boardQuickControls
+                                board
+                                liveSearchRibbon
+                            }
+                            .frame(maxWidth: 680)
+                            VStack(alignment: .leading, spacing: 12) {
+                                statusCard
+                                if engine.status != 0 { resultCard }
+                                advancedPanel
+                            }
+                            .frame(maxWidth: 340)
+                        }
+                        .frame(maxWidth: 1_100)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 20)
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        LazyVStack(alignment: .leading, spacing: 12) {
+                            // Portrait iPhone and iPad split view: the native
+                            // board stays full-width and above deep settings.
+                            eclipseIdentity
+                            boardQuickControls
+                            board
+                            liveSearchRibbon
+                            if engine.status != 0 { resultCard }
+                            statusCard
+                            advancedPanel
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.top, 10)
+                        .padding(.bottom, 28)
+                        .frame(maxWidth: 680)
+                        .frame(maxWidth: .infinity)
+                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.top, 10)
-                .padding(.bottom, 28)
-                .frame(maxWidth: 680)
-                .frame(maxWidth: .infinity)
+                .scrollIndicators(.hidden)
+                .background(VeilInstrumentBackground())
             }
-            .scrollIndicators(.hidden)
-            .background(VeilInstrumentBackground())
             .navigationTitle("GOMOKU")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

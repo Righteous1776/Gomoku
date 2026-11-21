@@ -104,6 +104,11 @@ def evaluate_sources(sources):
         "analysis is a separate read-only presentation":
             "VeilEclipseTraceSheet(" in home
             and "VeilEclipseComputeConsole(" in identity,
+        "wide iPad cockpit and compact split-view fallback":
+            "viewport.size.width >= 900" in home
+            and "HStack(alignment: .top, spacing: 18)" in home
+            and ".frame(maxWidth: 340)" in home
+            and "LazyVStack(alignment: .leading, spacing: 12)" in home,
         "responsive live measured telemetry": 
             "liveSearchRibbon" in home
             and 'accessibilityIdentifier("gomoku.eclipse.live-telemetry")' in home
