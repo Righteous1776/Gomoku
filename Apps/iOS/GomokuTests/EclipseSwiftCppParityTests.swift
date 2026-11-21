@@ -98,6 +98,22 @@ final class EclipseSwiftCppParityTests: XCTestCase {
         }
     }
 
+    func testSwiftRootPolicyBridgeRejectsTacticalOverride() {
+        let history = [0, 15, 1, 16, 2, 17, 3, 18]
+        var allowed = Set(0..<225)
+        // Even maximum allowed learned preference cannot override winning 4.
+        let chosen = EclipseCppResearchFixture.bestMoveWithRootPolicy(
+            history: history, milliseconds: 100, allowed: allowed,
+            rootBonuses: [9: 2000, 4: -2000]
+        )
+        XCTAssertEqual(chosen, 4)
+        allowed.remove(4)
+        XCTAssertNil(EclipseCppResearchFixture.bestMoveWithRootPolicy(
+            history: history, milliseconds: 100, allowed: allowed,
+            rootBonuses: [9: 2000, 4: -2000]
+        ), "Root policy excluding a compulsory win must fail closed")
+    }
+
     private func pairedGame(swiftBlack: Bool, ms: Int) -> String {
         var state = GomokuState()
         var moves = [112] // same public center opening in both color-swapped games
