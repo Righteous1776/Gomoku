@@ -29,9 +29,9 @@ struct GomokuCoachProfile: Sendable {
         var completed = 0
         var won = 0
         var lost = 0
-        var offset = 0
-        while let page = try? archive.page(offset: offset, limit: 50) {
-            for match in page.matches {
+        // Bounded-memory verified scan: avoid re-sorting entire archives for
+        // every 50 entries when the player's long-term history is large.
+        for match in archive.verifiedMatches() {
                 // A copied/imported JSON can replay legally but does not prove
                 // this device actually played it: exclude it from coach metrics.
                 guard evidence.isVerifiedLocal(match) else { continue }
@@ -49,9 +49,6 @@ struct GomokuCoachProfile: Sendable {
                     }.joined(separator: ",")
                     lostPrefixes[prefix, default: 0] += 1
                 }
-            }
-            guard let next = page.nextOffset, next > offset else { break }
-            offset = next
         }
         let repertoire = GomokuLearningRepertoire.build(
             journalDirectory: trainingDirectory,

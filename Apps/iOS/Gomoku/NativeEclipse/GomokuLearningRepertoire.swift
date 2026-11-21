@@ -66,11 +66,9 @@ enum GomokuLearningRepertoire {
             directory: archiveDirectory.deletingLastPathComponent()
                 .appendingPathComponent("VerifiedLocalLearningV1", isDirectory: true)
         )
-        var offset = 0
-        // The archive validates each game before returning it; never treat an
-        // interrupted game as a completed outcome or training evidence.
-        while let page = try? archive.page(offset: offset, limit: 50) {
-            for match in page.matches {
+        // Stream each validated game once; no O(N log N) re-sort per page
+        // during every AI turn. Imported reference matches are still excluded.
+        for match in archive.verifiedMatches() {
                 // Files-imported reference matches may be replayable but are
                 // not evidence that the player actually completed the game.
                 // Only HMAC-attested *local* records influence search weights.
@@ -113,9 +111,6 @@ enum GomokuLearningRepertoire {
                         }
                     }
                 }
-            }
-            guard let next = page.nextOffset, next > offset else { break }
-            offset = next
         }
 
         // The imported legacy book is not a self-play counter. Its entries

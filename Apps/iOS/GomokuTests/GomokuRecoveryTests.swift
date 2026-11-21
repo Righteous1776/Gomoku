@@ -71,6 +71,7 @@ final class GomokuRecoveryTests: XCTestCase {
                              difficulty: "zenith", humanStone: 2,
                              status: .playing, now: early.addingTimeInterval(10_000))
         XCTAssertEqual(try journal.recordCount(), 122)
+        XCTAssertEqual(Array(journal.verifiedMatches()).count, 122)
         XCTAssertEqual(
             try journal.mostRecentMatch { $0.status == .playing }?.id,
             second
