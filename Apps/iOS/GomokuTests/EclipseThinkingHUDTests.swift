@@ -36,6 +36,24 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertEqual(snapshot.reason, 876)
     }
 
+    func testNativePVPrefixSnapshotIsVersionedAndEmptyAtIdle() {
+        guard let handle = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(handle) }
+        var reading = EGPVPrefixSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGPVPrefixSnapshotV1>.size)
+        XCTAssertEqual(eg_read_pv_prefix_v1(handle, &reading), 1)
+        XCTAssertEqual(reading.search_serial, 0)
+        XCTAssertEqual(reading.count, 0)
+        XCTAssertEqual(reading.completed_depth, 0)
+        reading.size_bytes = 0
+        reading.count = 123
+        XCTAssertEqual(eg_read_pv_prefix_v1(handle, &reading), 0)
+        XCTAssertEqual(reading.count, 123)
+    }
+
     func testNativeRankSnapshotIsVersionedAndEmptyWhileIdle() {
         guard let handle = eg_create() else {
             XCTFail("Native engine unavailable")
