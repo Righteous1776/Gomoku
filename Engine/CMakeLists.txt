@@ -29,6 +29,12 @@ if(BUILD_TESTING)
   target_link_libraries(eclipse_live_search_snapshot_v1_tests PRIVATE eclipse_core Threads::Threads)
   add_test(NAME eclipse_live_search_snapshot_v1 COMMAND eclipse_live_search_snapshot_v1_tests)
   set_tests_properties(eclipse_live_search_snapshot_v1 PROPERTIES TIMEOUT 30)
+  # Adaptive V3 is opt-in; enforce its stop decisions without weakening
+  # historical V2 trainer-policy/Swift parity semantics.
+  add_executable(eclipse_adaptive_stop_v3_tests tests/test_adaptive_stop_v3.cpp)
+  target_link_libraries(eclipse_adaptive_stop_v3_tests PRIVATE eclipse_core Threads::Threads)
+  add_test(NAME eclipse_adaptive_stop_v3 COMMAND eclipse_adaptive_stop_v3_tests)
+  set_tests_properties(eclipse_adaptive_stop_v3 PROPERTIES TIMEOUT 30)
   # V9 synthetic mandatory-defense regression, exercised through the real R19
   # C ABI V2 search path, independent of any staged LightGBM checkpoint.
   # Compile the actual staged Astra V9 (314) and Sol V9 (160) forests
