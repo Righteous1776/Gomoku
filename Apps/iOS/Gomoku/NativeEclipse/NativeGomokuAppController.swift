@@ -86,13 +86,11 @@ final class NativeGomokuAppController: ObservableObject {
     /// Each 2.0 forest is independently compiled, attested and selectable.
     /// A manifest entry alone never enables the model.
     var verifiedSelectableModels: [EclipseModelID] {
-        [.astra20, .sol20].filter { model in
-            guard let trainer = verifiedTrainerExecutions[model] else {
-                return false
-            }
-            return EclipseCppProductionAdapter.loadedCheckpointSHA256(
-                for: model, expectedSHA256: trainer.checkpointSHA256
-            ) == trainer.checkpointSHA256
+        // loadAllFromBundle has ALREADY verified each exact C++ forest during
+        // app initialization. Do not create extra native engines on each
+        // SwiftUI redraw; C++ make()/decide() re-attest active bytes per turn.
+        [.astra20, .sol20].filter {
+            verifiedTrainerExecutions[$0] != nil
         }
     }
 
