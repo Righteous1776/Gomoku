@@ -4,14 +4,15 @@ import XCTest
 
 @MainActor
 final class GomokuDeveloperFormationTests: XCTestCase {
-    private func path() -> URL {
-        FileManager.default.temporaryDirectory
-            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString)
-            .appendingPathComponent("gomoku-v1.json")
+    private func lessonFile() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GomokuLessonTests-" + UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory.appendingPathComponent("gomoku-v1.json", isDirectory: false)
     }
 
     func testOnlyAuthorizedValidatedLessonsCanEnterSignedRepertoire() throws {
-        let file = path()
+        let file = try lessonFile()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let store = GomokuDeveloperLessonLibrary(fileURL: file)
         let valid: [GomokuDeveloperLessonLibrary.Move] = [
@@ -43,7 +44,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
     }
 
     func testTamperingLocksReadOnlyAndPreservesDamagedOriginal() throws {
-        let file = path()
+        let file = try lessonFile()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
         let writer = GomokuDeveloperLessonLibrary(fileURL: file)
         try writer.capture(
