@@ -7,7 +7,7 @@ permissions:
   contents: write
 concurrency:
   group: gomoku-v1-rc
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   ios:
@@ -92,7 +92,7 @@ jobs:
           retention-days: 7
       - name: Publish unsigned engineering pre-release only after all checks
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
