@@ -1,4 +1,5 @@
 #include "eclipse_c_api.h"
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -22,6 +23,19 @@ static EGSearchLiveSnapshotV1 read(EGEngine *e) {
     CHECK(out.elapsed_ms >= 0);
     return out;
 }
+static EGSearchPVSnapshotV1 read_pv(EGEngine *e) {
+    EGSearchPVSnapshotV1 out{};
+    out.size_bytes = sizeof(out);
+    CHECK(eg_read_search_pv_v1(e, &out) == 1);
+    CHECK(out.size_bytes == sizeof(out));
+    CHECK(out.count <= EG_LIVE_PV_MAX);
+    CHECK(out.completed_depth >= 0);
+    if (out.count) {
+        CHECK(out.completed_depth >= static_cast<int>(out.count));
+        CHECK(out.moves[0] >= 0 && out.moves[0] < 225);
+    }
+    return out;
+}
 static EGComputePolicyV2 policy() {
     EGComputePolicyV2 p{};
     p.size_bytes = sizeof(p);
@@ -42,6 +56,12 @@ int main() {
     CHECK(idle.search_serial == 0);
     CHECK(idle.best_move == -1);
     CHECK(idle.reason == -1);
+    CHECK(read_pv(e.get()).count == 0);
+    EGSearchPVSnapshotV1 invalid_pv{};
+    invalid_pv.size_bytes = 0;
+    invalid_pv.completed_depth = 345;
+    CHECK(eg_read_search_pv_v1(e.get(), &invalid_pv) == 0);
+    CHECK(invalid_pv.completed_depth == 345);
 
     // Failed API reads are non-destructive and cannot leak partial data.
     EGSearchLiveSnapshotV1 invalid{};
@@ -67,6 +87,8 @@ int main() {
     CHECK(certified.best_move == 4);
     CHECK(certified.reason == EG_SEARCH_REASON_FORCED_WIN);
     CHECK(certified.visited_nodes == result.search.nodes);
+    // A depth-0 preflight is NOT an iterative-search PV.
+    CHECK(read_pv(e.get()).count == 0);
 
     // Board mutation invalidates completed search facts, not its serial.
     eg_reset(e.get());
@@ -75,6 +97,7 @@ int main() {
     CHECK(cleared.best_move == -1);
     CHECK(cleared.visited_nodes == 0);
     CHECK(cleared.search_serial == certified.search_serial);
+    CHECK(read_pv(e.get()).count == 0);
 
     CHECK(eg_play(e.get(), 112) == 1);
     CHECK(eg_play(e.get(), 97) == 1);
@@ -142,6 +165,11 @@ int main() {
     ranks.size_bytes = sizeof(ranks);
     CHECK(eg_read_ranked_roots_v1(e.get(), &ranks) == 1);
     CHECK(ranks.search_serial == read(e.get()).search_serial);
+    const auto pv = read_pv(e.get());
+    CHECK(pv.search_serial == ranks.search_serial);
+    CHECK(pv.completed_depth == ranking_run.search.completed_depth);
+    CHECK(pv.count == 1);
+    CHECK(pv.moves[0] == ranking_run.search.move);
     CHECK(ranks.count > 0 && ranks.count <= 5);
     std::array<bool, 225> seen{};
     for (unsigned i = 0; i < ranks.count; ++i) {
@@ -156,6 +184,31 @@ int main() {
     ranks.size_bytes = sizeof(ranks);
     CHECK(eg_read_ranked_roots_v1(e.get(), &ranks) == 1);
     CHECK(ranks.count == 0);
+    CHECK(read_pv(e.get()).count == 0);
+
+    // PV is constructed only AFTER a complete iteration. The trace is a
+    // legal alternating prefix; do not synthesize missing TT replies.
+    CHECK(eg_play(e.get(), 112) == 1);
+    CHECK(eg_play(e.get(), 97) == 1);
+    p.max_depth = 3;
+    p.root_width = 5;
+    p.reply_width = 3;
+    EGComputeRunV2 deep{};
+    deep.size_bytes = sizeof(deep);
+    CHECK(eg_analyze_compute_policy_v2(e.get(), &p, nullptr, 0,
+                                      nullptr, 0, &deep) == 1);
+    const auto deep_pv = read_pv(e.get());
+    CHECK(deep_pv.completed_depth == deep.search.completed_depth);
+    CHECK(deep_pv.search_serial == read(e.get()).search_serial);
+    if (deep_pv.count) {
+        CHECK(deep_pv.moves[0] == deep.search.move);
+        CHECK(deep_pv.count <= static_cast<unsigned>(deep.search.completed_depth));
+        EngineOwner replay(eg_create(), eg_destroy);
+        CHECK(eg_play(replay.get(), 112) == 1);
+        CHECK(eg_play(replay.get(), 97) == 1);
+        for (unsigned i=0; i<deep_pv.count; ++i)
+            CHECK(eg_play(replay.get(), deep_pv.moves[i]) == 1);
+    }
     std::cout << "ECLIPSE Stage B/C2 live ABI: atomic polling, rank legality, serial, invalidation, "
                  "native proof and cancellation PASS\n";
 }
