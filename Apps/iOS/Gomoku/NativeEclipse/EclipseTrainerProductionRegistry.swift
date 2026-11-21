@@ -32,9 +32,26 @@ enum EclipseTrainerProductionRegistry {
         manifestData: Data,
         cppLoadedCheckpointSHA256: String?
     ) -> EclipseVerifiedTrainerExecution? {
-        guard let manifest = try? JSONDecoder().decode(
-            Binding.self, from: manifestData
-        ), manifest.schema == "eclipse.production-model-binding.v1",
+        // No raw owner games, private training paths or extra metadata may
+        // be smuggled into the public app bundle beside the model identity.
+        guard let object = try? JSONSerialization.jsonObject(
+            with: manifestData
+        ) as? [String: Any],
+            Set(object.keys) == Set([
+                "schema", "model_id", "training_revision",
+                "checkpoint_sha256", "compute_policy_sha256",
+                "compute_policy"
+            ]),
+            let computeFields = object["compute_policy"] as? [String: Any],
+            Set(computeFields.keys) == Set([
+                "mode", "max_wall_time_ms", "max_nodes",
+                "max_depth", "root_width", "reply_width",
+                "continuation_width", "forced_line_depth",
+                "candidate_radius"
+            ]),
+            let manifest = try? JSONDecoder().decode(
+                Binding.self, from: manifestData
+            ), manifest.schema == "eclipse.production-model-binding.v1",
             let model = EclipseModelID(rawValue: manifest.modelID),
             let actuallyLoaded = cppLoadedCheckpointSHA256,
             actuallyLoaded == manifest.checkpointSHA256,
