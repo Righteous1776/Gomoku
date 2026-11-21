@@ -449,10 +449,12 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
-        lastExecutedModel = decision == nil ? nil : executedModel
+        lastExecutedModel = nil
         let selectedIndex: Int
-        if let decision, boardAtStart.value(at: decision.index) == 0 {
+        if let decision, (0..<225).contains(decision.index),
+           boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
+            lastExecutedModel = executedModel
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
