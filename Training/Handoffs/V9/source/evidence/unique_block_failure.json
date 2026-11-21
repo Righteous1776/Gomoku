@@ -1,0 +1,24 @@
+[
+  {
+    "case_index": 343,
+    "kind": "unique_block",
+    "board_black_indices": [
+      10,
+      79,
+      95,
+      111
+    ],
+    "board_white_indices": [
+      4,
+      19,
+      34,
+      49
+    ],
+    "expected_block": 64,
+    "ranker_preferred_move": 63,
+    "expected_score": 2.3760387947604027,
+    "preferred_score": 2.7058128356625986,
+    "source": "deterministic-synthetic-fixture-not-personal-game",
+    "note": "ranking-only failure, mandatory engine tactical gates not exercised"
+  }
+]
