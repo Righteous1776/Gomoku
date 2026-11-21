@@ -42,11 +42,11 @@ jobs:
           python3 Arena/compare_swift_cpp.py \
             --swift build/swift_original_gomoku_bot \
             --cpp build/Engine/gomoku_cli \
-            --pairs 12 --ms 75 --swift-kind gomokubot \
-            --out Arena/evidence/full-gomokubot-24games.json
+            --pairs 100 --ms 75 --swift-kind gomokubot \
+            --out Arena/evidence/full-gomokubot-200games.json
       - name: Upload privacy-minimal original Bot paired-match evidence
-        if: always() && hashFiles('Arena/evidence/full-gomokubot-24games.json') != ''
+        if: always() && hashFiles('Arena/evidence/full-gomokubot-200games.json') != ''
         uses: actions/upload-artifact@v4
         with:
-          name: ECLIPSE-full-GomokuBot-paired-matches
-          path: Arena/evidence/full-gomokubot-24games.json
+          name: ECLIPSE-full-GomokuBot-200-game-paired-matches
+          path: Arena/evidence/full-gomokubot-200games.json
