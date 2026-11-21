@@ -266,10 +266,7 @@ struct InstrumentHomeView: View {
                 shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
             )
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(VeilTheme.gold.opacity(0.18), lineWidth: 0.6)
-        )
+        .overlay(VeilMachinedRim(cornerRadius: 14, width: 1.35))
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
@@ -570,6 +567,15 @@ struct InstrumentHomeView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
         .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(VeilTheme.subtleFillStrong)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(VeilTheme.subtleStroke, lineWidth: 0.7)
+                .allowsHitTesting(false)
+        )
         .accessibilityElement(children: .combine)
     }
 
@@ -582,6 +588,10 @@ struct InstrumentHomeView: View {
                     ? "eye.fill" : "eye.slash")
                     .font(.system(size: 14, weight: .semibold))
                     .frame(width: 44, height: 44)
+                    .background(
+                        VeilTheme.subtleFillStrong,
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
                     .contentShape(Rectangle())
             }
             .accessibilityLabel(engine.eclipseVisualizationEnabled
@@ -593,6 +603,10 @@ struct InstrumentHomeView: View {
                 Image(systemName: "waveform.path.ecg.rectangle")
                     .font(.system(size: 15, weight: .semibold))
                     .frame(width: 44, height: 44)
+                    .background(
+                        VeilTheme.subtleFillStrong,
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    )
                     .contentShape(Rectangle())
             }
             .accessibilityLabel("查看详细分析")

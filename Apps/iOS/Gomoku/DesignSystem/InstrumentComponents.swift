@@ -42,14 +42,102 @@ struct VeilInstrumentPlate<S: Shape>: View {
     var body: some View {
         shape
             .fill(LinearGradient(colors: [palette.metalTop, palette.metalBottom], startPoint: .topLeading, endPoint: .bottomTrailing))
-            .overlay(shape.stroke(Color.white.opacity(appearance.isDarkAppearance ? 0.07 : 0.55), lineWidth: 0.8))
-            .overlay(shape.stroke(Color.black.opacity(0.24), lineWidth: emphasized ? 1.3 : 0.7).padding(1))
+            .overlay(shape.stroke(
+                Color.white.opacity(appearance.isDarkAppearance ? 0.14 : 0.68),
+                lineWidth: 0.9
+            ))
+            .overlay(shape.stroke(
+                Color.black.opacity(appearance.isDarkAppearance ? 0.54 : 0.25),
+                lineWidth: emphasized ? 1.5 : 0.9
+            ).padding(1))
+            .overlay(shape.stroke(
+                palette.gold.opacity(emphasized ? 0.22 : 0.12), lineWidth: 0.6
+            ).padding(4))
             .shadow(
                 color: Color.black.opacity(VeilMotionPolicy.allowsFullSpatialEffects ? (appearance.isDarkAppearance ? 0.46 : 0.26) : 0),
                 radius: VeilMotionPolicy.allowsFullSpatialEffects ? (emphasized ? 12 : 7) : 0,
                 x: 0,
                 y: VeilMotionPolicy.allowsFullSpatialEffects ? (emphasized ? 8 : 4) : 0
             )
+    }
+}
+
+/// Quiet, static CNC-machined edge highlights. Mechanical depth without
+/// particles, screen refresh drivers, or any overlay that steals gestures.
+struct VeilMachinedRim: View {
+    var cornerRadius: CGFloat = 16
+    var width: CGFloat = 1.5
+    @ObservedObject private var appearance = VeilAppearanceController.shared
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        shape
+            .strokeBorder(
+                LinearGradient(
+                    colors: appearance.isDarkAppearance
+                        ? [Color(red: 0.70, green: 0.59, blue: 0.44).opacity(0.64),
+                           Color.white.opacity(0.10),
+                           Color.black.opacity(0.77)]
+                        : [Color.white.opacity(0.95),
+                           Color(red: 0.54, green: 0.47, blue: 0.36).opacity(0.44),
+                           Color.black.opacity(0.26)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: width
+            )
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: max(2, cornerRadius - 3),
+                    style: .continuous
+                )
+                .strokeBorder(
+                    appearance.isDarkAppearance
+                        ? Color.black.opacity(0.43)
+                        : Color.white.opacity(0.51),
+                    lineWidth: 1
+                )
+                .padding(3)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Small sunken, slotted fastener; under the board's existing UIKit tap
+/// surface. Geometry and search overlays remain entirely untouched.
+struct VeilMachinedRivet: View {
+    var diameter: CGFloat = 9
+    @ObservedObject private var appearance = VeilAppearanceController.shared
+
+    var body: some View {
+        let dark = appearance.isDarkAppearance
+        Circle()
+            .fill(
+                LinearGradient(
+                    colors: dark
+                        ? [Color(red: 0.47, green: 0.40, blue: 0.33),
+                           Color(red: 0.10, green: 0.09, blue: 0.085)]
+                        : [Color(red: 0.95, green: 0.91, blue: 0.83),
+                           Color(red: 0.46, green: 0.40, blue: 0.33)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .overlay(Circle().strokeBorder(
+                dark ? Color.black.opacity(0.72) : Color.black.opacity(0.40),
+                lineWidth: 1.2
+            ))
+            .overlay {
+                Capsule()
+                    .fill(dark ? Color.black.opacity(0.83) : Color.black.opacity(0.53))
+                    .frame(width: diameter * 0.52, height: max(0.8, diameter * 0.105))
+                    .rotationEffect(.degrees(-34))
+            }
+            .frame(width: diameter, height: diameter)
+            .shadow(color: .black.opacity(0.32), radius: 1.1, x: 0, y: 1)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

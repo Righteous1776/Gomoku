@@ -99,13 +99,27 @@ struct GomokuBoardView: View {
                                 )
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            VeilMachinedRim(cornerRadius: 12, width: 2.1)
+                        )
+                        // The bronze face is set into a flush-machined chassis.
+                        // Both highlight rails remain inside existing bounds.
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 9, style: .continuous)
                                 .strokeBorder(
-                                    dark ? Color.white.opacity(0.09)
-                                         : Color.white.opacity(0.45),
-                                    lineWidth: 0.8
+                                    dark ? Color.black.opacity(0.55)
+                                         : Color.white.opacity(0.56),
+                                    lineWidth: 1.5
                                 )
-                                .padding(3)
+                                .padding(6)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(
+                                    dark ? VeilTheme.gold.opacity(0.13)
+                                         : Color.black.opacity(0.10),
+                                    lineWidth: 0.65
+                                )
+                                .padding(9)
                         )
 
                     gomokuGrid(side: side, margin: margin, step: step)
@@ -128,17 +142,10 @@ struct GomokuBoardView: View {
                     ForEach(0..<4, id: \.self) { corner in
                         let farX = corner % 2 == 1
                         let farY = corner >= 2
-                        Circle()
-                            .fill(dark ? Color.black.opacity(0.45)
-                                       : Color.black.opacity(0.18))
-                            .frame(width: 4.5, height: 4.5)
-                            .overlay(Circle().stroke(
-                                Color.white.opacity(dark ? 0.14 : 0.30),
-                                lineWidth: 0.45
-                            ))
+                        VeilMachinedRivet(diameter: max(6.5, min(9, side * 0.024)))
                             .position(
-                                x: side * (farX ? 0.975 : 0.025),
-                                y: side * (farY ? 0.975 : 0.025)
+                                x: side * (farX ? 0.973 : 0.027),
+                                y: side * (farY ? 0.973 : 0.027)
                             )
                     }
 

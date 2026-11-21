@@ -106,10 +106,9 @@ struct VeilEclipseIdentityCard: View {
                     emphasized: true
                 )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(VeilTheme.gold.opacity(0.24), lineWidth: 0.8)
-            )
+            .overlay(VeilMachinedRim(cornerRadius: 18, width: 1.7))
+            // A static engraved seam: the user still taps the whole panel
+            // to enter analysis, no additional gesture or animation.
             .contentShape(RoundedRectangle(cornerRadius: 18))
         }
         .buttonStyle(.plain)

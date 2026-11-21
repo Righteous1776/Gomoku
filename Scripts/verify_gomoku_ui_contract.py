@@ -16,6 +16,7 @@ PATHS = {
     "identity": "Visualization/VeilEclipseIdentityAndTrace.swift",
     "appearance": "DesignSystem/AppearanceTheme.swift",
     "runtime": "Visualization/VeilEclipseRuntimeInstruments.swift",
+    "materials": "DesignSystem/InstrumentComponents.swift",
 }
 
 
@@ -31,6 +32,7 @@ def evaluate_sources(sources):
     identity = sources["identity"]
     appearance = sources["appearance"]
     runtime = sources["runtime"]
+    materials = sources["materials"]
 
     # Compare complete layout rows, not substring positions: "board" is
     # also a prefix of "boardQuickControls".
@@ -115,6 +117,15 @@ def evaluate_sources(sources):
             and 'accessibilityIdentifier("gomoku.eclipse.live-visibility")' in home
             and 'accessibilityIdentifier("gomoku.eclipse.analysis.open")' in home
             and "engine.realSearchMetrics" in home,
+        "mechanical detailing is inert and does not shrink board":
+            "struct VeilMachinedRim: View" in materials
+            and "struct VeilMachinedRivet: View" in materials
+            and materials.count(".allowsHitTesting(false)") >= 3
+            and "VeilMachinedRivet(" in board
+            and "VeilMachinedRim(" in board
+            and "VeilMachinedRim(" in home
+            and "let margin = side * 0.055" in board
+            and "hypot(dx, dy) <= step * 0.52" in board,
         "day/night board material is adaptive without changing tap geometry":
             "appearance.isDarkAppearance" in board
             and "RadialGradient(" in board

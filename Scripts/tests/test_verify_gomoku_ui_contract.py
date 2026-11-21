@@ -65,6 +65,15 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
             checks["wide iPad cockpit and compact split-view fallback"]
         )
 
+    def test_machine_rivets_must_be_hit_test_transparent(self):
+        self.sources["materials"] = self.sources["materials"].replace(
+            ".allowsHitTesting(false)", ".allowsHitTesting(true)"
+        )
+        checks = ui_contract.evaluate_sources(self.sources)
+        self.assertFalse(
+            checks["mechanical detailing is inert and does not shrink board"]
+        )
+
     def test_missing_instrument_theme_fails(self):
         self.sources["appearance"] = self.sources["appearance"].replace(
             "let selection: VeilAppearanceSelection = .instrumentAuto",
