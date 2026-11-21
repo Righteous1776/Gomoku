@@ -171,6 +171,19 @@ struct EclipseThinkingHUDView: View {
                                 .foregroundColor(VeilTheme.secondaryText)
                         }
                         if level == .developer {
+                            // Model-generation 3.0 is a separate RESEARCH
+                            // lineage. Never substitute it for the runtime
+                            // model/checkpoint actually shown below.
+                            if let research = EclipseGeneration3ResearchCatalog.bundled,
+                               let checkpoint = research.preferredResearchCandidate {
+                                item("ECLIPSE 3.0 · 新研究代",
+                                     "\(checkpoint.researchRevision) · \(checkpoint.trees) 树 / \(checkpoint.features) 维")
+                                item("3.0 模型状态",
+                                     "研究资产 · 8/9 门禁 · 未在 iOS 加载")
+                                Text("已登记独立权重 SHA：\(String(checkpoint.sha256.prefix(16)))…；当前对局仍使用下方显示的真实执行模型。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             if let evidence = snapshot.adaptiveEvidence {
                                 item("真实完整深度稳定轮数",
                                      String(evidence.stableCompletedRounds))
