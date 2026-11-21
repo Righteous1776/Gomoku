@@ -31,6 +31,15 @@ int main(){
     assert(eg_best_move_diagnostics_v1(e.get(),1,&metrics)==1);
     assert(metrics.move==4 && metrics.reason==EG_SEARCH_REASON_FORCED_WIN);
     assert(metrics.completed_depth==0 && eg_ply_count(e.get())==8);
+    // R16: no 20-second clamp and trainer may request zero = open-ended.
+    // Use an immediately provable win so the unlimited test terminates fast.
+    EGSearchDiagnosticsV1 unlimited{};
+    unlimited.size_bytes=sizeof(unlimited);
+    assert(eg_best_move_diagnostics_v1(e.get(),0,&unlimited)==1);
+    assert(unlimited.move==4 && unlimited.reason==EG_SEARCH_REASON_FORCED_WIN);
+    assert(eg_best_move_diagnostics_v1(e.get(),120000,&unlimited)==1);
+    assert(unlimited.move==4 && unlimited.reason==EG_SEARCH_REASON_FORCED_WIN);
+    assert(eg_ply_count(e.get())==8);
     // Native Swift root learning may bias a legal alternative, but it must
     // NEVER override a certified immediate win. Invalid policies fail closed.
     std::array<std::uint8_t,225> allowed{};
