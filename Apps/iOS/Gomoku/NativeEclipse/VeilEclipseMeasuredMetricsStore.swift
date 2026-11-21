@@ -49,6 +49,17 @@ final class VeilEclipseMeasuredMetricsStore: @unchecked Sendable {
         return true
     }
 
+    /// C++ atomically observed progress, not guessed frame counts.
+    @discardableResult
+    func recordNative(depth: Int, nodes: Int, token candidate: UUID) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard token == candidate, (0...64).contains(depth),
+              (0...500_000_000).contains(nodes),
+              depth >= lastDepth, nodes >= lastNodes else { return false }
+        lastNodes = nodes
+        lastDepth = depth
+        return true
+    }
     func snapshot(
         sessionID: String, turn: Int, isThinking: Bool
     ) -> VeilEclipseTracePolicy.LiveMetrics? {

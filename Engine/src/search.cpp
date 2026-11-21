@@ -225,6 +225,11 @@ bool Search::limit_reached() {
         return true;
     }
     if (timed_out_) return true;
+    if (finish_signal_ && finish_signal_->load(std::memory_order_relaxed)) {
+        finished_early_ = true;
+        timed_out_ = true;
+        return true;
+    }
     if (nodes_ >= node_cap_ || Clock::now() >= deadline_)
         timed_out_ = true;
     return timed_out_;
@@ -350,15 +355,45 @@ int Search::negamax(int side, int depth, int alpha, int beta,
     return best == -kInf ? static_value(side) : best;
 }
 
+void Search::report_root(int index, int depth, int side) {
+    if (!progress_ || nodes_ == 0 || index < 0 ||
+        index >= kCells || cells_[index] != 0) return;
+    int reply = -1, next = -1;
+    place(index, side);
+    if (!five_at(index, side)) {
+        const auto first = table_.find(hash_ ^ side_hash()[other(side)]);
+        if (first != table_.end() && first->second.best >= 0 &&
+            first->second.best < kCells && cells_[first->second.best] == 0) {
+            reply = first->second.best;
+            place(reply, other(side));
+            if (!five_at(reply, other(side))) {
+                const auto second = table_.find(hash_ ^ side_hash()[side]);
+                if (second != table_.end() && second->second.best >= 0 &&
+                    second->second.best < kCells &&
+                    cells_[second->second.best] == 0)
+                    next = second->second.best;
+            }
+            unplace(reply, other(side));
+        }
+    }
+    unplace(index, side);
+    progress_(index, reply, next, depth, nodes_);
+}
+
 SearchResult Search::analyze(const Board &root, int milliseconds,
                              const RootPolicy *policy,
                              const ComputePolicy *compute,
-                             const std::atomic<bool> *cancel) {
+                             const std::atomic<bool> *cancel,
+                             const std::atomic<bool> *finish_early,
+                             const ProgressObserver &progress) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
     cancelled_ = false;
     cancel_signal_ = cancel;
+    finish_signal_ = finish_early;
+    finished_early_ = false;
+    progress_ = progress;
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -490,16 +525,24 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (fallbacks.empty()) return finish(-1, SearchStopReason::no_move, 0);
     int incumbent = fallbacks.front(), completed = 0;
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
+    if (finished_early_)
+        return finish(incumbent, SearchStopReason::user_finish, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
     if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
-        if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
+        if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty()) {
+            if (progress_ && nodes_ > 0)
+                progress_(pv[0], pv.size() > 1 ? pv[1] : -1,
+                          pv.size() > 2 ? pv[2] : -1,
+                          static_cast<int>(pv.size()), nodes_);
             return finish(pv.front(), SearchStopReason::forced_win,
                           static_cast<int>(pv.size()));
+        }
     }
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
+    if (finished_early_) return finish(incumbent, SearchStopReason::user_finish, 0);
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
@@ -515,6 +558,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             int score = -negamax(other(side), depth - 1, -kInf, kInf, move, 1);
             unplace(move, side);
             if (timed_out_) break;
+            report_root(move, completed, side);
             if (policy && std::abs(score) < kMate / 2)
                 score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
@@ -526,10 +570,12 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         if (round_best >= 0) {
             incumbent = round_best;
             completed = depth;
+            report_root(incumbent, completed, side);
             if (round_score >= kMate / 2) break;
         }
     }
     return finish(incumbent, cancelled_ ? SearchStopReason::cancelled
+        : finished_early_ ? SearchStopReason::user_finish
         : timed_out_ ? SearchStopReason::time_limit
                      : SearchStopReason::complete, completed);
 }

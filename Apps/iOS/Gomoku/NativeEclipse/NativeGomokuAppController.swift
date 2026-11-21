@@ -34,7 +34,9 @@ final class NativeGomokuAppController: ObservableObject {
             computeTier = restored.compute
         }
     }
-    @Published var searchMode: BoardSearchMode = .full
+    @Published var searchMode: BoardSearchMode = .full {
+        didSet { UserDefaults.standard.set(searchMode.rawValue, forKey: "gomoku.eclipse.search-mode") }
+    }
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
     @Published private(set) var developerTeachingMode = false
@@ -60,7 +62,7 @@ final class NativeGomokuAppController: ObservableObject {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
 
-    @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
+    @Published var eclipseVisualizationEnabled = (UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace") as? Bool ?? true) {
         didSet {
             UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
             if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }
@@ -177,6 +179,12 @@ final class NativeGomokuAppController: ObservableObject {
                 computeTier = explicitlySelectedCompute
             }
         }
+        if let mode = UserDefaults.standard.string(forKey: "gomoku.eclipse.search-mode") {
+            searchMode = BoardSearchMode.restore(mode)
+        } else if selectedModel.requiresVerifiedCheckpoint &&
+                  verifiedTrainerExecutions[selectedModel] != nil {
+            searchMode = .economy
+        }
         // The full historical replay pass can be huge and must never block
         // the initial board render or interactive scrolling on MainActor.
         Task.detached(priority: .utility) { [weak self] in
@@ -212,6 +220,9 @@ final class NativeGomokuAppController: ObservableObject {
         }
         selectedModel = model
         computeTier = model.defaultComputeTier
+        if UserDefaults.standard.string(forKey: "gomoku.eclipse.search-mode") == nil {
+            searchMode = model.requiresVerifiedCheckpoint ? .economy : .full
+        }
         UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)
         UserDefaults.standard.set(computeTier.rawValue, forKey: EclipseComputeTier.selectionKey)
         reset()
@@ -548,10 +559,35 @@ final class NativeGomokuAppController: ObservableObject {
                     learning: learning,
                     formation: activeFormation
                 )
+                // The verified trainer policy remains immutable; the user
+                // may request a bounded *interactive* best-so-far answer.
+                let quickLimit: Int? = selectedMode == .economy
+                    ? (model == .astra20 ? 4_000 : 2_000) : nil
+                let softFinish: Task<Void, Never>? = quickLimit.map { ms in
+                    Task.detached(priority: .utility) {
+                        try? await Task.sleep(nanoseconds: UInt64(ms) * 1_000_000)
+                        guard !Task.isCancelled else { return }
+                        cppRuntime.requestFastFinish()
+                    }
+                }
+                let poller = Task.detached(priority: .utility) {
+                    while !Task.isCancelled {
+                        if let progress = cppRuntime.liveProgress() {
+                            _ = metricSink.recordNative(
+                                depth: progress.completedDepth,
+                                nodes: progress.nodes, token: metricToken
+                            )
+                            observer?(progress.indices, progress.nodes)
+                        }
+                        try? await Task.sleep(nanoseconds: 125_000_000)
+                    }
+                }
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
                     rootPolicy: rooted
                 )
+                softFinish?.cancel()
+                poller.cancel()
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
                     await self?.applyDecision(

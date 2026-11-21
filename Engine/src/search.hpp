@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -17,7 +18,8 @@ enum class SearchStopReason : int {
     only_move = 3,
     no_move = 4,
     time_limit = 5,
-    cancelled = 6
+    cancelled = 6,
+    user_finish = 7
 };
 
 struct SearchResult {
@@ -54,12 +56,15 @@ enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
 
 class Search {
 public:
+    using ProgressObserver = std::function<void(int,int,int,int,std::uint64_t)>;
     explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
         : ranker_(ranker) {}
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
-                         const std::atomic<bool> *cancel = nullptr);
+                         const std::atomic<bool> *cancel = nullptr,
+                         const std::atomic<bool> *finish_early = nullptr,
+                         const ProgressObserver &progress = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -82,6 +87,9 @@ private:
     bool timed_out_ = false;
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
+    const std::atomic<bool> *finish_signal_ = nullptr;
+    bool finished_early_ = false;
+    ProgressObserver progress_{};
     int candidate_radius_ = 2;
     int root_width_ = 18;
     int proof_width_ = 28;
@@ -113,6 +121,7 @@ private:
                              int limit, int previous_best = -1) const;
     int static_value(int side) const;
     bool limit_reached();
+    void report_root(int index, int depth, int side);
     bool prove_four(int side, int remaining, bool restrict_root,
                     std::vector<int> &variation);
     int tactical_leaf(int side, int ply, int remaining_forced);
