@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <iterator>
 
 namespace eclipse::research_v9 {
 struct Node {
