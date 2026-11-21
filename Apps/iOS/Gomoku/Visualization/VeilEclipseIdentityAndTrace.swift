@@ -45,7 +45,9 @@ struct VeilEclipseIdentityCard: View {
                                 .font(.system(size: 25, weight: .black, design: .rounded))
                                 .tracking(2.0)
                                 .foregroundColor(VeilTheme.text)
-                            Text("2.0")
+                            // Read the ACTUAL selected model generation.
+                            // 1.0 Luna/Terra must never be labelled 2.0.
+                            Text(difficultyTitle.split(separator: " ").first.map(String.init) ?? "AI")
                                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                                 .foregroundColor(VeilTheme.goldBright)
                         }
