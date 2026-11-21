@@ -11,7 +11,6 @@ struct InstrumentHomeView: View {
     @State private var showingDeveloperLab = false
     @State private var showingCoach = false
     @State private var showsAdvanced = false
-    @State private var showsInstruments = false
     @State private var showsEclipseTrace = false
     @State private var showsModelSelection = false
     @State private var pendingModel: EclipseModelID?
@@ -32,20 +31,30 @@ struct InstrumentHomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
+                // Faithful to VeilLink/UI/GameLobbyView.swift LocalAIGameView:
+                // status → ECLIPSE identity → live runtime → controls → board.
+                // The original VeilLink source, not a redesigned dashboard,
+                // is the authority for hierarchy and materials.
+                VStack(spacing: 14) {
                     statusCard
                     eclipseIdentity
+                    VeilEclipseRuntimeInstruments(
+                        running: showingSearch,
+                        start: showingSearch ? engine.searchStartedAt : nil,
+                        lastNodes: engine.lastDecisionNodes,
+                        lastMilliseconds: engine.lastDecisionMilliseconds,
+                        trainedGames: engine.trainedGames
+                    )
+                    .veilCard()
+                    .accessibilityIdentifier("gomoku.eclipse.runtime-source-card")
                     boardQuickControls
                     board
                     if engine.status != 0 { resultCard }
                     advancedPanel
                 }
                 .padding(14)
-                .frame(maxWidth: 680)
-                .frame(maxWidth: .infinity)
             }
-            .scrollIndicators(.hidden)
-            .background(VeilInstrumentBackground())
+            .background(VeilAmbientBackground())
             .navigationTitle("五子棋 · 人机")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -137,12 +146,15 @@ struct InstrumentHomeView: View {
                     VeilIndicatorLamp(active: canPlaceStone, color: VeilTheme.goldBright)
                 }
             }
-            HStack(spacing: 7) {
-                statusMetric("实际引擎", engine.lastExecutionBackend
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 84), spacing: 8)],
+                spacing: 8
+            ) {
+                statusMetric("引擎", engine.lastExecutionBackend
                     ?? (engine.trainerControlsCompute
                         ? "C++ V2 / 待核验" : "Swift / 历史兼容"))
                 statusMetric("联网", "不需要")
-                statusMetric("上步耗时", engine.lastDecisionMilliseconds.map { "\($0)ms" } ?? "—")
+                statusMetric("耗时", engine.lastDecisionMilliseconds.map { "\($0)ms" } ?? "—")
             }
             if let executed = engine.lastExecutedModel {
                 Text("上一手：\(executed.name) · \(engine.lastExecutionBackend ?? "Swift")")
@@ -172,20 +184,24 @@ struct InstrumentHomeView: View {
         .accessibilityIdentifier("gomoku.instrument.status")
     }
 
+    // Same three-cell readout typography and surface as VeilLink game UI.
     private func statusMetric(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundColor(VeilTheme.secondaryText)
+                .font(.system(.caption2, design: .monospaced).weight(.bold))
+                .foregroundColor(VeilTheme.tertiaryText)
             Text(value)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).weight(.semibold))
                 .foregroundColor(VeilTheme.text)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.65)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(7)
-        .background(VeilTheme.subtleFill, in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 7)
+        .background(VeilTheme.subtleFill)
+        .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 
     private var eclipseIdentity: some View {
@@ -564,29 +580,6 @@ struct InstrumentHomeView: View {
                 .foregroundColor(VeilTheme.secondaryText)
             trainingSection
             coachSection
-
-            Button {
-                showsInstruments.toggle()
-            } label: {
-                HStack {
-                    Label("ECLIPSE / 实测仪表", systemImage: "cpu.fill")
-                        .font(.caption.weight(.semibold))
-                    Spacer()
-                    Image(systemName: showsInstruments ? "chevron.up" : "chevron.down")
-                }
-                .foregroundColor(VeilTheme.goldBright)
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("gomoku.eclipse.instruments.toggle")
-            if showsInstruments {
-                VeilEclipseRuntimeInstruments(
-                    running: showingSearch,
-                    start: showingSearch ? engine.searchStartedAt : nil,
-                    lastNodes: engine.lastDecisionNodes,
-                    lastMilliseconds: engine.lastDecisionMilliseconds,
-                    trainedGames: engine.trainedGames
-                )
-            }
 
             Button {
                 showingDeveloperLab = true
