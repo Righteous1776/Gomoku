@@ -1,89 +1,115 @@
-import Foundation
 import SwiftUI
+import Foundation
 
-/// ECLIPSE measured analysis console. No synthetic code stream, animated
-/// numbers, simulated progress, search paths or decorative redraw loops.
-/// All figures originate from actual engine measurements.
+/// The black console sits INSIDE the original VeilLink themed card.
+/// It is a decorative display: no board coordinate, candidate, PV or
+/// protected engine reasoning object can enter its public interface.
 struct VeilEclipseComputeConsole: View {
     let isComputing: Bool
     let actualSearchStartedAt: Date?
     let liveMetrics: VeilEclipseTracePolicy.LiveMetrics?
     var compact: Bool = false
 
-    private var active: Bool {
-        isComputing && actualSearchStartedAt != nil
-    }
+    @ObservedObject private var appearance = VeilAppearanceController.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var elapsedSeconds: Double? {
-        guard active, let actualSearchStartedAt else { return nil }
-        return max(0, Date().timeIntervalSince(actualSearchStartedAt))
-    }
-
-    private var nodesPerSecond: String {
-        guard let nodes = liveMetrics?.visitedNodes,
-              let elapsedSeconds, elapsedSeconds >= 0.5 else { return "—" }
-        return "\(Int(Double(nodes) / elapsedSeconds))"
-    }
+    private var active: Bool { isComputing && actualSearchStartedAt != nil }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 7 : 12) {
-            HStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: compact ? 3 : 7) {
+            HStack(spacing: 6) {
                 Circle()
                     .fill(active ? VeilTheme.goldBright : VeilTheme.tertiaryText)
                     .frame(width: 5, height: 5)
-                Text("ECLIPSE / 实测搜索")
-                    .font(.system(size: compact ? 10 : 12,
-                                  weight: .semibold, design: .monospaced))
-                    .foregroundColor(VeilTheme.text)
-                Spacer(minLength: 4)
-                Text(active ? "计算中" : "待机")
-                    .font(.caption2)
-                    .foregroundColor(VeilTheme.secondaryText)
+                Text("ECLIPSE // VISUAL STREAM")
+                    .font(.system(size: compact ? 8 : 10, weight: .bold, design: .monospaced))
+                    .foregroundColor(VeilTheme.paleMetal)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Text(active ? "RUN" : "IDLE")
+                    .foregroundColor(active ? VeilTheme.goldBright : VeilTheme.tertiaryText)
+                    .font(.system(size: compact ? 8 : 10, weight: .medium, design: .monospaced))
             }
-
-            HStack(spacing: compact ? 6 : 12) {
-                metric("完成深度",
-                       liveMetrics?.completedDepth.map { "D\($0)" } ?? "—")
-                metric("搜索节点",
-                       liveMetrics?.visitedNodes.map(String.init) ?? "—")
-                if !compact {
-                    metric("实际节点/秒", nodesPerSecond)
+            if active, let startedAt = actualSearchStartedAt {
+                TimelineView(.animation(
+                    minimumInterval: ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0 / 9.0 : 1.0 / 24.0,
+                    paused: reduceMotion
+                )) { timeline in
+                    let elapsed = max(0, timeline.date.timeIntervalSince(startedAt))
+                    let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+                    let position = VeilEclipseConsoleStream.scrollPosition(
+                        elapsedSeconds: reduceMotion ? 0 : elapsed, lowPower: lowPower
+                    )
+                    let lineHeight: CGFloat = compact ? 11 : 15
+                    let visibleCount = compact ? 2 : 7
+                    let rows = VeilEclipseConsoleStream.lines(
+                        elapsedSeconds: reduceMotion ? 0 : elapsed,
+                        visibleRows: visibleCount + 1,
+                        lowPower: lowPower
+                    )
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(0..<rows.count, id: \.self) { index in
+                            Text(rows[index].text)
+                                .font(.system(size: compact ? 8 : 10, weight: .medium, design: .monospaced))
+                                .foregroundColor(tone(rows[index].tone))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                                .frame(height: lineHeight, alignment: .leading)
+                        }
+                    }
+                    .offset(y: -CGFloat(position - floor(position)) * lineHeight)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: lineHeight * CGFloat(visibleCount), alignment: .top)
+                    .clipped()
+                    .accessibilityHidden(true)
                 }
+            } else {
+                Text("vis.idle ()")
+                    .font(.system(size: compact ? 8 : 10, weight: .medium, design: .monospaced))
+                    .foregroundColor(VeilTheme.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityHidden(true)
             }
-
             if !compact {
-                Text("仅显示引擎测量数据；没有虚构的搜索日志或进度百分比。")
+                if active, let liveMetrics {
+                    let depth = liveMetrics.completedDepth.map { "D\($0)" } ?? "—"
+                    let nodes = liveMetrics.visitedNodes.map(String.init) ?? "—"
+                    Text("MEASURED · DEPTH \(depth) / NODES \(nodes)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(VeilTheme.goldBright)
+                } else {
+                    Text("MEASURED · 暂无实时深度/节点数据")
+                        .font(.caption2)
+                        .foregroundColor(VeilTheme.secondaryText)
+                }
+                Text(VeilEclipseConsoleStream.disclosure)
                     .font(.caption2)
                     .foregroundColor(VeilTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(compact ? 10 : 14)
+        .padding(compact ? 8 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: compact ? 55 : 166)
         .background(
-            VeilTheme.elevated,
-            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: appearance.isPlainline ? 2 : 10, style: .continuous)
+                .fill(Color.black.opacity(0.97))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(VeilTheme.subtleStroke, lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: appearance.isPlainline ? 2 : 10, style: .continuous)
+                .stroke(VeilTheme.gold.opacity(appearance.isInstrument ? 0.24 : 0.12), lineWidth: 0.8)
         )
+        .allowsHitTesting(false)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("ECLIPSE 实测搜索。\(active ? "计算中" : "待机")。完成深度 \(liveMetrics?.completedDepth.map(String.init) ?? "未知")，累计节点 \(liveMetrics?.visitedNodes.map(String.init) ?? "未知")。")
+        .accessibilityLabel("ECLIPSE 计算显示屏。\(active ? "计算中" : "待机")。装饰性编码流，不代表真实推理，也不会提示落点。")
     }
 
-    private func metric(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 9, weight: .medium, design: .monospaced))
-                .foregroundColor(VeilTheme.secondaryText)
-            Text(value)
-                .font(.system(size: compact ? 12 : 16,
-                              weight: .semibold, design: .monospaced))
-                .monospacedDigit()
-                .foregroundColor(VeilTheme.text)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+    private func tone(_ index: Int) -> Color {
+        switch index {
+        case 0: return VeilTheme.goldBright
+        case 1: return VeilTheme.paleMetal
+        case 2: return VeilTheme.success
+        default: return VeilTheme.secondaryText
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

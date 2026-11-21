@@ -4,7 +4,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <functional>
 #include <unordered_map>
 #include <vector>
 
@@ -18,24 +17,8 @@ enum class SearchStopReason : int {
     only_move = 3,
     no_move = 4,
     time_limit = 5,
-    cancelled = 6,
-    user_finish = 7,
-    adaptive_stable = 8 // completed depths agree and root margin is verified
+    cancelled = 6
 };
-
-// Pure convergence rule: no wall-clock thresholds. A stable best move
-// alone is insufficient: search must also separate runner-up alternatives,
-// and tactical positions demand deeper independent evidence.
-struct AdaptiveSearchEvidence {
-    int profile = 0;       // 0=legacy exhaustive, 1/2=experimental, 3=strength guard (no heuristic exit)
-    int completed_depth = 0;
-    int stable_rounds = 0;
-    int score_margin = 0;
-    int tactical_windows = 0;
-    int root_alternatives = 0;
-    int best_score = 0;
-};
-bool should_stop_adaptive(const AdaptiveSearchEvidence &evidence);
 
 struct SearchResult {
     int move = -1;
@@ -69,53 +52,14 @@ struct ComputePolicy {
 // previously supported callers and original Swift/C++ parity benchmarks.
 enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
 
-// Exact incremental candidate frontier. For each empty intersection it
-// records how many occupied intersections lie within the trainer-selected
-// Chebyshev radius. It never changes ranking or excludes legal candidates:
-// this is a cache of the old geometry scan, NOT a search pruning heuristic.
-class CandidateCoverage {
-public:
-    void reset(int radius, const std::array<std::uint8_t, kCells> &cells);
-    void add(int index);
-    void remove(int index);
-    std::vector<int> candidates(const std::array<std::uint8_t, kCells> &cells) const;
-    int coverage(int index) const { return cover_[index]; }
-private:
-    int radius_ = 2;
-    std::array<std::int16_t, kCells> cover_{};
-    void adjust(int index, int delta);
-};
-
-// Exact incremental replacement of the original 572 five-cell static
-// evaluator. Updates only windows incident to the placed/removed stone.
-class FiveWindowScore {
-public:
-    void reset(const std::array<std::uint8_t, kCells> &cells);
-    void add(int index, int side);
-    void remove(int index, int side);
-    int raw_score(int side) const;
-    bool creates_four(int index, int side) const;
-private:
-    static constexpr int kWindows = 572; // 165 horizontal, 165 vertical, 242 diagonal
-    std::array<std::uint8_t, kWindows> black_{};
-    std::array<std::uint8_t, kWindows> white_{};
-    int black_sum_ = 0;
-    int white_sum_ = 0;
-    void adjust(int index, int side, int delta);
-};
-
 class Search {
 public:
-    using ProgressObserver = std::function<void(int,int,int,int,std::uint64_t)>;
     explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
         : ranker_(ranker) {}
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
-                         const std::atomic<bool> *cancel = nullptr,
-                         const std::atomic<bool> *finish_early = nullptr,
-                         const ProgressObserver &progress = {},
-                         int adaptive_profile = 0);
+                         const std::atomic<bool> *cancel = nullptr);
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -138,15 +82,7 @@ private:
     bool timed_out_ = false;
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
-    const std::atomic<bool> *finish_signal_ = nullptr;
-    bool finished_early_ = false;
-    ProgressObserver progress_{};
-    int adaptive_profile_ = 0;
     int candidate_radius_ = 2;
-    CandidateCoverage coverage_{};
-    bool use_incremental_coverage_ = false;
-    FiveWindowScore window_score_{};
-    bool use_incremental_score_ = false;
     int root_width_ = 18;
     int proof_width_ = 28;
     int reply_width_ = 14;
@@ -172,13 +108,11 @@ private:
     std::vector<int> neighbors(int radius = 2) const;
     std::vector<int> immediate_wins(int side, const std::vector<int> &candidates) const;
     int fork_count(int side) const;
-    int threat_windows(int side) const;
     int pattern_priority(int index, int side) const;
     std::vector<int> ordered(const std::vector<int> &moves, int side,
                              int limit, int previous_best = -1) const;
     int static_value(int side) const;
     bool limit_reached();
-    void report_root(int index, int depth, int side);
     bool prove_four(int side, int remaining, bool restrict_root,
                     std::vector<int> &variation);
     int tactical_leaf(int side, int ply, int remaining_forced);

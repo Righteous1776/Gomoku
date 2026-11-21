@@ -16,9 +16,6 @@ PATHS = {
     "identity": "Visualization/VeilEclipseIdentityAndTrace.swift",
     "appearance": "DesignSystem/AppearanceTheme.swift",
     "runtime": "Visualization/VeilEclipseRuntimeInstruments.swift",
-    "materials": "DesignSystem/InstrumentComponents.swift",
-    "console": "Visualization/VeilEclipseComputeConsole.swift",
-    "thought": "Visualization/VeilEclipseBoardThoughtField.swift",
 }
 
 
@@ -34,22 +31,25 @@ def evaluate_sources(sources):
     identity = sources["identity"]
     appearance = sources["appearance"]
     runtime = sources["runtime"]
-    materials = sources["materials"]
-    console = sources["console"]
-    thought = sources["thought"]
 
     # Compare complete layout rows, not substring positions: "board" is
     # also a prefix of "boardQuickControls".
-    layout = home.split("LazyVStack(alignment: .leading, spacing: 12) {", 1)
-    layout_body = layout[1].split(".padding(.horizontal, 12)", 1)[0] if len(layout) == 2 else ""
+    layout = home.split("LazyVStack(alignment: .leading, spacing: 14) {", 1)
+    layout_body = layout[1].split(".padding(14)", 1)[0] if len(layout) == 2 else ""
     rows = [line.strip() for line in layout_body.splitlines()]
     hierarchy = [row for row in rows if row in {
         "statusCard", "eclipseIdentity", "boardQuickControls", "board",
-        "liveSearchRibbon", "advancedPanel"
+        "advancedPanel"
     }]
 
-    # The committed last stone is marked statically. No pulsing visual
-    # effect is allowed to cause large board redraws or compete with taps.
+    # Scope the gesture assertion to the genuine move-impact effect only.
+    # Other static decorations must not accidentally satisfy this check.
+    pulse_section = board.split(
+        "// Original VeilLink R17: a single event-bound impact pulse.", 1
+    )
+    pulse = pulse_section[1].split("VeilBoardTapSurface(enabled:", 1)[0] \
+        if len(pulse_section) == 2 else ""
+
     board_view_section = home.split("    private var board: some View {", 1)
     board_view = board_view_section[1].split(
         "    private var resultCard: some View {", 1
@@ -74,25 +74,12 @@ def evaluate_sources(sources):
         "native board tap surface":
             "GomokuBoardView(" in home
             and "VeilBoardTapSurface(enabled: enabled)" in board,
-        "static last-move marker replaces board impact animation":
-            "// The last committed stone has a static gold dot" in board
-            and "withAnimation(" not in board
-            and ".animation(" not in board
-            and "impactScale" not in board,
-        "no fake animated console, only native measured values":
-            "VeilEclipseConsoleStream.lines" not in console
-            and "TimelineView(" not in console
-            and "liveMetrics?.visitedNodes" in console
-            and "nodesPerSecond" in console,
-        "optional quiet board trace stays disabled by default":
-            '?? false' in controller
-            and 'gomoku.eclipse.live-trace.v2' in controller
-            and 'by: 0.5' in thought
-            and 'searchTrace.snapshot(' in thought
-            and "ProcessInfo.processInfo.systemUptime" not in thought,
+        "impact respects reduced motion and cannot intercept taps":
+            "!eclipseSessionID.isEmpty && !reduceMotion" in pulse
+            and ".allowsHitTesting(false)" in pulse,
         "source-aligned game hierarchy":
-            hierarchy == ["eclipseIdentity", "boardQuickControls", "board",
-                          "liveSearchRibbon", "statusCard", "advancedPanel"],
+            hierarchy == ["statusCard", "eclipseIdentity",
+                          "boardQuickControls", "board", "advancedPanel"],
         "training below board and behind disclosure":
             "if showsAdvanced {" in home
             and "gomoku.training.advanced.toggle" in home
@@ -104,9 +91,8 @@ def evaluate_sources(sources):
             "let selection: VeilAppearanceSelection = .instrumentAuto" in appearance,
         "real search start timestamp":
             "searchStartedAt = Date()" in controller
-            and ("timeIntervalSince(started)" in identity
-                 or "timeIntervalSince(started)" in home),
-        "live search branch visibility is under owner control":
+            and "timeIntervalSince(started)" in identity,
+        "live search branches explicitly opt in":
             "Toggle(isOn: $engine.eclipseVisualizationEnabled)" in home
             and "onExploredLine: observer" in controller
             and "traceStore.record(" in controller,
@@ -117,30 +103,6 @@ def evaluate_sources(sources):
         "analysis is a separate read-only presentation":
             "VeilEclipseTraceSheet(" in home
             and "VeilEclipseComputeConsole(" in identity,
-        "wide iPad cockpit and compact split-view fallback":
-            "viewport.size.width >= 900" in home
-            and "HStack(alignment: .top, spacing: 18)" in home
-            and ".frame(maxWidth: 340)" in home
-            and "LazyVStack(alignment: .leading, spacing: 12)" in home,
-        "responsive live measured telemetry": 
-            "liveSearchRibbon" in home
-            and 'accessibilityIdentifier("gomoku.eclipse.live-telemetry")' in home
-            and 'accessibilityIdentifier("gomoku.eclipse.live-visibility")' in home
-            and 'accessibilityIdentifier("gomoku.eclipse.analysis.open")' in home
-            and "engine.realSearchMetrics" in home,
-        "mechanical detailing is inert and does not shrink board":
-            "struct VeilMachinedRim: View" in materials
-            and "struct VeilMachinedRivet: View" in materials
-            and materials.count(".allowsHitTesting(false)") >= 3
-            and "VeilMachinedRivet(" in board
-            and "VeilMachinedRim(" in board
-            and "VeilInstrumentPlate(" in home
-            and "let margin = side * 0.055" in board
-            and "hypot(dx, dy) <= step * 0.52" in board,
-        "day/night board material is adaptive without changing tap geometry":
-            "appearance.isDarkAppearance" in board
-            and "RadialGradient(" in board
-            and "VeilBoardTapSurface(enabled: enabled)" in board,
         "day/night/system palette remains user selectable":
             'Picker("颜色模式", selection: $appearance.colorMode)' in home
             and all(f"case {mode}" in appearance

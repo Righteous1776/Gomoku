@@ -10,16 +10,9 @@
 struct EGEngine {
     eclipse::Board board;
     std::atomic<bool> cancelled{false};
-    std::atomic<bool> finish_requested{false};
-    std::atomic<std::uint64_t> progress_serial{0};
-    std::atomic<bool> progress_running{false};
-    std::atomic<int> progress_root{-1}, progress_reply{-1}, progress_next{-1};
-    std::atomic<int> progress_depth{0};
-    std::atomic<std::uint64_t> progress_nodes{0};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
-    std::atomic<int> adaptive_search_profile{0};
 };
 
 extern "C" {
@@ -45,7 +38,7 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
 }
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; e->adaptive_search_profile=0;}}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0;}}
 int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
 int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -104,7 +97,6 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
     e->verified_v9_model = 0; // Research selection never inherits production attestation.
-    e->adaptive_search_profile = 0;
     return 1;
 }
 int eg_research_ranker_v3(const EGEngine *e) {
@@ -128,7 +120,6 @@ int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
         std::strncmp(actual, expected_sha256, 65) != 0) return 0;
     e->research_ranker = model;
     e->verified_v9_model = model;
-    e->adaptive_search_profile = 0;
     return 1;
 }
 int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
@@ -145,44 +136,6 @@ void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
 }
 
-int eg_set_adaptive_search_profile_v4(EGEngine *e, int32_t profile) {
-    if (!e || profile < 0 || profile > 3 ||
-        e->progress_running.load(std::memory_order_acquire)) return 0;
-    // Application initializes this setting before analysis. Atomic storage
-    // also prevents a data race if a caller violates that lifecycle.
-    e->adaptive_search_profile.store(profile, std::memory_order_release);
-    return 1;
-}
-int eg_adaptive_search_profile_v4(const EGEngine *e) {
-    return e ? e->adaptive_search_profile.load(std::memory_order_acquire) : -1;
-}
-int eg_search_progress_abi_version(void) { return EG_SEARCH_PROGRESS_ABI_VERSION; }
-void eg_request_search_finish_v3(EGEngine *e) {
-    if (e) e->finish_requested.store(true, std::memory_order_release);
-}
-int eg_read_search_progress_v3(const EGEngine *e, EGSearchProgressV3 *out) {
-    if (!e || !out || out->size_bytes != sizeof(EGSearchProgressV3)) return 0;
-    for (int attempt=0; attempt<12; ++attempt) {
-        auto before = e->progress_serial.load(std::memory_order_seq_cst);
-        if (before & 1) continue;
-        EGSearchProgressV3 snap{};
-        snap.size_bytes = sizeof(snap);
-        snap.serial = before / 2;
-        snap.running = e->progress_running.load(std::memory_order_seq_cst) ? 1U : 0U;
-        snap.root_move = e->progress_root.load(std::memory_order_seq_cst);
-        snap.reply_move = e->progress_reply.load(std::memory_order_seq_cst);
-        snap.continuation_move = e->progress_next.load(std::memory_order_seq_cst);
-        snap.completed_depth = e->progress_depth.load(std::memory_order_seq_cst);
-        snap.nodes = e->progress_nodes.load(std::memory_order_seq_cst);
-        snap.move_count = snap.root_move < 0 ? 0 :
-            snap.reply_move < 0 ? 1 : snap.continuation_move < 0 ? 2 : 3;
-        if (before == e->progress_serial.load(std::memory_order_seq_cst)) {
-            *out = snap;
-            return 1;
-        }
-    }
-    return 0;
-}
 int eg_analyze_compute_policy_v2(
     EGEngine *e, const EGComputePolicyV2 *policy,
     const uint8_t *allowed, int32_t allowed_capacity,
@@ -237,31 +190,10 @@ int eg_analyze_compute_policy_v2(
     chosen.candidate_radius = policy->candidate_radius;
     try {
         e->cancelled.store(false, std::memory_order_release);
-        e->finish_requested.store(false, std::memory_order_release);
-        e->progress_serial.fetch_add(1, std::memory_order_seq_cst);
-        e->progress_root.store(-1, std::memory_order_seq_cst);
-        e->progress_reply.store(-1, std::memory_order_seq_cst);
-        e->progress_next.store(-1, std::memory_order_seq_cst);
-        e->progress_depth.store(0, std::memory_order_seq_cst);
-        e->progress_nodes.store(0, std::memory_order_seq_cst);
-        e->progress_running.store(true, std::memory_order_seq_cst);
-        e->progress_serial.fetch_add(1, std::memory_order_seq_cst);
-        auto publish = [e](int root, int reply, int next, int depth, std::uint64_t nodes) {
-            e->progress_serial.fetch_add(1, std::memory_order_seq_cst);
-            e->progress_root.store(root, std::memory_order_seq_cst);
-            e->progress_reply.store(reply, std::memory_order_seq_cst);
-            e->progress_next.store(next, std::memory_order_seq_cst);
-            e->progress_depth.store(depth, std::memory_order_seq_cst);
-            e->progress_nodes.store(nodes, std::memory_order_seq_cst);
-            e->progress_serial.fetch_add(1, std::memory_order_seq_cst);
-        };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
-            e->board, 0, root_pointer, &chosen, &e->cancelled,
-            &e->finish_requested, publish,
-            e->adaptive_search_profile.load(std::memory_order_acquire));
-        e->progress_running.store(false, std::memory_order_seq_cst);
+            e->board, 0, root_pointer, &chosen, &e->cancelled);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0))
             return 0;
@@ -277,7 +209,6 @@ int eg_analyze_compute_policy_v2(
         *out = snapshot; // commit only on full success
         return 1;
     } catch (...) {
-        e->progress_running.store(false, std::memory_order_seq_cst);
         // Never allow a C++ exception to cross the ABI boundary.
         return 0;
     }

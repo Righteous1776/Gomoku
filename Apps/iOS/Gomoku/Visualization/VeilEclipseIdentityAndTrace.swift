@@ -8,120 +8,73 @@ struct VeilEclipseIdentityCard: View {
     let isThinking: Bool
     let matchFinished: Bool
     let lastCompletedMilliseconds: Int?
+    /// Actual engine calculation timestamp, not a fabricated progress indicator.
     let actualSearchStartedAt: Date?
+    /// The current controller's actual tier, not an independently configured UI tier.
     let difficultyTitle: String
     let liveMetrics: VeilEclipseTracePolicy.LiveMetrics?
     let openTrace: () -> Void
-    var matchupLabel: String? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var currentState: String {
-        if isThinking { return "正在分析当前局面" }
-        if matchFinished { return "本局结束 · 查看完整回放" }
-        return "引擎待命 · 自适应分析"
-    }
+    @ObservedObject private var appearance = VeilAppearanceController.shared
 
     var body: some View {
         Button(action: openTrace) {
-            VStack(alignment: .leading, spacing: 11) {
-                HStack(alignment: .center, spacing: 12) {
-                    VeilEclipseAvatar(isThinking: isThinking && !reduceMotion)
-                        .frame(width: 58, height: 58)
-                        .overlay(
-                            Circle().stroke(
-                                VeilTheme.gold.opacity(0.23), lineWidth: 0.8
-                            )
-                        )
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("GOMOKU   /   NATIVE INTELLIGENCE")
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .tracking(1.1)
-                            .foregroundColor(VeilTheme.secondaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("ECLIPSE")
-                                .font(.system(size: 25, weight: .black, design: .rounded))
-                                .tracking(2.0)
-                                .foregroundColor(VeilTheme.text)
-                            // Read the ACTUAL selected model generation.
-                            // 1.0 Luna/Terra must never be labelled 2.0.
-                            Text(difficultyTitle.split(separator: " ").first.map(String.init) ?? "AI")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundColor(VeilTheme.goldBright)
+            VStack(alignment: .leading, spacing: VeilSpacing.sm) {
+                HStack(spacing: VeilSpacing.md) {
+                VeilEclipseAvatar(isThinking: isThinking && !reduceMotion)
+                    .frame(width: 76, height: 76)
+                VStack(alignment: .leading, spacing: VeilSpacing.xxs) {
+                    Text("ECLIPSE")
+                        .font(.headline.weight(.semibold))
+                        .foregroundColor(VeilTheme.text)
+                    Text(isThinking ? "正在思考" : matchFinished ? "本局结束 · 可查看回放" : "等待落子")
+                        .font(.caption)
+                        .foregroundColor(isThinking ? VeilTheme.goldBright : VeilTheme.secondaryText)
+                    Text("Gomoku Native Intelligence")
+                        .font(.caption2)
+                        .foregroundColor(VeilTheme.tertiaryText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: VeilSpacing.sm) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                    Text(VeilEclipseTierPresentation.shortName(difficultyTitle))
+                        .font(.caption2.weight(.medium))
+                        .lineLimit(1)
+                    if isThinking, let started = actualSearchStartedAt {
+                        TimelineView(.periodic(from: .now, by: reduceMotion ? 1.0 : 0.1)) { clock in
+                            Text(String(format: "REAL CLOCK  T+%.1fs", max(0, clock.date.timeIntervalSince(started))))
+                                .font(.caption2.monospacedDigit())
                         }
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                        Text(matchupLabel ?? difficultyTitle)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(VeilTheme.secondaryText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
-                    }
-                    Spacer(minLength: 0)
-                    Image(systemName: "arrow.up.right")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(VeilTheme.goldBright)
-                        .frame(width: 36, height: 36)
-                        .background(VeilTheme.subtleFillStrong,
-                                    in: RoundedRectangle(cornerRadius: 10))
-                        .accessibilityHidden(true)
-                }
-                Rectangle()
-                    .fill(VeilTheme.gold.opacity(0.22))
-                    .frame(height: 0.6)
-                    .accessibilityHidden(true)
-                HStack(spacing: 8) {
-                    VeilIndicatorLamp(active: isThinking, color: VeilTheme.goldBright)
-                    Text(currentState)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(isThinking
-                            ? VeilTheme.goldBright : VeilTheme.secondaryText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                    Spacer(minLength: 4)
-                    if let depth = liveMetrics?.completedDepth {
-                        Text("DEPTH D\(depth)")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
-                            .foregroundColor(VeilTheme.goldBright)
-                            .monospacedDigit()
                     } else if let ms = lastCompletedMilliseconds, ms >= 0 {
-                        Text("\(ms) ms")
-                            .font(.system(size: 10, weight: .medium, design: .monospaced))
-                            .foregroundColor(VeilTheme.secondaryText)
-                    } else {
-                        Text("READY / 15 × 15")
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
-                            .foregroundColor(VeilTheme.secondaryText)
+                        Text("\(ms)ms")
+                            .font(.caption2.monospacedDigit())
+                            .lineLimit(1)
                     }
                 }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                VeilInstrumentPlate(
-                    shape: RoundedRectangle(cornerRadius: 16, style: .continuous),
-                    emphasized: false
+                .foregroundColor(VeilTheme.tertiaryText)
+                }
+                // The black instrument is contained within existing VeilLink
+                // materials. It never receives candidates, PV or threat cells.
+                VeilEclipseComputeConsole(
+                    isComputing: isThinking,
+                    actualSearchStartedAt: actualSearchStartedAt,
+                    liveMetrics: liveMetrics,
+                    compact: true
                 )
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(VeilTheme.subtleStroke, lineWidth: 0.8)
-                    .allowsHitTesting(false)
             }
-            // A static engraved seam: the user still taps the whole panel
-            // to enter analysis, no additional gesture or animation.
-            .contentShape(RoundedRectangle(cornerRadius: 18))
+            // Outer .veilCard() is authoritative: the *existing* VeilCardModifier
+            // owns cut corners, instrument plates, Apple Soft and Islet materials.
+            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "ECLIPSE，\(VeilEclipseTierPresentation.shortName(difficultyTitle))，" +
-            "\(isThinking ? "正在计算" : matchFinished ? "本局已结束" : "等待对局")，查看分析状态"
-        )
-        .accessibilityHint("打开真正的引擎计算与已完成棋局回放")
+        .accessibilityLabel("ECLIPSE，\(VeilEclipseTierPresentation.shortName(difficultyTitle))，\(isThinking ? "正在计算" : matchFinished ? "本局已结束" : "等待对局")，查看分析状态")
+        .accessibilityHint("对局期间不显示推荐落点；完成后可以回放已发生的棋步")
         .accessibilityIdentifier("game.eclipse.identity")
     }
 }

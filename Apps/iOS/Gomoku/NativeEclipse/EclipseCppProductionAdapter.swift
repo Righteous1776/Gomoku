@@ -136,48 +136,22 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// Safe to invoke concurrently with a running analyze call on this
     /// instance; the C ABI only permits atomic cancellation during search.
     /// Do NOT play, reset, or destroy the native engine while search runs.
-    func cancel() { eg_cancel_search_v2(engine) }
-    struct LiveProgress: Sendable {
-        let indices: [Int]
-        let nodes: Int
-        let completedDepth: Int
+    func cancel() {
+        eg_cancel_search_v2(engine)
     }
-    /// Only atomic measured C++ search samples. Swift revalidates the board.
-    func liveProgress() -> LiveProgress? {
-        guard eg_search_progress_abi_version() == 3 else { return nil }
-        var snapshot = EGSearchProgressV3()
-        snapshot.size_bytes = UInt32(MemoryLayout<EGSearchProgressV3>.size)
-        guard eg_read_search_progress_v3(engine, &snapshot) == 1,
-              snapshot.running == 1,
-              (1...3).contains(Int(snapshot.move_count)),
-              snapshot.nodes > 0 else { return nil }
-        let trio = [Int(snapshot.root_move), Int(snapshot.reply_move),
-                    Int(snapshot.continuation_move)]
-        let positions = Array(trio.prefix(Int(snapshot.move_count)))
-        guard positions.allSatisfy({ (0..<225).contains($0) }) else { return nil }
-        return LiveProgress(indices: positions,
-                            nodes: Int(clamping: snapshot.nodes),
-                            completedDepth: max(0, Int(snapshot.completed_depth)))
-    }
-    func requestFastFinish() { eg_request_search_finish_v3(engine) }
 
     /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
     /// no separate model budget overriding the Training Agent's policy.
     /// The search always executes off the MainActor.
     func decide(
         policy: EclipseTrainerComputePolicy,
-        rootPolicy: EclipseCppRootLearningPolicy? = nil,
-        adaptiveProfile: Int32 = 0
+        rootPolicy: EclipseCppRootLearningPolicy? = nil
     ) -> GomokuBotMove? {
         guard rootPolicy?.isValid != false,
               policy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
-        else { return nil }
-        // Product-level search convergence cannot change the verified model
-        // policy SHA, tree weights or trainer-selected search geometry.
-        guard eg_set_adaptive_search_profile_v4(engine, adaptiveProfile) == 1
         else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
@@ -235,11 +209,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2" +
-                (run.search.reason == EG_SEARCH_REASON_ADAPTIVE_STABLE
-                    ? " · 局面稳定后自主收敛" :
-                    run.search.reason == EG_SEARCH_REASON_USER_FINISH
-                    ? " · 用户提前结束（非完整搜索）" : ""),
+            engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2",
             completedDepth: Int(run.search.completed_depth)
         )
     }

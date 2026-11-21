@@ -52,28 +52,6 @@ if(BUILD_TESTING)
   # Full paired matches run in a standalone CI job, never in the main fast CTest.
   add_executable(eclipse_v9_arena tests/arena_v9_rankers.cpp)
   target_link_libraries(eclipse_v9_arena PRIVATE eclipse_core)
-  add_executable(eclipse_incremental_window_score_tests
-    tests/test_incremental_window_score.cpp)
-  target_link_libraries(eclipse_incremental_window_score_tests PRIVATE eclipse_core)
-  target_include_directories(eclipse_incremental_window_score_tests
-    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  add_test(NAME eclipse_incremental_window_score
-    COMMAND eclipse_incremental_window_score_tests)
-  set_tests_properties(eclipse_incremental_window_score PROPERTIES TIMEOUT 15)
-  add_executable(eclipse_incremental_coverage_tests tests/test_incremental_coverage.cpp)
-  target_link_libraries(eclipse_incremental_coverage_tests PRIVATE eclipse_core)
-  target_include_directories(eclipse_incremental_coverage_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  add_test(NAME eclipse_incremental_coverage COMMAND eclipse_incremental_coverage_tests)
-  set_tests_properties(eclipse_incremental_coverage PROPERTIES TIMEOUT 15)
-  add_executable(eclipse_adaptive_convergence_tests tests/test_adaptive_convergence.cpp)
-  target_link_libraries(eclipse_adaptive_convergence_tests PRIVATE eclipse_core Threads::Threads)
-  target_include_directories(eclipse_adaptive_convergence_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-  add_test(NAME eclipse_adaptive_convergence COMMAND eclipse_adaptive_convergence_tests)
-  set_tests_properties(eclipse_adaptive_convergence PROPERTIES TIMEOUT 15)
-  add_executable(eclipse_search_progress_v3_tests tests/test_search_progress_v3.cpp)
-  target_link_libraries(eclipse_search_progress_v3_tests PRIVATE eclipse_core Threads::Threads)
-  add_test(NAME eclipse_search_progress_v3 COMMAND eclipse_search_progress_v3_tests)
-  set_tests_properties(eclipse_search_progress_v3 PROPERTIES TIMEOUT 15)
   add_executable(eclipse_v9_compiled_binding_tests
     tests/test_v9_compiled_binding.cpp)
   target_link_libraries(eclipse_v9_compiled_binding_tests PRIVATE eclipse_core)

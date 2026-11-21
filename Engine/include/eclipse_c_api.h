@@ -91,8 +91,6 @@ int eg_best_move_root_policy_v1(const EGEngine *engine, int max_milliseconds,
 #define EG_COMPUTE_MODE_ADAPTIVE 0
 #define EG_COMPUTE_MODE_BUDGETED 1
 #define EG_SEARCH_REASON_CANCELLED 6
-#define EG_SEARCH_REASON_USER_FINISH 7
-#define EG_SEARCH_REASON_ADAPTIVE_STABLE 8
 typedef struct EGComputePolicyV2 {
     uint32_t size_bytes;              /* must equal sizeof(EGComputePolicyV2) */
     uint32_t mode;                    /* ADAPTIVE with ms=0, BUDGETED with ms>0 */
@@ -133,42 +131,10 @@ int eg_analyze_compute_policy_v2(
     const uint8_t *allowed225, int32_t allowed_capacity,
     const int32_t *bonuses225, int32_t bonus_capacity,
     EGComputeRunV2 *out);
-/* Only atomic cancel, native V3 progress and early finish are concurrent-safe.
+/* The only concurrent-safe other operation during eg_analyze... is cancel.
  * The caller must NOT mutate/play/reset/destroy engine until search returns.
  */
 void eg_cancel_search_v2(EGEngine *engine);
-
-/* V4: product interaction only, distinct from signed V9 model policy.
- * This selects the confidence/stability-based exit strategy (not a timer):
- * 0=legacy exhaustive (used for benchmark replay), 1/2=experimental
- * heuristics (NOT shipped for production game moves), 3=strength guard:
- * preserves geometry-based early CERTIFIED wins and adaptive proof/PVS
- * split, but disables unverified shallow score-margin convergence. Must be set only while no search is running.
- * The original EGComputePolicyV2, loaded model SHA and tactical safety
- * gates remain unchanged. 30s/8s are maximum safety budgets, not delays.
- */
-int eg_set_adaptive_search_profile_v4(EGEngine *engine, int32_t profile);
-int eg_adaptive_search_profile_v4(const EGEngine *engine);
-
-/* V3 live native search: only explored root and TT-derived continuations,
- * never private training records. The UI revalidates paths and session.
- * Cooperative early finish is not a full-depth strength benchmark. */
-#define EG_SEARCH_PROGRESS_ABI_VERSION 3
-typedef struct EGSearchProgressV3 {
-    uint32_t size_bytes;
-    uint32_t running;
-    uint64_t serial;
-    int32_t move_count;
-    int32_t root_move;
-    int32_t reply_move;
-    int32_t continuation_move;
-    int32_t completed_depth;
-    uint32_t reserved;
-    uint64_t nodes;
-} EGSearchProgressV3;
-int eg_search_progress_abi_version(void);
-int eg_read_search_progress_v3(const EGEngine *engine, EGSearchProgressV3 *out);
-void eg_request_search_finish_v3(EGEngine *engine);
 
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).

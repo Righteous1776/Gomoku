@@ -46,45 +46,14 @@ class ECLIPSEInstrumentContractTests(unittest.TestCase):
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(checks["original runtime instrument stays folded"])
 
-    def test_automatic_board_pulses_are_rejected(self):
-        self.sources["board"] += "\nwithAnimation(.easeOut(duration: 1)) {}"
-        checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(
-            checks["static last-move marker replaces board impact animation"]
-        )
-
-    def test_decorative_console_stream_is_rejected(self):
-        self.sources["console"] += "\nVeilEclipseConsoleStream.lines"
-        checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(
-            checks["no fake animated console, only native measured values"]
-        )
-
-    def test_live_board_trace_default_must_be_off(self):
-        self.sources["controller"] = self.sources["controller"].replace(
-            '?? false', '?? true', 1
+    def test_ungated_stone_impact_is_rejected(self):
+        self.sources["board"] = self.sources["board"].replace(
+            "!eclipseSessionID.isEmpty && !reduceMotion",
+            "!eclipseSessionID.isEmpty", 1
         )
         checks = ui_contract.evaluate_sources(self.sources)
         self.assertFalse(
-            checks["optional quiet board trace stays disabled by default"]
-        )
-
-    def test_wide_ipad_cockpit_must_retain_responsive_breakpoint(self):
-        self.sources["home"] = self.sources["home"].replace(
-            "viewport.size.width >= 900", "viewport.size.width >= 9999", 1
-        )
-        checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(
-            checks["wide iPad cockpit and compact split-view fallback"]
-        )
-
-    def test_machine_rivets_must_be_hit_test_transparent(self):
-        self.sources["materials"] = self.sources["materials"].replace(
-            ".allowsHitTesting(false)", ".allowsHitTesting(true)"
-        )
-        checks = ui_contract.evaluate_sources(self.sources)
-        self.assertFalse(
-            checks["mechanical detailing is inert and does not shrink board"]
+            checks["impact respects reduced motion and cannot intercept taps"]
         )
 
     def test_missing_instrument_theme_fails(self):

@@ -55,49 +55,19 @@ final class InstrumentUITests: XCTestCase {
         // Switch to a known different version first so this tests actual
         // state transitions even if the simulator persisted Astra previously.
         terra.tap()
-        let terraLabel = app.staticTexts["你 vs ECLIPSE 1.0 Terra · 离线对局"]
-        scrollUntilHittable(terraLabel, in: app)
-        XCTAssertTrue(terraLabel.exists)
+        XCTAssertTrue(app.staticTexts[
+            "你 vs ECLIPSE 1.0 Terra · 离线对局"
+        ].waitForExistence(timeout: 8))
         picker.tap()
         XCTAssertTrue(astra.waitForExistence(timeout: 8))
         astra.tap()
-        let astraLabel = app.staticTexts["你 vs ECLIPSE 1.0 Astra · 离线对局"]
-        scrollUntilHittable(astraLabel, in: app)
-        XCTAssertTrue(astraLabel.exists)
+        XCTAssertTrue(app.staticTexts[
+            "你 vs ECLIPSE 1.0 Astra · 离线对局"
+        ].waitForExistence(timeout: 8))
 
         // Original seven search budget mappings and compute-tier changes are
         // independently asserted in EclipseModelCatalogTests; do not make
         // this UI smoke test depend on LazyVStack offscreen menu virtualization.
-    }
-
-    func testLiveThinkingRibbonIsInteractiveWithoutCoveringBoard() {
-        let app = XCUIApplication()
-        app.launch()
-        XCTAssertTrue(app.buttons["game.eclipse.identity"].waitForExistence(timeout: 15))
-        XCTAssertTrue(app.descendants(matching: .any)[
-            "gomoku.instrument.board"
-        ].exists)
-        let ribbon = app.descendants(matching: .any)[
-            "gomoku.eclipse.live-telemetry"
-        ]
-        let switcher = app.buttons["gomoku.eclipse.live-visibility"]
-        // A non-interactive ribbon is intentionally not a hittable target.
-        // Scroll to its genuine button instead.
-        scrollUntilHittable(switcher, in: app)
-        XCTAssertTrue(ribbon.exists)
-        XCTAssertTrue(switcher.isHittable)
-        switcher.tap()
-        // The eye button must really change the persisted visibility state.
-        let offLabel = "关闭棋盘思考可视化"
-        let onLabel = "开启棋盘思考可视化"
-        let actualLabel = switcher.label
-        XCTAssertTrue(actualLabel == offLabel || actualLabel == onLabel)
-        switcher.tap()
-        let detail = app.buttons["gomoku.eclipse.analysis.open"]
-        scrollUntilHittable(detail, in: app)
-        detail.tap()
-        XCTAssertTrue(app.navigationBars["ECLIPSE // TRACE"]
-            .waitForExistence(timeout: 6))
     }
 
     func testInstrumentDayAndNightModesAreSelectable() {

@@ -34,9 +34,7 @@ final class NativeGomokuAppController: ObservableObject {
             computeTier = restored.compute
         }
     }
-    @Published var searchMode: BoardSearchMode = .full {
-        didSet { UserDefaults.standard.set(searchMode.rawValue, forKey: "gomoku.eclipse.search-mode") }
-    }
+    @Published var searchMode: BoardSearchMode = .full
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
     @Published private(set) var developerTeachingMode = false
@@ -62,9 +60,9 @@ final class NativeGomokuAppController: ObservableObject {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
 
-    @Published var eclipseVisualizationEnabled = (UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace.v2") as? Bool ?? false) {
+    @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
         didSet {
-            UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace.v2")
+            UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
             if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }
         }
     }
@@ -179,12 +177,6 @@ final class NativeGomokuAppController: ObservableObject {
                 computeTier = explicitlySelectedCompute
             }
         }
-        if let mode = UserDefaults.standard.string(forKey: "gomoku.eclipse.search-mode") {
-            searchMode = BoardSearchMode.restore(mode)
-        } else if selectedModel.requiresVerifiedCheckpoint &&
-                  verifiedTrainerExecutions[selectedModel] != nil {
-            searchMode = .economy
-        }
         // The full historical replay pass can be huge and must never block
         // the initial board render or interactive scrolling on MainActor.
         Task.detached(priority: .utility) { [weak self] in
@@ -220,9 +212,6 @@ final class NativeGomokuAppController: ObservableObject {
         }
         selectedModel = model
         computeTier = model.defaultComputeTier
-        if UserDefaults.standard.string(forKey: "gomoku.eclipse.search-mode") == nil {
-            searchMode = model.requiresVerifiedCheckpoint ? .economy : .full
-        }
         UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)
         UserDefaults.standard.set(computeTier.rawValue, forKey: EclipseComputeTier.selectionKey)
         reset()
@@ -559,35 +548,10 @@ final class NativeGomokuAppController: ObservableObject {
                     learning: learning,
                     formation: activeFormation
                 )
-                // Strength rollback: the 3/4-ply score-margin convergence
-                // judged too soon and regressed real play. Stop using it in
-                // release. Keep certified wins, forced blocking and genuine
-                // measured search depth. Trainer's 30s/8s remain ceilings,
-                // not an instruction to wait until the deadline.
-                let poller = Task.detached(priority: .utility) {
-                    while !Task.isCancelled {
-                        if let progress = cppRuntime.liveProgress() {
-                            _ = metricSink.recordNative(
-                                depth: progress.completedDepth,
-                                nodes: progress.nodes, token: metricToken
-                            )
-                            observer?(progress.indices, progress.nodes)
-                        }
-                        try? await Task.sleep(nanoseconds: 125_000_000)
-                    }
-                }
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
-                    rootPolicy: rooted,
-                    // SHIP BLOCKER: do NOT enable weak profile 1/2 until
-                    // paired tactical games and Tianyuan-6 challenge positions
-                    // show that early stopping preserves actual move quality.
-                    // Production uses 3: real adaptive proof allocation,
-                    // original FULL depth and hard trainer maxima, no
-                    // shallow "stable enough" heuristic cut-off.
-                    adaptiveProfile: 3
+                    rootPolicy: rooted
                 )
-                poller.cancel()
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
                     await self?.applyDecision(
@@ -606,13 +570,8 @@ final class NativeGomokuAppController: ObservableObject {
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
-            // A failed 2.0 C++ dispatch must not inherit an implicitly
-            // persisted Swift economy selection from 2.0 onboarding.
-            // Preserve the historical FULL Swift search as comparison.
-            let fallbackMode: BoardSearchMode = model.requiresVerifiedCheckpoint
-                ? .full : selectedMode
             let budget = GomokuBotBudget.forDifficulty(
-                    selectedTier, profileLabel: fallbackMode.budgetProfileLabel
+                    selectedTier, profileLabel: selectedMode.budgetProfileLabel
                 ).reinforced(by: learning.trainingLevel)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,

@@ -1,10 +1,9 @@
 import Foundation
 import SwiftUI
 
-/// Optional, still and deliberately quiet: just the latest ACTUALLY explored
-/// native root/reply/continuation. No multi-color trails, sweep, particles,
-/// fake trajectories or high-frequency frame rendering. Disabled by default
-/// for new installations, with a clear user toggle for explicit inspection.
+/// Genuine *examined* hypothetical search branches, not random particles.
+/// Visible only while the native AI is searching and the user cannot move.
+/// Never retained as an active-game hint after the worker stops.
 struct VeilEclipseBoardThoughtField: View {
     let isThinking: Bool
     let actualSearchStartedAt: Date?
@@ -14,43 +13,66 @@ struct VeilEclipseBoardThoughtField: View {
     let turn: Int
     let matchPlaying: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var refreshInterval: TimeInterval {
+        if reduceMotion { return 0.25 }
+        return ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0 / 12 : 1.0 / 24
+    }
+
     var body: some View {
         Group {
             if enabled && isThinking && actualSearchStartedAt != nil && matchPlaying {
-                TimelineView(.periodic(from: .now, by: 0.5)) { _ in
-                    let latest = searchTrace.snapshot(
+                TimelineView(.periodic(from: .now, by: refreshInterval)) { _ in
+                    let now = ProcessInfo.processInfo.systemUptime
+                    let branches = searchTrace.snapshot(
                         sessionID: sessionID, turn: turn,
                         playing: matchPlaying, aiThinking: isThinking
-                    ).last
+                    )
                     Canvas(opaque: false, rendersAsynchronously: false) { context, area in
-                        guard let latest else { return }
-                        let side = min(area.width, area.height)
-                        let margin = side * 0.055
-                        let step = (side - 2 * margin) / 14
-                        let points = latest.indices.map { index in
-                            CGPoint(x: margin + CGFloat(index % 15) * step,
-                                    y: margin + CGFloat(index / 15) * step)
-                        }
-                        guard !points.isEmpty else { return }
-                        var route = Path()
-                        route.move(to: points[0])
-                        for point in points.dropFirst() { route.addLine(to: point) }
-                        context.stroke(
-                            route,
-                            with: .color(VeilTheme.gold.opacity(0.50)),
-                            style: StrokeStyle(lineWidth: 1, dash: [3, 3])
-                        )
-                        for (index, point) in points.enumerated() {
-                            let size = max(3, step * 0.30)
-                            let marker = Path(ellipseIn: CGRect(
-                                x: point.x - size, y: point.y - size,
-                                width: 2 * size, height: 2 * size
-                            ))
-                            context.stroke(
-                                marker,
-                                with: .color(VeilTheme.gold.opacity(index == 0 ? 0.68 : 0.40)),
-                                lineWidth: 1
-                            )
+                        let margin = min(area.width, area.height) * 0.055
+                        let step = (min(area.width, area.height) - margin * 2) / 14
+                        let tones = [VeilTheme.goldBright, VeilTheme.paleMetal,
+                                     VeilTheme.success, VeilTheme.mutedGold]
+                        for (rank, branch) in branches.enumerated() {
+                            let age = max(0, now - branch.emittedAtUptime)
+                            let fading = reduceMotion ? (age < 1.35 ? 1.0 : 0.0) : max(0, 1.0 - age / 1.35)
+                            guard fading > 0 else { continue }
+                            let tone = tones[rank % tones.count]
+                            let points = branch.indices.map { index in
+                                CGPoint(x: margin + CGFloat(index % 15) * step,
+                                        y: margin + CGFloat(index / 15) * step)
+                            }
+                            for hop in points.indices {
+                                let progress = reduceMotion ? 1.0 : min(1, max(0, (age - Double(hop) * 0.09) * 9.0))
+                                guard progress > 0 else { continue }
+                                if hop > 0 {
+                                    let a = points[hop - 1], b = points[hop]
+                                    let tip = CGPoint(
+                                        x: a.x + (b.x - a.x) * progress,
+                                        y: a.y + (b.y - a.y) * progress
+                                    )
+                                    var path = Path()
+                                    path.move(to: a)
+                                    path.addLine(to: tip)
+                                    context.stroke(path, with: .color(tone.opacity(0.65 * fading)),
+                                                   style: StrokeStyle(lineWidth: 1.15, lineCap: .round))
+                                }
+                                if progress >= 0.96 {
+                                    let r = max(3, step * 0.35)
+                                    let point = points[hop]
+                                    let oval = Path(ellipseIn: CGRect(
+                                        x: point.x - r, y: point.y - r,
+                                        width: r * 2, height: r * 2
+                                    ))
+                                    // Hollow/dashed: a hypothetical stone, not a placed stone.
+                                    context.fill(oval, with: .color(tone.opacity(0.10 * fading)))
+                                    context.stroke(oval, with: .color(tone.opacity(0.8 * fading)),
+                                                   style: StrokeStyle(lineWidth: 1,
+                                                                      lineCap: .round,
+                                                                      dash: [2, 2]))
+                                }
+                            }
                         }
                     }
                 }

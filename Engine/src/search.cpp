@@ -20,157 +20,6 @@ std::uint64_t splitmix(std::uint64_t &state) {
 }
 } // namespace
 
-void CandidateCoverage::adjust(int index, int delta) {
-    const int row = index / kSide, col = index % kSide;
-    const int min_row = std::max(0, row - radius_);
-    const int max_row = std::min(kSide - 1, row + radius_);
-    const int min_col = std::max(0, col - radius_);
-    const int max_col = std::min(kSide - 1, col + radius_);
-    for (int r = min_row; r <= max_row; ++r)
-        for (int c = min_col; c <= max_col; ++c)
-            cover_[r * kSide + c] += static_cast<std::int16_t>(delta);
-}
-void CandidateCoverage::reset(
-    int radius, const std::array<std::uint8_t, kCells> &cells) {
-    radius_ = std::clamp(radius, 1, kSide - 1);
-    cover_.fill(0);
-    for (int i = 0; i < kCells; ++i)
-        if (cells[i] != 0) add(i);
-}
-void CandidateCoverage::add(int index) { adjust(index, +1); }
-void CandidateCoverage::remove(int index) { adjust(index, -1); }
-std::vector<int> CandidateCoverage::candidates(
-    const std::array<std::uint8_t, kCells> &cells) const {
-    std::vector<int> result;
-    result.reserve(kCells);
-    bool occupied = false;
-    for (int i = 0; i < kCells; ++i) {
-        if (cells[i] != 0) { occupied = true; continue; }
-        if (cover_[i] > 0) result.push_back(i);
-    }
-    // Exact legacy empty-board opening, including the centre intersection.
-    if (!occupied) return {112};
-    return result;
-}
-
-// The exact 572 windows used by Search::static_value, listed in the
-// original axis / row / column order. Each cell belongs to <=20 windows.
-// One immutable lookup is shared by all search instances (thread-safe C++11
-// local-static initialization); mutable scores remain per Search object.
-namespace {
-constexpr int kFiveWindows = 572;
-constexpr int kWindowsPerCell = 20;
-constexpr int kFiveWeights[6] = {0, 2, 28, 900, 45000, 900000};
-struct FiveWindowLookup {
-    std::array<std::array<std::uint16_t, 5>, kFiveWindows> window{};
-    std::array<std::array<std::uint16_t, kWindowsPerCell>, kCells> incident{};
-    std::array<std::uint8_t, kCells> count{};
-};
-const FiveWindowLookup &five_window_lookup() {
-    static const auto lookup = [] {
-        FiveWindowLookup result{};
-        int count = 0;
-        for (const auto &axis : kAxes)
-            for (int row = 0; row < kSide; ++row)
-                for (int col = 0; col < kSide; ++col) {
-                    if (row + 4 * axis[0] < 0 ||
-                        row + 4 * axis[0] >= kSide ||
-                        col + 4 * axis[1] < 0 ||
-                        col + 4 * axis[1] >= kSide) continue;
-                    for (int step = 0; step < 5; ++step) {
-                        const int index = (row + step * axis[0]) * kSide
-                                        + col + step * axis[1];
-                        result.window[count][step] =
-                            static_cast<std::uint16_t>(index);
-                        result.incident[index][result.count[index]++] =
-                            static_cast<std::uint16_t>(count);
-                    }
-                    ++count;
-                }
-        return result;
-    }();
-    return lookup;
-}
-int black_contribution(int black, int white) {
-    return white == 0 ? kFiveWeights[black] : 0;
-}
-int white_contribution(int black, int white) {
-    return black == 0 ? kFiveWeights[white] : 0;
-}
-} // namespace
-
-void FiveWindowScore::reset(const std::array<std::uint8_t, kCells> &cells) {
-    black_.fill(0);
-    white_.fill(0);
-    black_sum_ = white_sum_ = 0;
-    const auto &windows = five_window_lookup().window;
-    for (int i = 0; i < kFiveWindows; ++i) {
-        int black = 0, white = 0;
-        for (const auto index : windows[i]) {
-            black += cells[index] == 1;
-            white += cells[index] == 2;
-        }
-        black_[i] = static_cast<std::uint8_t>(black);
-        white_[i] = static_cast<std::uint8_t>(white);
-        black_sum_ += black_contribution(black, white);
-        white_sum_ += white_contribution(black, white);
-    }
-}
-void FiveWindowScore::adjust(int index, int side, int delta) {
-    const auto &lookup = five_window_lookup();
-    for (int i = 0; i < lookup.count[index]; ++i) {
-        const int window = lookup.incident[index][i];
-        int black = black_[window], white = white_[window];
-        black_sum_ -= black_contribution(black, white);
-        white_sum_ -= white_contribution(black, white);
-        if (side == 1) black += delta;
-        else white += delta;
-        black_[window] = static_cast<std::uint8_t>(black);
-        white_[window] = static_cast<std::uint8_t>(white);
-        black_sum_ += black_contribution(black, white);
-        white_sum_ += white_contribution(black, white);
-    }
-}
-void FiveWindowScore::add(int index, int side) {
-    adjust(index, side, +1);
-}
-void FiveWindowScore::remove(int index, int side) {
-    adjust(index, side, -1);
-}
-int FiveWindowScore::raw_score(int side) const {
-    return side == 1 ? black_sum_ - white_sum_ : white_sum_ - black_sum_;
-}
-bool FiveWindowScore::creates_four(int index, int side) const {
-    const auto &lookup = five_window_lookup();
-    for (int i = 0; i < lookup.count[index]; ++i) {
-        const int window = lookup.incident[index][i];
-        if (side == 1 && black_[window] == 3 && white_[window] == 0)
-            return true;
-        if (side == 2 && white_[window] == 3 && black_[window] == 0)
-            return true;
-    }
-    return false;
-}
-
-bool should_stop_adaptive(const AdaptiveSearchEvidence &e) {
-    if (e.profile < 1 || e.profile > 2 || e.root_alternatives < 1 ||
-        e.best_score <= -5'000'000) return false;
-    const bool tactical = e.tactical_windows > 0;
-    const int minimum_depth = tactical
-        ? (e.profile == 1 ? 5 : 6)
-        : (e.profile == 1 ? 3 : 4);
-    const int minimum_stability = tactical
-        ? 3 : (e.profile == 1 ? 2 : 3);
-    const int required_margin = tactical
-        ? (e.profile == 1 ? 1000 : 1800)
-        : (e.profile == 1 ? 180 : 350);
-    // A single fork-safe root still needs at least a completed depth;
-    // competing roots must be scored in the SAME fully completed round.
-    return e.completed_depth >= minimum_depth &&
-        e.stable_rounds >= minimum_stability &&
-        (e.root_alternatives == 1 || e.score_margin >= required_margin);
-}
-
 const std::array<std::array<std::uint64_t, 3>, kCells> &Search::zobrist() {
     static const auto keys = [] {
         std::array<std::array<std::uint64_t, 3>, kCells> result{};
@@ -196,15 +45,11 @@ const std::array<std::uint64_t, 3> &Search::side_hash() {
 
 void Search::place(int index, int side) {
     cells_[index] = static_cast<std::uint8_t>(side);
-    if (use_incremental_coverage_) coverage_.add(index);
-    if (use_incremental_score_) window_score_.add(index, side);
     hash_ ^= zobrist()[index][side];
     --free_;
 }
 void Search::unplace(int index, int side) {
     cells_[index] = 0;
-    if (use_incremental_coverage_) coverage_.remove(index);
-    if (use_incremental_score_) window_score_.remove(index, side);
     hash_ ^= zobrist()[index][side];
     ++free_;
 }
@@ -246,8 +91,6 @@ bool Search::winning_move(int index, int side) const {
 std::vector<int> Search::neighbors(int radius) const {
     if (free_ == kCells) return {112};
     radius = std::clamp(radius, 1, kSide - 1);
-    if (use_incremental_coverage_ && radius == candidate_radius_)
-        return coverage_.candidates(cells_);
     std::array<bool, kCells> visited{};
     for (int i = 0; i < kCells; ++i) {
         if (!cells_[i]) continue;
@@ -309,24 +152,6 @@ int Search::fork_count(int side) const {
     return count;
 }
 
-int Search::threat_windows(int side) const {
-    int count = 0;
-    for (const auto &axis : kAxes)
-        for (int row = 0; row < kSide; ++row)
-            for (int col = 0; col < kSide; ++col) {
-                if (!inside(row + 4 * axis[0], col + 4 * axis[1])) continue;
-                int own = 0, enemy = 0;
-                for (int k = 0; k < 5; ++k) {
-                    const auto cell = cells_[(row + k * axis[0]) * kSide +
-                                             col + k * axis[1]];
-                    own += cell == side;
-                    enemy += cell == other(side);
-                }
-                if (enemy == 0 && own >= 3) ++count;
-            }
-    return count;
-}
-
 int Search::pattern_priority(int index, int side) const {
     const int row = index / kSide, col = index % kSide;
     int total = 0;
@@ -375,8 +200,6 @@ std::vector<int> Search::ordered(const std::vector<int> &moves,
 // Same five-window weights as VeilGomokuUnifiedSearch.staticValue.
 // TrainedOrdering remains a separate, not-yet-ported layer.
 int Search::static_value(int side) const {
-    if (use_incremental_score_)
-        return std::clamp(window_score_.raw_score(side), -kMate / 4, kMate / 4);
     constexpr int weight[6] = {0, 2, 28, 900, 45000, 900000};
     int black = 0, white = 0;
     for (const auto &axis : kAxes)
@@ -402,11 +225,6 @@ bool Search::limit_reached() {
         return true;
     }
     if (timed_out_) return true;
-    if (finish_signal_ && finish_signal_->load(std::memory_order_relaxed)) {
-        finished_early_ = true;
-        timed_out_ = true;
-        return true;
-    }
     if (nodes_ >= node_cap_ || Clock::now() >= deadline_)
         timed_out_ = true;
     return timed_out_;
@@ -419,7 +237,7 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
     ++nodes_;
     if (remaining <= 0 || Clock::now() >= proof_deadline_ || limit_reached())
         return false;
-    auto candidates = neighbors(candidate_radius_);
+    const auto candidates = neighbors(candidate_radius_);
     if (!immediate_wins(other(side), candidates).empty()) return false;
     const auto direct = immediate_wins(side, candidates);
     if (!direct.empty()) {
@@ -428,33 +246,12 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
             return true;
         }
     }
-    // Every valid forcing-four step must create a five-cell window with
-    // FOUR of our stones and no opponent stone. A move that cannot do that
-    // cannot appear in a legitimate forcing-four proof. Filter BEFORE
-    // the expensive trained ordering, retaining ALL eligible tactics.
-    // Legacy profile0 retains its historical candidate ordering.
-    if (adaptive_profile_ == 3 && use_incremental_score_) {
-        candidates.erase(
-            std::remove_if(candidates.begin(), candidates.end(),
-                [&](int move) {
-                    return !window_score_.creates_four(move, side);
-                }),
-            candidates.end()
-        );
-    }
     for (const int move : ordered(candidates, side, proof_width_)) {
         if (restrict_root && !allowed_proof_root_[move]) continue;
         if (Clock::now() >= proof_deadline_ || limit_reached()) return false;
         place(move, side);
         const auto after = neighbors(candidate_radius_);
         const auto ours = immediate_wins(side, after);
-        // A forcing-four chain MUST create at least one immediate
-        // completion. If it does not, an opponent win scan is dead work:
-        // none of the success/recursion branches can be reached.
-        if (adaptive_profile_ == 3 && ours.empty()) {
-            unplace(move, side);
-            continue;
-        }
         const auto theirs = immediate_wins(other(side), after);
         if (theirs.empty() && ours.size() >= 2) {
             pv = {move, ours.front()};
@@ -546,62 +343,22 @@ int Search::negamax(int side, int depth, int alpha, int beta,
         first = false;
     }
     if (best_move >= 0 && std::abs(best) < kMate / 2) {
-        // Retain transpositions for later iterations; the previous full
-        // clear at 50k entries erased most earlier search evidence.
-        if (table_.size() < 200'000 || table_.find(key) != table_.end()) {
-            const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
-            table_[key] = Entry{depth, best, best_move, flag};
-        }
+        if (table_.size() > 50'000) table_.clear();
+        const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
+        table_[key] = Entry{depth, best, best_move, flag};
     }
     return best == -kInf ? static_value(side) : best;
-}
-
-void Search::report_root(int index, int depth, int side) {
-    if (!progress_ || nodes_ == 0 || index < 0 ||
-        index >= kCells || cells_[index] != 0) return;
-    int reply = -1, next = -1;
-    place(index, side);
-    if (!five_at(index, side)) {
-        const auto first = table_.find(hash_ ^ side_hash()[other(side)]);
-        if (first != table_.end() && first->second.best >= 0 &&
-            first->second.best < kCells && cells_[first->second.best] == 0) {
-            reply = first->second.best;
-            place(reply, other(side));
-            if (!five_at(reply, other(side))) {
-                const auto second = table_.find(hash_ ^ side_hash()[side]);
-                if (second != table_.end() && second->second.best >= 0 &&
-                    second->second.best < kCells &&
-                    cells_[second->second.best] == 0)
-                    next = second->second.best;
-            }
-            unplace(reply, other(side));
-        }
-    }
-    unplace(index, side);
-    progress_(index, reply, next, depth, nodes_);
 }
 
 SearchResult Search::analyze(const Board &root, int milliseconds,
                              const RootPolicy *policy,
                              const ComputePolicy *compute,
-                             const std::atomic<bool> *cancel,
-                             const std::atomic<bool> *finish_early,
-                             const ProgressObserver &progress,
-                             int adaptive_profile) {
+                             const std::atomic<bool> *cancel) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
     cancelled_ = false;
     cancel_signal_ = cancel;
-    finish_signal_ = finish_early;
-    finished_early_ = false;
-    progress_ = progress;
-    // Production strength guard (3) retains selective tactical proof
-    // budgeting but DISABLES speculative shallow score-gap exits.
-    // 1/2 remain isolated diagnostic variants pending opponent validation.
-    adaptive_profile_ = std::clamp(adaptive_profile, 0, 3);
-    use_incremental_coverage_ = false;
-    use_incremental_score_ = false;
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -610,7 +367,6 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     forced_line_depth_ = compute ? compute->forced_line_depth : 5;
     leaf_forced_blocks_ = compute ? compute->forced_line_depth : 2;
     table_.clear();
-    if (adaptive_profile_ == 3) table_.reserve(200'000);
     allowed_proof_root_.fill(false);
     // Research API convention: 0 means no imposed wall-clock deadline.
     // Positive time budgets come from the training agent or experiment
@@ -639,12 +395,6 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     hash_ = 0;
     for (int i = 0; i < kCells; ++i)
         if (cells_[i]) hash_ ^= zobrist()[i][cells_[i]];
-    if (adaptive_profile_ == 3) {
-        coverage_.reset(candidate_radius_, cells_);
-        use_incremental_coverage_ = true;
-        window_score_.reset(cells_);
-        use_incremental_score_ = true;
-    }
     auto finish = [&](int move, SearchStopReason reason, int depth) {
         SearchResult result;
         result.move = move;
@@ -677,29 +427,6 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         const auto blocks = immediate_wins(other(side), roots);
         if (blocks.empty()) return finish(-1, SearchStopReason::no_move, 0);
         return finish(blocks.front(), SearchStopReason::forced_block, 0);
-    }
-    // Threat complexity is geometric, not a timer. A forcing-four proof is
-    // impossible on this current turn if the mover has no unblocked three
-    // inside ANY five-window: one placement cannot create four from two.
-    // This prevents an opening search from spending all 30s 'proving' a
-    // non-existent immediate forcing-four line.
-    const int own_threats = adaptive_profile_ > 0 ? threat_windows(side) : 0;
-    const int enemy_threats = adaptive_profile_ > 0 ? threat_windows(other(side)) : 0;
-    const int tactical_complexity = own_threats + enemy_threats;
-    if (adaptive_profile_ > 0 && !open_ended) {
-        // Preserve a proportion of the trainer's maximum for real PVS search.
-        // A stronger threat earns more proof work, but never the whole clock.
-        const int proof_fraction = std::clamp(
-            16 + 6 * std::min(4, own_threats) +
-                 2 * std::min(4, enemy_threats), 16, 52);
-        // Multiply after dividing to avoid signed overflow for unusually
-        // large trainer policies; the original maximum remains authoritative.
-        const auto bounded_ms = std::min<std::int64_t>(max_ms, until_max);
-        const auto proof_ms = (bounded_ms / 100) * proof_fraction +
-                              (bounded_ms % 100) * proof_fraction / 100;
-        proof_deadline_ = std::min(
-            deadline_, started + std::chrono::milliseconds(
-                std::max<std::int64_t>(1, proof_ms)));
     }
     // Original Swift normalized root ranking is additive only after verified
     // mandatory tactics, and never changes a mate / forced-loss certificate.
@@ -763,105 +490,46 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (fallbacks.empty()) return finish(-1, SearchStopReason::no_move, 0);
     int incumbent = fallbacks.front(), completed = 0;
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
-    if (finished_early_)
-        return finish(incumbent, SearchStopReason::user_finish, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40) &&
-        (adaptive_profile_ == 0 || own_threats > 0)) {
+    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
         std::vector<int> pv;
-        if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty()) {
-            if (progress_ && nodes_ > 0)
-                progress_(pv[0], pv.size() > 1 ? pv[1] : -1,
-                          pv.size() > 2 ? pv[2] : -1,
-                          static_cast<int>(pv.size()), nodes_);
+        if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
             return finish(pv.front(), SearchStopReason::forced_win,
                           static_cast<int>(pv.size()));
-        }
     }
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
-    if (finished_early_) return finish(incumbent, SearchStopReason::user_finish, 0);
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
-    // Reuse the last COMPLETE iteration's PV at the root, without dropping
-    // any of the trainer-approved root candidates.
-    auto root_candidates = ranked;
-    int previous_completed_best = -1, stable_rounds = 0;
     for (int depth = 1; depth <= max_depth_; ++depth) {
-        int round_best = -1, round_score = -kInf, runner_up = -kInf;
-        for (int move : root_candidates) {
+        int round_best = -1, round_score = -kInf;
+        for (int move : ranked) {
             ++nodes_;
             if (limit_reached()) break;
             place(move, side);
-            int score = 0;
-            if (adaptive_profile_ == 3 && depth > 1 &&
-                round_score != -kInf) {
-                // Narrow window for alternatives; every fail-high is
-                // re-searched with full bounds before it can replace PV.
-                // Root policy bonuses are added AFTER the child search.
-                // Account for this BEFORE setting the scout window, or a
-                // learned +2000 tactical preference could be missed.
-                const int bonus = policy
-                    ? std::clamp(policy->bonus[move], -2000, 2000) : 0;
-                const int required_raw_score = round_score - bonus;
-                score = -negamax(other(side), depth - 1,
-                                 -required_raw_score - 1,
-                                 -required_raw_score, move, 1);
-                if (!timed_out_ && score > required_raw_score)
-                    score = -negamax(other(side), depth - 1,
-                                     -kInf, kInf, move, 1);
-            } else {
-                score = -negamax(other(side), depth - 1,
-                                 -kInf, kInf, move, 1);
-            }
+            int score = -negamax(other(side), depth - 1, -kInf, kInf, move, 1);
             unplace(move, side);
             if (timed_out_) break;
-            report_root(move, completed, side);
             if (policy && std::abs(score) < kMate / 2)
                 score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
-                runner_up = round_score;
                 round_score = score;
                 round_best = move;
-            } else if (score > runner_up) {
-                runner_up = score;
             }
         }
         if (timed_out_) break;
         if (round_best >= 0) {
             incumbent = round_best;
             completed = depth;
-            stable_rounds = round_best == previous_completed_best
-                ? stable_rounds + 1 : 1;
-            previous_completed_best = round_best;
-            report_root(incumbent, completed, side);
             if (round_score >= kMate / 2) break;
-            if (adaptive_profile_ == 3) {
-                auto it = std::find(root_candidates.begin(),
-                                    root_candidates.end(), incumbent);
-                if (it != root_candidates.end() &&
-                    it != root_candidates.begin())
-                    std::rotate(root_candidates.begin(), it, it + 1);
-            }
-            const int gap = runner_up == -kInf
-                ? kInf : round_score - runner_up;
-            if (should_stop_adaptive(AdaptiveSearchEvidence{
-                adaptive_profile_, completed, stable_rounds, gap,
-                tactical_complexity, static_cast<int>(ranked.size()),
-                round_score
-            })) {
-                return finish(incumbent, SearchStopReason::adaptive_stable,
-                              completed);
-            }
         }
     }
     return finish(incumbent, cancelled_ ? SearchStopReason::cancelled
-        : finished_early_ ? SearchStopReason::user_finish
         : timed_out_ ? SearchStopReason::time_limit
                      : SearchStopReason::complete, completed);
 }
