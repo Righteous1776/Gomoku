@@ -315,12 +315,11 @@ static int analyze_compute_impl(
         policy->candidate_radius < 1 ||
         policy->candidate_radius >= eclipse::kSide)
         return 0;
-    // V3 is explicitly opt-in: prevent budgeted policies or malformed
-    // settings from silently changing the legacy trainer contract.
+    // V3 is explicit opt-in for both trainer modes. A BUDGETED V3 keeps
+    // its original trainer wall-time as an absolute ceiling, while using
+    // the separate stopping profile to avoid waste. Original V2 is unchanged.
     if (stop &&
-        (policy->mode != EG_COMPUTE_MODE_ADAPTIVE ||
-         policy->max_wall_time_ms != 0 ||
-         stop->size_bytes != sizeof(EGAdaptiveStopConfigV3) ||
+        (stop->size_bytes != sizeof(EGAdaptiveStopConfigV3) ||
          stop->reserved != 0 || stop->reserved2 != 0 ||
          stop->minimum_depth < 1 || stop->minimum_depth > policy->max_depth ||
          stop->stable_rounds < 2 || stop->stable_rounds > policy->max_depth ||
@@ -328,7 +327,9 @@ static int analyze_compute_impl(
          stop->clear_budget_ms < 1 ||
          stop->uncertain_budget_ms < stop->clear_budget_ms ||
          stop->complex_budget_ms < stop->uncertain_budget_ms ||
-         stop->complex_budget_ms > 120000))
+         stop->complex_budget_ms > 120000 ||
+         (policy->mode == EG_COMPUTE_MODE_BUDGETED &&
+          stop->complex_budget_ms > policy->max_wall_time_ms)))
         return 0;
     if ((!allowed || !bonuses) ?
         (allowed != nullptr || bonuses != nullptr ||
