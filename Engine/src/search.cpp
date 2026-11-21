@@ -219,9 +219,14 @@ int Search::static_value(int side) const {
     return std::clamp(value, -kMate / 4, kMate / 4);
 }
 bool Search::limit_reached() {
-    // Only sample nodes occasionally; never synchronously call SwiftUI.
-    if (progress_ && (nodes_ & 2047ULL) == 0)
+    // Report each node interval AT MOST ONCE. The old modulo check could
+    // publish repeatedly while a safety preflight held nodes_ at zero or
+    // a multiple of 2048. Keep HUD overhead independent of root width.
+    if (progress_ && nodes_ > last_progress_nodes_
+        && nodes_ - last_progress_nodes_ >= 2048) {
+        last_progress_nodes_ = nodes_;
         progress_(nodes_, last_completed_depth_, last_best_move_);
+    }
     if (cancel_signal_ && cancel_signal_->load(std::memory_order_relaxed)) {
         cancelled_ = true;
         timed_out_ = true;
@@ -396,6 +401,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     cancelled_ = false;
     cancel_signal_ = cancel;
     progress_ = progress;
+    last_progress_nodes_ = 0;
     last_completed_depth_ = 0;
     last_best_move_ = -1;
     if (progress_) progress_(0, 0, -1);
