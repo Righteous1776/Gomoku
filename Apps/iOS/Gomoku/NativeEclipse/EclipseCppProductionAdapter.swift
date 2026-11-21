@@ -173,6 +173,26 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         )
     }
 
+    /// Real root shortlist from the same C++ search, in its actual
+    /// native rank order. No normalized scores or hypothetical probabilities.
+    func liveRankedRootMoves() -> (serial: UInt64, moves: [Int])? {
+        var reading = EGRankedRootsSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGRankedRootsSnapshotV1>.size)
+        guard eg_read_ranked_roots_v1(engine, &reading) == 1,
+              reading.count > 0,
+              reading.count <= UInt32(EG_LIVE_RANKED_ROOTS_MAX),
+              reading.search_serial > 0 else { return nil }
+        let moves: [Int] = withUnsafeBytes(of: reading.moves) { bytes in
+            bytes.bindMemory(to: Int32.self)
+                .prefix(Int(reading.count)).map { Int($0) }
+        }
+        guard moves.count == Int(reading.count),
+              Set(moves).count == moves.count,
+              moves.allSatisfy({ (0..<225).contains($0) })
+        else { return nil }
+        return (serial: reading.search_serial, moves: moves)
+    }
+
     /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
     /// no separate model budget overriding the Training Agent's policy.
     /// The search always executes off the MainActor.
