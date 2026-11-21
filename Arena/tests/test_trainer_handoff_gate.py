@@ -9,7 +9,8 @@ import unittest
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from trainer_handoff_gate import (
-    validate_metadata, artifact_sha256, check_runner_identity
+    validate_metadata, artifact_sha256, check_runner_identity,
+    compute_policy_sha256, validate_compute_policy
 )
 
 SHA = "0" * 64
@@ -17,7 +18,7 @@ SHA = "0" * 64
 
 def template():
     return {
-        "schema": "eclipse.trainer.handoff.v1",
+        "schema": "eclipse.trainer.handoff.v2",
         "training_revision": "R29",
         "family": "astra",
         "proposed_generation": "1.1",
@@ -28,7 +29,12 @@ def template():
         "repeated_tactics_preserved": True,
         "independent_verified_game_groups": 234,
         "augmentation_excluded_from_game_count": True,
-        "native_compute_budgets_ms": [130,260,520,950,1900,3800,5700]
+        "compute_policy": {
+            "mode": "adaptive", "max_wall_time_ms": None, "max_nodes": None,
+            "max_depth": 12, "root_width": 60, "reply_width": 35,
+            "continuation_width": 24, "forced_line_depth": 10,
+            "candidate_radius": 3
+        }
     }
 
 
@@ -47,7 +53,7 @@ class TrainerHandoffTests(unittest.TestCase):
             ("augmentation_excluded_from_game_count", False),
             ("independent_verified_game_groups", 0),
             ("training_revision", "pull-request-29"),
-            ("native_compute_budgets_ms", [130,260]),
+            ("compute_policy", {"mode": "adaptive", "max_wall_time_ms": 5700}),
         ]:
             m=template()
             m[field]=value
@@ -57,6 +63,20 @@ class TrainerHandoffTests(unittest.TestCase):
         m["raw_actions"]=[0,1,2]
         with self.assertRaises(ValueError):
             validate_metadata(m)
+
+    def test_trainer_owns_optional_wall_time_and_node_ceilings(self):
+        model = template()
+        verified = validate_metadata(model)
+        self.assertTrue(verified["trainer_open_ended_wall_time"])
+        self.assertEqual(len(verified["compute_policy_sha256"]), 64)
+        model["compute_policy"] = {**model["compute_policy"],
+            "mode": "budgeted", "max_wall_time_ms": 131071,
+            "max_nodes": 15_000_000, "max_depth": 15}
+        self.assertTrue(validate_metadata(model)["metadata_schema_valid"])
+        for value in (0, -2, True, "5700"):
+            bad = {**model["compute_policy"], "max_wall_time_ms": value}
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                validate_compute_policy(bad)
 
     def test_checkpoint_hash_and_loaded_identity_enforced(self):
         with tempfile.TemporaryDirectory() as t:
@@ -74,6 +94,7 @@ class TrainerHandoffTests(unittest.TestCase):
                 "'training_revision':'R29',"
                 "'family':'astra',"
                 f"'checkpoint_sha256':'{digest}',"
+                f"'compute_policy_sha256':'{compute_policy_sha256(manifest['compute_policy'])}',"
                 "'checkpoint_loaded':True}))\n"
             )
             os.chmod(runner,0o755)
