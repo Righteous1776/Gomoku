@@ -49,6 +49,14 @@ struct InstrumentHomeView: View {
             .navigationTitle("五子棋 · 人机")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showsModelSelection = true
+                    } label: {
+                        Label("模型", systemImage: "cpu")
+                    }
+                    .accessibilityIdentifier("gomoku.eclipse.model.open")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("重开") { engine.reset() }
                         .foregroundColor(VeilTheme.goldBright)
