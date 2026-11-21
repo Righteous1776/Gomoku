@@ -181,6 +181,25 @@ typedef struct EGRankedRootsSnapshotV1 {
 } EGRankedRootsSnapshotV1;
 int eg_read_ranked_roots_v1(const EGEngine *engine, EGRankedRootsSnapshotV1 *out);
 
+/* Stage C3: search-derived continuation from the last FULLY completed root
+ * iteration. This is a bounded (<=16-ply), exact-TT-backed prefix: it MAY be
+ * shorter than completed_depth and is NOT a forcing proof, calibrated win
+ * probability or guaranteed full game outcome. Alternating moves must be
+ * independently replayed against the correct board by the UI.
+ * Same engine serial/seqlock as Stage B/C2; no board data, score or
+ * training history crosses this ABI. On read error, out is untouched.
+ */
+#define EG_LIVE_PV_ABI_VERSION 1
+#define EG_LIVE_PV_MAX 16
+typedef struct EGSearchPVSnapshotV1 {
+    uint32_t size_bytes;         /* sizeof(EGSearchPVSnapshotV1) */
+    uint32_t count;              /* 0..16; count=0 means unavailable */
+    uint64_t search_serial;      /* exactly matches EGSearchLiveSnapshotV1 */
+    int32_t completed_depth;     /* fully finished root depth */
+    int32_t moves[EG_LIVE_PV_MAX]; /* board indices, unused entries -1 */
+} EGSearchPVSnapshotV1;
+int eg_read_search_pv_v1(const EGEngine *engine, EGSearchPVSnapshotV1 *out);
+
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
  * Mutators are forbidden while any search runs. eg_reset restores 0.
