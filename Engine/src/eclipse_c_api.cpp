@@ -3,6 +3,7 @@
 #include "search.hpp"
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <limits>
 #include <new>
@@ -10,10 +11,46 @@
 struct EGEngine {
     eclipse::Board board;
     std::atomic<bool> cancelled{false};
+    // Sequence-protected atomics: C++ search owns all writes, UI only reads.
+    // No personal board state or speculative score is stored here.
+    std::atomic<std::uint64_t> live_sequence{0};
+    std::atomic<std::uint64_t> live_serial{0};
+    std::atomic<std::uint64_t> live_nodes{0};
+    std::atomic<std::uint32_t> live_state{EG_LIVE_SEARCH_IDLE};
+    std::atomic<std::int32_t> live_depth{0};
+    std::atomic<std::int32_t> live_best{-1};
+    std::atomic<std::int32_t> live_reason{-1};
+    std::atomic<std::int64_t> live_started_ns{0};
+    std::atomic<std::int64_t> live_elapsed_ms{0};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
 };
+
+namespace {
+std::int64_t steady_now_ns() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+// One writer (the search call, or an idle mutator). Every payload field is
+// atomic, so the reader's bounded seqlock retry has no C++ data race.
+void publish_live(EGEngine *e, std::uint32_t state,
+                  std::uint64_t nodes, std::int32_t depth,
+                  std::int32_t best, std::int32_t reason,
+                  std::int64_t elapsed_ms) {
+    e->live_sequence.fetch_add(1);
+    e->live_state.store(state);
+    e->live_nodes.store(nodes);
+    e->live_depth.store(depth);
+    e->live_best.store(best);
+    e->live_reason.store(reason);
+    e->live_elapsed_ms.store(elapsed_ms);
+    e->live_sequence.fetch_add(1);
+}
+void clear_live(EGEngine *e) {
+    publish_live(e, EG_LIVE_SEARCH_IDLE, 0, 0, -1, -1, 0);
+}
+} // namespace
 
 extern "C" {
 int eg_rules_abi_version(void){return EG_RULES_ABI_VERSION;}
@@ -38,9 +75,9 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
 }
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0;}}
-int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
-int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; clear_live(e);}}
+int eg_play(EGEngine *e,int index){if(!e||!e->board.play(index))return 0;clear_live(e);return 1;}
+int eg_undo(EGEngine *e){if(!e||!e->board.undo())return 0;clear_live(e);return 1;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
 int eg_best_move_diagnostics_v1(const EGEngine *e, int ms,
                                  EGSearchDiagnosticsV1 *out) {
@@ -97,6 +134,7 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
     e->verified_v9_model = 0; // Research selection never inherits production attestation.
+    clear_live(e);
     return 1;
 }
 int eg_research_ranker_v3(const EGEngine *e) {
@@ -120,6 +158,7 @@ int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
         std::strncmp(actual, expected_sha256, 65) != 0) return 0;
     e->research_ranker = model;
     e->verified_v9_model = model;
+    clear_live(e);
     return 1;
 }
 int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
@@ -134,6 +173,36 @@ int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
+}
+
+int eg_read_live_search_v1(const EGEngine *e, EGSearchLiveSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGSearchLiveSnapshotV1))
+        return 0;
+    // A writer never waits for a reader. If the writer is interrupted while
+    // the sequence is odd, fail closed without altering the caller's buffer.
+    for (int tries = 0; tries < 32; ++tries) {
+        const auto before = e->live_sequence.load();
+        if (before & 1) continue;
+        EGSearchLiveSnapshotV1 snapshot{};
+        snapshot.size_bytes = sizeof(snapshot);
+        snapshot.state = e->live_state.load();
+        snapshot.search_serial = e->live_serial.load();
+        snapshot.visited_nodes = e->live_nodes.load();
+        snapshot.completed_depth = e->live_depth.load();
+        snapshot.best_move = e->live_best.load();
+        snapshot.reason = e->live_reason.load();
+        const auto started_ns = e->live_started_ns.load();
+        snapshot.elapsed_ms = snapshot.state == EG_LIVE_SEARCH_RUNNING
+            && started_ns > 0
+            ? std::max<std::int64_t>(0, (steady_now_ns() - started_ns) / 1000000)
+            : e->live_elapsed_ms.load();
+        const auto after = e->live_sequence.load();
+        if (before == after && !(after & 1)) {
+            *out = snapshot;
+            return 1;
+        }
+    }
+    return 0;
 }
 
 int eg_analyze_compute_policy_v2(
@@ -190,13 +259,33 @@ int eg_analyze_compute_policy_v2(
     chosen.candidate_radius = policy->candidate_radius;
     try {
         e->cancelled.store(false, std::memory_order_release);
+        // Each VALID native execution gets a fresh serial. The engine is
+        // never mutated concurrently except atomic cancellation or reads.
+        e->live_sequence.fetch_add(1);
+        e->live_serial.fetch_add(1);
+        e->live_started_ns.store(steady_now_ns());
+        e->live_nodes.store(0);
+        e->live_depth.store(0);
+        e->live_best.store(-1);
+        e->live_reason.store(-1);
+        e->live_elapsed_ms.store(0);
+        e->live_state.store(EG_LIVE_SEARCH_RUNNING);
+        e->live_sequence.fetch_add(1);
+        const auto observer = [e](std::uint64_t nodes, int depth, int move) {
+            publish_live(e, EG_LIVE_SEARCH_RUNNING, nodes, depth, move, -1, 0);
+        };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
-            e->board, 0, root_pointer, &chosen, &e->cancelled);
+            e->board, 0, root_pointer, &chosen, &e->cancelled, observer);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
-            (found.move < 0 && e->board.outcome == 0))
+            (found.move < 0 && e->board.outcome == 0)) {
+            publish_live(e, found.reason == eclipse::SearchStopReason::cancelled
+                ? EG_LIVE_SEARCH_CANCELLED : EG_LIVE_SEARCH_FAILED,
+                found.nodes, found.completed_depth, -1,
+                static_cast<int32_t>(found.reason), found.elapsed_ms);
             return 0;
+        }
         EGComputeRunV2 snapshot{};
         snapshot.size_bytes = sizeof(EGComputeRunV2);
         snapshot.search.size_bytes = sizeof(EGSearchDiagnosticsV1);
@@ -207,9 +296,14 @@ int eg_analyze_compute_policy_v2(
         snapshot.search.reason = static_cast<int32_t>(found.reason);
         snapshot.applied_policy = *policy; // exact caller-owned config echo
         *out = snapshot; // commit only on full success
+        publish_live(e, EG_LIVE_SEARCH_COMPLETE, found.nodes,
+                     found.completed_depth, found.move,
+                     static_cast<int32_t>(found.reason), found.elapsed_ms);
         return 1;
     } catch (...) {
         // Never allow a C++ exception to cross the ABI boundary.
+        publish_live(e, EG_LIVE_SEARCH_FAILED, e->live_nodes.load(),
+                     e->live_depth.load(), -1, -1, 0);
         return 0;
     }
 }
