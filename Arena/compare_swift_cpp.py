@@ -91,9 +91,16 @@ def game(swift: Path, cpp: Path, swift_black: bool, ms: int,
     return "draw"
 
 
-def arena(swift: Path, cpp: Path, pairs: int, milliseconds: int) -> dict:
+def arena(swift: Path, cpp: Path, pairs: int, milliseconds: int,
+          swift_kind: str = "unified") -> dict:
     if pairs < 1 or milliseconds < 1:
         raise ValueError("pairs and milliseconds must be positive")
+    references = {
+        "unified": "actual compiled VeilGomokuUnifiedSearch.swift + R10",
+        "gomokubot": "actual compiled original GomokuBot.chooseMove (empty private learning)"
+    }
+    if swift_kind not in references:
+        raise ValueError("unknown reference engine kind")
     checked, identical, expected = run_tactics(swift, cpp, milliseconds)
     counts = Counter()
     side_counts = Counter()
@@ -138,7 +145,7 @@ def arena(swift: Path, cpp: Path, pairs: int, milliseconds: int) -> dict:
     ci = [bootstrap[49], bootstrap[1949]]
     return {
         "schema": "eclipse.swift-cpp.headless-arena.v1",
-        "swift_reference": "actual compiled VeilGomokuUnifiedSearch.swift + R10",
+        "swift_reference": references[swift_kind],
         "cpp_candidate": "ECLIPSE C++20 research engine",
         "rules": "freestyle-15",
         "timing": {"equal_per_move_budget_ms": milliseconds},
@@ -166,9 +173,10 @@ def main():
     p.add_argument("--cpp", type=Path, required=True)
     p.add_argument("--pairs", type=int, default=1)
     p.add_argument("--ms", type=int, default=50)
+    p.add_argument("--swift-kind", choices=["unified", "gomokubot"], default="unified")
     p.add_argument("--out", type=Path)
     args = p.parse_args()
-    result = arena(args.swift, args.cpp, args.pairs, args.ms)
+    result = arena(args.swift, args.cpp, args.pairs, args.ms, args.swift_kind)
     output = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
