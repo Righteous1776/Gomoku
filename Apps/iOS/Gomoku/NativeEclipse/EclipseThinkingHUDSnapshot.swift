@@ -37,6 +37,10 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     var verifiedTeachingCandidate: Int? = nil
     /// Actual ranked C++ root shortlist, truncated to 16. Only authorized
     /// teaching may render it and the board controller rechecks legality.
+    /// Set only for an analysis of this exact unchanged teaching position.
+    /// Its native engine snapshot has finished and remains reviewable until
+    /// the board, model or developer authorization changes.
+    var hasTeachingReview: Bool = false
     var nativeRootRanks: [Int] = []
     /// A validated *prefix*, not a guaranteed full-depth PV or proof tree.
     /// Caller has replayed every move on the actual 15×15 board.
@@ -44,7 +48,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     var nativePVDepth: Int? = nil
 
     var visibleTeachingPVPrefix: [Int] {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               let depth = nativePVDepth, depth > 0,
               !nativePVPrefix.isEmpty,
               nativePVPrefix.count <= depth,
