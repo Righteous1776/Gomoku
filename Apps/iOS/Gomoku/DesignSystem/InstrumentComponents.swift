@@ -6,7 +6,19 @@ struct VeilInstrumentBackground: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(colors: [palette.backgroundLift, palette.background], startPoint: .top, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [palette.backgroundLift, palette.background],
+                startPoint: .top, endPoint: .bottomTrailing
+            )
+            // A restrained reflection of the machined bronze edge. Never
+            // a moving particle field: no display-link, no hit interception.
+            RadialGradient(
+                colors: [palette.gold.opacity(appearance.isDarkAppearance ? 0.085 : 0.045),
+                         Color.clear],
+                center: .topTrailing,
+                startRadius: 18,
+                endRadius: 490
+            )
             LinearGradient(
                 colors: [Color.white.opacity(appearance.isDarkAppearance ? 0.025 : 0.30), Color.clear],
                 startPoint: .topLeading,

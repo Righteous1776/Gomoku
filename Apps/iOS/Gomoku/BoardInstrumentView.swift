@@ -50,6 +50,7 @@ private struct VeilBoardTapSurface: UIViewRepresentable {
 
 struct GomokuBoardView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var appearance = VeilAppearanceController.shared
     @State private var impactIndex: Int?
     @State private var impactScale: CGFloat = 1
     let state: GomokuState
@@ -70,20 +71,75 @@ struct GomokuBoardView: View {
         VStack(spacing: 11) {
             GeometryReader { proxy in
                 let side = min(proxy.size.width, proxy.size.height)
+                let dark = appearance.isDarkAppearance
                 let margin = side * 0.055
                 let step = (side - margin * 2) / CGFloat(GomokuState.size - 1)
 
                 ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color(red: 0.42, green: 0.29, blue: 0.15).opacity(0.46))
-                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(VeilTheme.hairline, lineWidth: 1))
+                    // One fixed-cost material surface, never 225 animated
+                    // layers. Gold, wood and glass invert with the theme.
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: dark
+                                    ? [Color(red: 0.34, green: 0.24, blue: 0.16),
+                                       Color(red: 0.19, green: 0.14, blue: 0.105)]
+                                    : [Color(red: 0.90, green: 0.80, blue: 0.63),
+                                       Color(red: 0.77, green: 0.64, blue: 0.46)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(
+                                    dark ? VeilTheme.gold.opacity(0.42)
+                                         : Color.black.opacity(0.23),
+                                    lineWidth: 1.1
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(
+                                    dark ? Color.white.opacity(0.09)
+                                         : Color.white.opacity(0.45),
+                                    lineWidth: 0.8
+                                )
+                                .padding(3)
+                        )
 
                     gomokuGrid(side: side, margin: margin, step: step)
-                        .stroke(Color.white.opacity(0.27), lineWidth: 0.65)
+                        .stroke(
+                            dark ? Color.white.opacity(0.26)
+                                 : Color.black.opacity(0.40),
+                            lineWidth: 0.75
+                        )
 
                     ForEach(starPoints, id: \.self) { index in
                         let point = gomokuPoint(index: index, margin: margin, step: step)
-                        Circle().fill(Color.white.opacity(0.42)).frame(width: 4.2, height: 4.2).position(point)
+                        Circle()
+                            .fill(dark ? Color.white.opacity(0.53)
+                                       : Color.black.opacity(0.44))
+                            .frame(width: 4.2, height: 4.2)
+                            .position(point)
+                    }
+                    // Four recessed fastening points sit OUTSIDE the grid.
+                    // They are decorative and under the native tap surface.
+                    ForEach(0..<4, id: \.self) { corner in
+                        let farX = corner % 2 == 1
+                        let farY = corner >= 2
+                        Circle()
+                            .fill(dark ? Color.black.opacity(0.45)
+                                       : Color.black.opacity(0.18))
+                            .frame(width: 4.5, height: 4.5)
+                            .overlay(Circle().stroke(
+                                Color.white.opacity(dark ? 0.14 : 0.30),
+                                lineWidth: 0.45
+                            ))
+                            .position(
+                                x: side * (farX ? 0.975 : 0.025),
+                                y: side * (farY ? 0.975 : 0.025)
+                            )
                     }
 
                     // Purely decorative; has NO board data/search scores and
@@ -118,7 +174,16 @@ struct GomokuBoardView: View {
                         if value != 0 {
                             let point = gomokuPoint(index: index, margin: margin, step: step)
                             Circle()
-                                .fill(value == 1 ? Color.black.opacity(0.96) : Color.white.opacity(0.96))
+                                .fill(
+                                    RadialGradient(
+                                        colors: value == 1
+                                            ? [Color(white: 0.25), Color(white: 0.035)]
+                                            : [Color.white, Color(white: 0.80)],
+                                        center: UnitPoint(x: 0.32, y: 0.22),
+                                        startRadius: 0,
+                                        endRadius: max(8, step * 0.9)
+                                    )
+                                )
                                 .frame(width: step * 0.82, height: step * 0.82)
                                 .overlay(
                                     Circle().stroke(state.lastMove == index ? VeilTheme.gold : (value == 1 ? Color.white.opacity(0.16) : Color.black.opacity(0.24)), lineWidth: state.lastMove == index ? 2 : 0.7)
@@ -127,6 +192,17 @@ struct GomokuBoardView: View {
                                 .position(point)
                                 .transition(.scale.combined(with: .opacity))
                         }
+                    }
+
+                    // The precise mark belongs only to an ACTUALLY placed
+                    // stone. It never hints where the user should play next.
+                    if let last = state.lastMove, state.value(at: last) != 0 {
+                        Circle()
+                            .fill(VeilTheme.goldBright)
+                            .frame(width: max(2.8, step * 0.16),
+                                   height: max(2.8, step * 0.16))
+                            .position(gomokuPoint(index: last, margin: margin, step: step))
+                            .allowsHitTesting(false)
                     }
 
                     // Original VeilLink R17: a single event-bound impact pulse.
@@ -175,7 +251,8 @@ struct GomokuBoardView: View {
             HStack {
                 Text(localPlayer == .host ? "你执黑 · 先手" : "你执白 · 后手")
                 Spacer()
-                Text(enabled ? "轻触交叉点落子" : "等待对方")
+                Text(enabled ? "轻触交叉点落子" :
+                     eclipseThinking ? "ECLIPSE 正在分析" : "等待对方")
             }
             .font(.caption)
             .foregroundColor(enabled ? VeilTheme.gold : VeilTheme.secondaryText)

@@ -202,7 +202,6 @@ struct InstrumentHomeView: View {
                 liveMetrics: engine.realSearchMetrics,
                 openTrace: { showsEclipseTrace = true }
             )
-            .veilCard()
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("gomoku.eclipse.upper-compute-console")
         }
@@ -480,6 +479,8 @@ struct InstrumentHomeView: View {
                             in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
             .accessibilityIdentifier("gomoku.training.advanced.toggle")
             .accessibilityValue(showsAdvanced ? "已展开" : "已收起")
 
