@@ -57,7 +57,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     }
 
     var visibleTeachingRanks: [Int] {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               !nativeRootRanks.isEmpty,
               nativeRootRanks.count <= 16,
               Set(nativeRootRanks).count == nativeRootRanks.count,
@@ -69,7 +69,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Defense in depth: a formal-game caller cannot accidentally reveal an
     /// unplayed move even if an invalid fixture sets the underlying field.
     var visibleTeachingCandidate: Int? {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               let index = verifiedTeachingCandidate,
               (0..<225).contains(index), (completedDepth ?? 0) > 0 else {
             return nil
