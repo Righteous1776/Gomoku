@@ -30,13 +30,25 @@ final class EclipseGeneration3ResearchCatalogTests: XCTestCase {
         XCTAssertFalse(catalog.productionExecutable)
         XCTAssertFalse(catalog.productionEnabled)
         XCTAssertFalse(catalog.iosRuntimeLoaded)
-        XCTAssertEqual(catalog.nativeFeatureAbi, "34D-not-implemented")
-        XCTAssertFalse(EclipseModelID.allCases.contains {
-            $0.rawValue.hasPrefix("eclipse-3.0-")
-        })
+        XCTAssertEqual(catalog.nativeFeatureAbi, "34D-r07-compatibility-port-experimental")
+        XCTAssertTrue(EclipseModelID.allCases.contains(.astra30))
+        XCTAssertEqual(EclipseModelID.astra30.name, "3.0 Astra")
+        XCTAssertTrue(EclipseModelID.astra30.requiresVerifiedCheckpoint)
         XCTAssertNil(EclipseModelID.fromStoredIdentifier("eclipse-3.0-r07-249"))
         XCTAssertEqual(EclipseModelID.astra20.name, "2.0 Astra")
         XCTAssertEqual(EclipseModelID.sol20.name, "2.0 Sol")
+    }
+
+    func testRealR07NativeWeightLoadsInApp() throws {
+        let url = try XCTUnwrap(Bundle.main.url(
+            forResource: "eclipse_r07_34d_249_trees", withExtension: "txt"
+        ))
+        XCTAssertEqual(try Data(contentsOf: url).count, 585541)
+        let expected = "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234"
+        XCTAssertEqual(EclipseCppProductionAdapter.loadedCheckpointSHA256(
+            for: .astra30, expectedSHA256: expected), expected)
+        XCTAssertNil(EclipseCppProductionAdapter.loadedCheckpointSHA256(
+            for: .astra30, expectedSHA256: String(repeating: "0", count: 64)))
     }
 
     func testResearchManifestCannotBePromotedByEditingOnlyDisplayMetadata() throws {

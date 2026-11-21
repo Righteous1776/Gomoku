@@ -100,7 +100,7 @@ final class NativeGomokuAppController: ObservableObject {
         // loadAllFromBundle has ALREADY verified each exact C++ forest during
         // app initialization. Do not create extra native engines on each
         // SwiftUI redraw; C++ make()/decide() re-attest active bytes per turn.
-        [.astra20, .sol20].filter {
+        [.astra30, .astra20, .sol20].filter {
             verifiedTrainerExecutions[$0] != nil
         }
     }
@@ -163,7 +163,7 @@ final class NativeGomokuAppController: ObservableObject {
             if UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ) == nil,
-                let first = [EclipseModelID.astra20, .sol20].first(
+                let first = [EclipseModelID.astra30, .astra20, .sol20].first(
                     where: { self.verifiedSelectableModels.contains($0) }
                 ) {
                 selectedModel = first

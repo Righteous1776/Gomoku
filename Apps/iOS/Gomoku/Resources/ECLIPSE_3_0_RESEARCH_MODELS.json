@@ -6,7 +6,7 @@
   "model_family": "R07 34D research lineage",
   "production_enabled": false,
   "ios_runtime_loaded": false,
-  "native_feature_abi": "34D-not-implemented",
+  "native_feature_abi": "34D-r07-compatibility-port-experimental",
   "old_runtime_preserved": "V9 Astra/Sol 2.0 26D",
   "release_gate": "9/9 tactical and independent paired native games plus audited 34D source feature parity",
   "checkpoints": [
@@ -58,7 +58,7 @@
       "production_eligible": false
     }
   ],
-  "note": "3.0 Astra is the Owner-designated research DISPLAY ID for existing R07-249 weights, not an independently retrained or currently executable native checkpoint; historical 2.0 Astra and Sol stay unchanged. No 3.0 Sol weight is present.",
+  "note": "3.0 Astra R07-249 is a real 34D LightGBM forest playable through experimental C++ port; exact R04 26D feature parity not independently verified and research tactical gate is 8/9. Unverified experimental is NOT a production promotion.",
   "flagship_alias_id": "eclipse-3.0-astra",
   "flagship_alias_name": "3.0 Astra",
   "flagship_checkpoint_id": "eclipse-3.0-r07-249"

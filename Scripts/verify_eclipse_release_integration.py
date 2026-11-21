@@ -69,8 +69,9 @@ def check(root: Path) -> dict:
             ) or all(x in src[PRODUCTION_ADAPTER] for x in (
                 "eg_select_compiled_v9_model_v4",
                 "eg_active_compiled_v9_sha256_v4",
-                "Self.activeCheckpointSHA256(of: engine) == checkpointSHA256",
-                "Self.activeCheckpointSHA256(of: created) == checkpointSHA256",
+                "Self.bindCheckpoint(created, model: model,",
+                "Self.activeCheckpointSHA256(of: created, model: model) == checkpointSHA256",
+                "eg_load_astra_r07_v5(",
             )) and all(x in src[C_HEADER] and x in src[C_IMPL]
                        for x in (
                 "eg_select_compiled_v9_model_v4",

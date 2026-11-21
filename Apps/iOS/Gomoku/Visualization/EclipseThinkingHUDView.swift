@@ -179,8 +179,10 @@ struct EclipseThinkingHUDView: View {
                                 item("\(research.flagshipAliasName) · ECLIPSE 3.0",
                                      "\(checkpoint.researchRevision) · \(checkpoint.trees) 树 / \(checkpoint.features) 维")
                                 item("3.0 模型状态",
-                                     "研究资产 · 8/9 门禁 · 未在 iOS 加载")
-                                Text("已登记独立权重 SHA：\(String(checkpoint.sha256.prefix(16)))…；当前对局仍使用下方显示的真实执行模型。")
+                                     snapshot.executedModel == "3.0 Astra"
+                                        ? "真实运行 · 实验适配 · 8/9 研究门禁"
+                                        : "独立研究资产 · 8/9 研究门禁")
+                                Text("已登记独立权重 SHA：\(String(checkpoint.sha256.prefix(16)))…；真实执行后端与本模型研究卡片需分别核验。")
                                     .font(.caption2)
                                     .foregroundColor(VeilTheme.secondaryText)
                             }

@@ -119,11 +119,35 @@ enum EclipseTrainerProductionRegistry {
         guard let url = bundle.url(
             forResource: bundledCatalogName, withExtension: "json"
         ), let data = try? Data(contentsOf: url) else { return [:] }
-        return resolveCatalog(manifestData: data) { model, checksum in
+        var verified = resolveCatalog(manifestData: data) { model, checksum in
             EclipseCppProductionAdapter.loadedCheckpointSHA256(
                 for: model, expectedSHA256: checksum
             )
         }
+        // Separate opt-in experimental 3.0 path. Only genuine R07 raw bytes
+        // parsed by native C++ AND an unchanged finite trainer policy permit
+        // selecting it. It does NOT certify missing original R04 26D parity.
+        if let research = EclipseGeneration3ResearchCatalog.loadFromBundle(bundle),
+           let candidate = research.preferredResearchCandidate,
+           candidate.id == research.flagshipCheckpointId,
+           let astra2 = verified[.astra20],
+           let digest = astra2.computePolicy.sha256,
+           let loaded = EclipseCppProductionAdapter.loadedCheckpointSHA256(
+               for: .astra30, expectedSHA256: candidate.sha256
+           ),
+           let v3 = EclipseVerifiedTrainerExecution(
+               model: .astra30, trainingRevision: "R07",
+               checkpointSHA256: candidate.sha256,
+               loadedCheckpointSHA256: loaded,
+               // Temporary same-geometry time ceiling as 2.0 Astra.
+               // This is NOT represented as an R07-trained compute head.
+               computePolicy: astra2.computePolicy,
+               approvedComputePolicySHA256: digest,
+               loadedComputePolicySHA256: digest
+           ) {
+            verified[.astra30] = v3
+        }
+        return verified
     }
 
     static func loadFromBundle(_ bundle: Bundle = .main)
