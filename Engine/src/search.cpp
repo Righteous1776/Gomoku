@@ -53,6 +53,105 @@ std::vector<int> CandidateCoverage::candidates(
     return result;
 }
 
+// The exact 572 windows used by Search::static_value, listed in the
+// original axis / row / column order. Each cell belongs to <=20 windows.
+// One immutable lookup is shared by all search instances (thread-safe C++11
+// local-static initialization); mutable scores remain per Search object.
+namespace {
+constexpr int kFiveWindows = 572;
+constexpr int kWindowsPerCell = 20;
+constexpr int kFiveWeights[6] = {0, 2, 28, 900, 45000, 900000};
+struct FiveWindowLookup {
+    std::array<std::array<std::uint16_t, 5>, kFiveWindows> window{};
+    std::array<std::array<std::uint16_t, kWindowsPerCell>, kCells> incident{};
+    std::array<std::uint8_t, kCells> count{};
+};
+const FiveWindowLookup &five_window_lookup() {
+    static const auto lookup = [] {
+        FiveWindowLookup result{};
+        int count = 0;
+        for (const auto &axis : kAxes)
+            for (int row = 0; row < kSide; ++row)
+                for (int col = 0; col < kSide; ++col) {
+                    if (row + 4 * axis[0] < 0 ||
+                        row + 4 * axis[0] >= kSide ||
+                        col + 4 * axis[1] < 0 ||
+                        col + 4 * axis[1] >= kSide) continue;
+                    for (int step = 0; step < 5; ++step) {
+                        const int index = (row + step * axis[0]) * kSide
+                                        + col + step * axis[1];
+                        result.window[count][step] =
+                            static_cast<std::uint16_t>(index);
+                        result.incident[index][result.count[index]++] =
+                            static_cast<std::uint16_t>(count);
+                    }
+                    ++count;
+                }
+        return result;
+    }();
+    return lookup;
+}
+int black_contribution(int black, int white) {
+    return white == 0 ? kFiveWeights[black] : 0;
+}
+int white_contribution(int black, int white) {
+    return black == 0 ? kFiveWeights[white] : 0;
+}
+} // namespace
+
+void FiveWindowScore::reset(const std::array<std::uint8_t, kCells> &cells) {
+    black_.fill(0);
+    white_.fill(0);
+    black_sum_ = white_sum_ = 0;
+    const auto &windows = five_window_lookup().window;
+    for (int i = 0; i < kFiveWindows; ++i) {
+        int black = 0, white = 0;
+        for (const auto index : windows[i]) {
+            black += cells[index] == 1;
+            white += cells[index] == 2;
+        }
+        black_[i] = static_cast<std::uint8_t>(black);
+        white_[i] = static_cast<std::uint8_t>(white);
+        black_sum_ += black_contribution(black, white);
+        white_sum_ += white_contribution(black, white);
+    }
+}
+void FiveWindowScore::adjust(int index, int side, int delta) {
+    const auto &lookup = five_window_lookup();
+    for (int i = 0; i < lookup.count[index]; ++i) {
+        const int window = lookup.incident[index][i];
+        int black = black_[window], white = white_[window];
+        black_sum_ -= black_contribution(black, white);
+        white_sum_ -= white_contribution(black, white);
+        if (side == 1) black += delta;
+        else white += delta;
+        black_[window] = static_cast<std::uint8_t>(black);
+        white_[window] = static_cast<std::uint8_t>(white);
+        black_sum_ += black_contribution(black, white);
+        white_sum_ += white_contribution(black, white);
+    }
+}
+void FiveWindowScore::add(int index, int side) {
+    adjust(index, side, +1);
+}
+void FiveWindowScore::remove(int index, int side) {
+    adjust(index, side, -1);
+}
+int FiveWindowScore::raw_score(int side) const {
+    return side == 1 ? black_sum_ - white_sum_ : white_sum_ - black_sum_;
+}
+bool FiveWindowScore::creates_four(int index, int side) const {
+    const auto &lookup = five_window_lookup();
+    for (int i = 0; i < lookup.count[index]; ++i) {
+        const int window = lookup.incident[index][i];
+        if (side == 1 && black_[window] == 3 && white_[window] == 0)
+            return true;
+        if (side == 2 && white_[window] == 3 && black_[window] == 0)
+            return true;
+    }
+    return false;
+}
+
 bool should_stop_adaptive(const AdaptiveSearchEvidence &e) {
     if (e.profile < 1 || e.profile > 2 || e.root_alternatives < 1 ||
         e.best_score <= -5'000'000) return false;
@@ -98,12 +197,14 @@ const std::array<std::uint64_t, 3> &Search::side_hash() {
 void Search::place(int index, int side) {
     cells_[index] = static_cast<std::uint8_t>(side);
     if (use_incremental_coverage_) coverage_.add(index);
+    if (use_incremental_score_) window_score_.add(index, side);
     hash_ ^= zobrist()[index][side];
     --free_;
 }
 void Search::unplace(int index, int side) {
     cells_[index] = 0;
     if (use_incremental_coverage_) coverage_.remove(index);
+    if (use_incremental_score_) window_score_.remove(index, side);
     hash_ ^= zobrist()[index][side];
     ++free_;
 }
@@ -274,6 +375,8 @@ std::vector<int> Search::ordered(const std::vector<int> &moves,
 // Same five-window weights as VeilGomokuUnifiedSearch.staticValue.
 // TrainedOrdering remains a separate, not-yet-ported layer.
 int Search::static_value(int side) const {
+    if (use_incremental_score_)
+        return std::clamp(window_score_.raw_score(side), -kMate / 4, kMate / 4);
     constexpr int weight[6] = {0, 2, 28, 900, 45000, 900000};
     int black = 0, white = 0;
     for (const auto &axis : kAxes)
@@ -316,7 +419,7 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
     ++nodes_;
     if (remaining <= 0 || Clock::now() >= proof_deadline_ || limit_reached())
         return false;
-    const auto candidates = neighbors(candidate_radius_);
+    auto candidates = neighbors(candidate_radius_);
     if (!immediate_wins(other(side), candidates).empty()) return false;
     const auto direct = immediate_wins(side, candidates);
     if (!direct.empty()) {
@@ -324,6 +427,20 @@ bool Search::prove_four(int side, int remaining, bool restrict_root,
             pv = {direct.front()};
             return true;
         }
+    }
+    // Every valid forcing-four step must create a five-cell window with
+    // FOUR of our stones and no opponent stone. A move that cannot do that
+    // cannot appear in a legitimate forcing-four proof. Filter BEFORE
+    // the expensive trained ordering, retaining ALL eligible tactics.
+    // Legacy profile0 retains its historical candidate ordering.
+    if (adaptive_profile_ == 3 && use_incremental_score_) {
+        candidates.erase(
+            std::remove_if(candidates.begin(), candidates.end(),
+                [&](int move) {
+                    return !window_score_.creates_four(move, side);
+                }),
+            candidates.end()
+        );
     }
     for (const int move : ordered(candidates, side, proof_width_)) {
         if (restrict_root && !allowed_proof_root_[move]) continue;
@@ -484,6 +601,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     // 1/2 remain isolated diagnostic variants pending opponent validation.
     adaptive_profile_ = std::clamp(adaptive_profile, 0, 3);
     use_incremental_coverage_ = false;
+    use_incremental_score_ = false;
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -524,6 +642,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (adaptive_profile_ == 3) {
         coverage_.reset(candidate_radius_, cells_);
         use_incremental_coverage_ = true;
+        window_score_.reset(cells_);
+        use_incremental_score_ = true;
     }
     auto finish = [&](int move, SearchStopReason reason, int depth) {
         SearchResult result;

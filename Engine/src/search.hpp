@@ -86,6 +86,24 @@ private:
     void adjust(int index, int delta);
 };
 
+// Exact incremental replacement of the original 572 five-cell static
+// evaluator. Updates only windows incident to the placed/removed stone.
+class FiveWindowScore {
+public:
+    void reset(const std::array<std::uint8_t, kCells> &cells);
+    void add(int index, int side);
+    void remove(int index, int side);
+    int raw_score(int side) const;
+    bool creates_four(int index, int side) const;
+private:
+    static constexpr int kWindows = 572; // 165 horizontal, 165 vertical, 242 diagonal
+    std::array<std::uint8_t, kWindows> black_{};
+    std::array<std::uint8_t, kWindows> white_{};
+    int black_sum_ = 0;
+    int white_sum_ = 0;
+    void adjust(int index, int side, int delta);
+};
+
 class Search {
 public:
     using ProgressObserver = std::function<void(int,int,int,int,std::uint64_t)>;
@@ -127,6 +145,8 @@ private:
     int candidate_radius_ = 2;
     CandidateCoverage coverage_{};
     bool use_incremental_coverage_ = false;
+    FiveWindowScore window_score_{};
+    bool use_incremental_score_ = false;
     int root_width_ = 18;
     int proof_width_ = 28;
     int reply_width_ = 14;

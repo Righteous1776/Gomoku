@@ -52,6 +52,14 @@ if(BUILD_TESTING)
   # Full paired matches run in a standalone CI job, never in the main fast CTest.
   add_executable(eclipse_v9_arena tests/arena_v9_rankers.cpp)
   target_link_libraries(eclipse_v9_arena PRIVATE eclipse_core)
+  add_executable(eclipse_incremental_window_score_tests
+    tests/test_incremental_window_score.cpp)
+  target_link_libraries(eclipse_incremental_window_score_tests PRIVATE eclipse_core)
+  target_include_directories(eclipse_incremental_window_score_tests
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  add_test(NAME eclipse_incremental_window_score
+    COMMAND eclipse_incremental_window_score_tests)
+  set_tests_properties(eclipse_incremental_window_score PROPERTIES TIMEOUT 15)
   add_executable(eclipse_incremental_coverage_tests tests/test_incremental_coverage.cpp)
   target_link_libraries(eclipse_incremental_coverage_tests PRIVATE eclipse_core)
   target_include_directories(eclipse_incremental_coverage_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
