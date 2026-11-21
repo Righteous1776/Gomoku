@@ -1,5 +1,6 @@
 #include "search.hpp"
 #include "eclipse_trained_ordering.hpp"
+#include "eclipse_v9_research_ranker.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -166,11 +167,23 @@ int Search::pattern_priority(int index, int side) const {
             }
     return total * 8 + kSide - std::abs(row - 7) - std::abs(col - 7);
 }
+int Search::move_rank(int index, int side) const {
+    switch (ranker_) {
+    case ResearchRanker::v9_astra:
+        return research_v9::score(cells_, index, side, 1);
+    case ResearchRanker::v9_sol:
+        return research_v9::score(cells_, index, side, 2);
+    case ResearchRanker::legacy:
+    default:
+        return trained_model::score(cells_, index, side);
+    }
+}
+
 std::vector<int> Search::ordered(const std::vector<int> &moves,
                                   int side, int limit, int preferred) const {
     std::vector<std::pair<int,int>> sorted;
     sorted.reserve(moves.size());
-    for (int i : moves) sorted.emplace_back(i, trained_model::score(cells_, i, side));
+    for (int i : moves) sorted.emplace_back(i, move_rank(i, side));
     std::sort(sorted.begin(), sorted.end(), [preferred](const auto &a, const auto &b) {
         if (a.first == b.first) return false; // strict weak ordering, including self
         if (a.first == preferred) return true;
@@ -422,7 +435,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         std::vector<std::pair<int,int>> scored;
         for (int move : candidates) {
             const int preference = std::clamp(policy->bonus[move], -2000, 2000);
-            scored.push_back({move, trained_model::score(cells_, move, side) + preference});
+            scored.push_back({move, move_rank(move, side) + preference});
         }
         std::sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) {
             return a.second == b.second ? a.first < b.first : a.second > b.second;
