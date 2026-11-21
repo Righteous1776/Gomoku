@@ -26,6 +26,9 @@ class Generation3ModelIdentityTests(unittest.TestCase):
         self.assertEqual(c["application_version"], "2.0.0")
         self.assertEqual(c["generation"], "3.0")
         self.assertEqual(c["label"], "ECLIPSE 3.0")
+        self.assertEqual(c["flagship_alias_name"], "Astra 3.0")
+        self.assertEqual(c["flagship_alias_id"], "eclipse-3.0-astra")
+        self.assertEqual(c["flagship_checkpoint_id"], "eclipse-3.0-r07-249")
         self.assertFalse(c["production_enabled"])
         self.assertFalse(c["ios_runtime_loaded"])
         self.assertEqual(c["native_feature_abi"], "34D-not-implemented")
@@ -42,6 +45,10 @@ class Generation3ModelIdentityTests(unittest.TestCase):
         self.assertEqual(len(c["checkpoints"]), 5)
         self.assertEqual([x["trees"] for x in c["checkpoints"]],
                          [244, 249, 259, 274, 289])
+        aliases = [m for m in c["checkpoints"]
+                   if m["id"] == c["flagship_checkpoint_id"]]
+        self.assertEqual(len(aliases), 1)
+        self.assertEqual(aliases[0]["trees"], 249)
         ids = {entry["id"] for entry in c["checkpoints"]}
         self.assertEqual(len(ids), 5)
         for item in c["checkpoints"]:
