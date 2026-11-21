@@ -138,13 +138,14 @@ struct InstrumentHomeView: View {
                 }
             }
             HStack(spacing: 7) {
-                statusMetric("模型路径", engine.selectedModel.backend == .classicSwift
-                    ? "Classic" : "R10 Unified")
+                statusMetric("实际引擎", engine.lastExecutionBackend
+                    ?? (engine.trainerControlsCompute
+                        ? "C++ V2 / 待核验" : "Swift / 历史兼容"))
                 statusMetric("联网", "不需要")
                 statusMetric("上步耗时", engine.lastDecisionMilliseconds.map { "\($0)ms" } ?? "—")
             }
             if let executed = engine.lastExecutedModel {
-                Text("上一手由 ECLIPSE \(executed.name) 实际执行")
+                Text("上一手：\(executed.name) · \(engine.lastExecutionBackend ?? "Swift")")
                     .font(.caption2.monospacedDigit())
                     .foregroundColor(VeilTheme.secondaryText)
                     .accessibilityIdentifier("gomoku.eclipse.last-executed-model")
