@@ -78,5 +78,9 @@
   ],
   "verification": "Git blob SHA-1 was checked against the original model bytes before committing; CI independently recomputes original SHA-256 from all 7 committed files.",
   "promotion_gate": "R07-249 passed 8 of 9 evaluation gates and regressed from 22/40 to 21/40 historic-move Top1; these are research weights, not a claimed Elo-strength or production generation.",
-  "compatibility": "34D R07 weights are not compatible with the existing 26D native V9 scorer without explicit 34D features+ABI+independent evaluation."
+  "compatibility": "34D R07 weights are not compatible with the existing 26D native V9 scorer without explicit 34D features+ABI+independent evaluation.",
+  "product_model_generation": "3.0",
+  "product_display_name": "ECLIPSE 3.0 · R07 Research",
+  "host_app_version": "2.0.0",
+  "generation_identity_scope": "R07 34D only; R04 legacy baselines do not become model 3.0"
 }
