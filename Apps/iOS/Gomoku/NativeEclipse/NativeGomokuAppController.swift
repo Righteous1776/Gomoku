@@ -551,9 +551,10 @@ final class NativeGomokuAppController: ObservableObject {
         // The detached worker never captures mutable actor-isolated self in a
         // concurrently executing MainActor.run closure (Swift 6 safe).
         guard token == generation, state == boardAtStart else { return }
-        lastDecisionDepth = eclipseMetricsStore.snapshot(
-            sessionID: sessionID, turn: boardAtStart.moveCount, isThinking: true
-        )?.completedDepth
+        lastDecisionDepth = decision?.completedDepth
+            ?? eclipseMetricsStore.snapshot(
+                sessionID: sessionID, turn: boardAtStart.moveCount, isThinking: true
+            )?.completedDepth
         eclipseTraceStore.clear()
         eclipseMetricsStore.clear()
         isThinking = false
