@@ -544,8 +544,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
-    const bool tactical_risk = std::any_of(risks.begin(), risks.end(),
-        [](const auto &r) { return r.second > 0; });
+    const bool tactical_risk =
+        fork_count(side) > 0 || fork_count(other(side)) > 0 ||
+        std::any_of(risks.begin(), risks.end(),
+            [](const auto &r) { return r.second > 0; });
     if (adaptive) {
         // Proof phase must not consume the entire complex ceiling when the
         // current position is quiet. A detected fork risk earns substantially
@@ -637,8 +639,12 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                     adaptive->stable_rounds || !quiet_score;
                 evidence.score_gap = gap;
                 evidence.stable_rounds = stable_completed;
-                evidence.complexity = tactical_risk || ambiguous ? 2
-                    : uncertain ? 1 : 0;
+                // A close second-best move is NOT automatically a deep
+                // tactical crisis if the same choice remains stable across
+                // completed depths. Keep it uncertain, not always 45s.
+                evidence.complexity = tactical_risk ||
+                    (ambiguous && stable_completed < adaptive->stable_rounds)
+                        ? 2 : (uncertain || ambiguous) ? 1 : 0;
                 // Forecast one MORE depth from actual cost growth. This
                 // estimate is telemetry for efficient stopping, not a
                 // promise that the next round will take precisely this long.
