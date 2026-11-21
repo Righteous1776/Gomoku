@@ -33,7 +33,7 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         let encoded = try XCTUnwrap(String(data: canonical, encoding: .utf8))
         XCTAssertTrue(encoded.contains("\"max_wall_time_ms\":null"))
         XCTAssertTrue(encoded.contains("\"max_nodes\":null"))
-        XCTAssertEqual(policy.sha256?.count, 64)
+        XCTAssertEqual(policy.sha256, "559e3830c4441cfa143c302ac4c749fdbe6371c526f74eb627b9686ebde099b1")
     }
 
     func testTrainerCanSetLargeExplicitBudgetWithoutLegacy5700msCeiling() {
