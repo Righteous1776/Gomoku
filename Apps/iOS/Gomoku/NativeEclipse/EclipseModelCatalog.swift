@@ -69,7 +69,7 @@ enum EclipseModelID: String, CaseIterable, Sendable, Identifiable {
 
     static func fromStoredIdentifier(_ value: String?) -> Self? {
         guard let value else { return nil }
-        return Self(rawValue: value)
+        return EclipseModelSelection.fromArchiveValue(value)?.model
     }
     static func fromLegacyDifficulty(_ legacy: BoardBotDifficulty) -> Self {
         EclipseModelSelection.fromLegacyDifficulty(legacy).model
