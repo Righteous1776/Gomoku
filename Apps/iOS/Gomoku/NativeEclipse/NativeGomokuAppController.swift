@@ -627,9 +627,16 @@ final class NativeGomokuAppController: ObservableObject {
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
-            lastExecutedModel = executedModel
+            // Never claim "2.0 Astra/Sol" actually played when a missing or
+            // failed native C++ V9 scorer forced the original Swift fallback.
+            let verifiedV9Played = !executedModel.requiresVerifiedCheckpoint
+                || trainerRevision != nil
+            lastExecutedModel = verifiedV9Played ? executedModel : nil
             lastExecutedTrainerRevision = trainerRevision
             lastExecutionBackend = decision.engineLabel ?? "ECLIPSE Swift"
+            if !verifiedV9Played {
+                fallbackWarning = "本手实际由原版 Swift 接管，尚未执行验证的 2.0 训练模型；不能计入 Astra/Sol 棋力。"
+            }
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
