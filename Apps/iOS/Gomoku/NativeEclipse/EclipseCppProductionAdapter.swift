@@ -19,6 +19,14 @@ struct EclipseCppLiveSearchReading: Equatable {
     let bestMoveForAuthorizedReview: Int?
 }
 
+/// Native Stage C3 search-derived continuation. A prefix may be shorter than
+/// completedDepth; it is never a mathematical win proof or calibrated score.
+struct EclipseCppCompletedPVReading: Equatable {
+    let searchSerial: UInt64
+    let completedDepth: Int
+    let moves: [Int]
+}
+
 final class EclipseCppProductionAdapter: @unchecked Sendable {
     private let engine: OpaquePointer
     private let checkpointSHA256: String
@@ -191,6 +199,35 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
               moves.allSatisfy({ (0..<225).contains($0) })
         else { return nil }
         return (serial: reading.search_serial, moves: moves)
+    }
+
+    /// One read-only, serial-correlated sample from a COMPLETED native
+    /// iteration. Actual board/color legality is checked by the controller.
+    /// A missing or interrupted search never manufactures a PV.
+    func liveCompletedPV() -> EclipseCppCompletedPVReading? {
+        var reading = EGSearchPVSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGSearchPVSnapshotV1>.size)
+        guard eg_read_search_pv_v1(engine, &reading) == 1,
+              reading.size_bytes == UInt32(MemoryLayout<EGSearchPVSnapshotV1>.size),
+              reading.search_serial > 0,
+              reading.completed_depth > 0,
+              reading.count > 0,
+              reading.count <= UInt32(EG_LIVE_PV_MAX),
+              reading.count <= UInt32(reading.completed_depth)
+        else { return nil }
+        let moves: [Int] = withUnsafeBytes(of: reading.moves) { bytes in
+            bytes.bindMemory(to: Int32.self)
+                .prefix(Int(reading.count)).map { Int($0) }
+        }
+        guard moves.count == Int(reading.count),
+              Set(moves).count == moves.count,
+              moves.allSatisfy({ (0..<225).contains($0) })
+        else { return nil }
+        return EclipseCppCompletedPVReading(
+            searchSerial: reading.search_serial,
+            completedDepth: Int(reading.completed_depth),
+            moves: moves
+        )
     }
 
     /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
