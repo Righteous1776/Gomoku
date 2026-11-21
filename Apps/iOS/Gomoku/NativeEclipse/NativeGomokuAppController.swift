@@ -238,7 +238,7 @@ final class NativeGomokuAppController: ObservableObject {
 
     var realSearchMetrics: VeilEclipseTracePolicy.LiveMetrics? {
         if isThinking {
-            if activeThinkingRun?.backend == "C++20 V2" {
+            if activeThinkingRun?.backend.hasPrefix("C++20 V") == true {
                 guard let native = activeCppSearch?.liveSearchSnapshot() else {
                     return nil
                 }
@@ -278,10 +278,10 @@ final class NativeGomokuAppController: ObservableObject {
         let teachingReview = !isThinking && developerTeachingMode
             && developerAuthorization.isAuthorized
             && lastThinkingRun?.positionRevision == state.moveCount
-            && lastThinkingRun?.backend == "C++20 V2"
+            && lastThinkingRun?.backend.hasPrefix("C++20 V") == true
             && activeCppSearch != nil
         let nativeRun = (isThinking || teachingReview)
-            && identity?.backend == "C++20 V2"
+            && identity?.backend.hasPrefix("C++20 V") == true
         let nativeLive = nativeRun ? activeCppSearch?.liveSearchSnapshot() : nil
         let liveElapsed: Int? = searchStartedUptime.map {
             Int(max(0, uptime - $0) * 1000)
@@ -649,7 +649,10 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
-            backend: "C++20 V2", modelName: model.name,
+            backend: trainer.computePolicy.mode == .adaptive
+                && trainer.computePolicy.maxDepth >= 2
+                ? "C++20 V3 adaptive" : "C++20 V2",
+            modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
             computePolicySHA256: trainer.computePolicy.sha256
         )
@@ -784,7 +787,10 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
-            backend: usingCpp ? "C++20 V2" :
+            backend: usingCpp
+                ? (verifiedTrainer?.computePolicy.mode == .adaptive
+                   && (verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 2
+                    ? "C++20 V3 adaptive" : "C++20 V2") :
                 (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
             modelName: usingCpp || !model.requiresVerifiedCheckpoint
                 ? model.name : nil,
