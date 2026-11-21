@@ -272,7 +272,7 @@ struct InstrumentHomeView: View {
                     }
                     .padding(.bottom, 6)
 
-                    ForEach(EclipseModelID.featured) { model in
+                    ForEach(engine.availableModels) { model in
                         Button {
                             requestModelSelection(model)
                         } label: {
