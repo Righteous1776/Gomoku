@@ -84,6 +84,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     }
     var shortStatus: String {
         if isSearching { return "搜索中 · 阶段未提供" }
+        if hasTeachingReview { return "教学分析已完成 · 未落子" }
         if stopReason != nil || elapsedMilliseconds != nil { return "本步已结束" }
         return "等待搜索"
     }
