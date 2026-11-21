@@ -1,0 +1,25 @@
+name: ECLIPSE private-data boundary synthetic tests
+on:
+  pull_request:
+    paths:
+      - 'Arena/private_tactical_regression.py'
+      - 'Arena/tests/test_private_tactical_regression.py'
+      - '.github/workflows/eclipse-private-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  private-harness-synthetic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard against accidentally committing real user training exports
+        run: |
+          if git ls-files | grep -Ei '(^|/)(ECLIPSE_PrivateEvidence|VeilLink-GomokuLearning-|VeilLink-GomokuNativeSelfPlay-).*\.sqlite$'; then
+            echo "Unexpected private user database tracked by Git" >&2
+            exit 1
+          fi
+          test ! -e Arena/evidence/owner-personal-learning.json
+      - name: Run synthetic-only trust, replay and tactical selection tests
+        run: python3 -m unittest discover -v -s Arena/tests -p 'test_private_tactical_regression.py'
