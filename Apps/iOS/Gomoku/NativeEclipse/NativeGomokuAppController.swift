@@ -277,7 +277,7 @@ final class NativeGomokuAppController: ObservableObject {
         let context: EclipseThinkingHUDSnapshot.Context =
             developerTeachingMode ? .teaching :
                 (status == 0 ? .formal : .postgame)
-        return EclipseThinkingHUDSnapshot(
+        var snapshot = EclipseThinkingHUDSnapshot(
             searchID: identity?.id,
             positionRevision: identity?.positionRevision ?? state.moveCount,
             context: context,
@@ -297,6 +297,16 @@ final class NativeGomokuAppController: ObservableObject {
                 : lastDecisionDepth,
             stopReason: live ? nil : lastThinkingStopReason
         )
+        // The native engine may publish a best move for a FULLY completed
+        // iteration. Only authenticated developer teaching may observe it.
+        // Formally played matches do not store this move in the HUD.
+        if live && context == .teaching && nativeRun,
+           let candidate = nativeLive?.bestMoveForAuthorizedReview,
+           nativeLive?.completedDepth != nil,
+           state.value(at: candidate) == 0 {
+            snapshot.verifiedTeachingCandidate = candidate
+        }
+        return snapshot
     }
 
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {

@@ -32,6 +32,21 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     let completedDepth: Int?
     let stopReason: String?
 
+    /// Actual best move of a COMPLETED native depth, not a proven win.
+    /// Never populated from speculative or partially searched root branches.
+    var verifiedTeachingCandidate: Int? = nil
+
+    /// Defense in depth: a formal-game caller cannot accidentally reveal an
+    /// unplayed move even if an invalid fixture sets the underlying field.
+    var visibleTeachingCandidate: Int? {
+        guard context == .teaching, isSearching,
+              let index = verifiedTeachingCandidate,
+              (0..<225).contains(index), (completedDepth ?? 0) > 0 else {
+            return nil
+        }
+        return index
+    }
+
     var averageNPS: Int? {
         guard let visitedNodes, let elapsedMilliseconds,
               visitedNodes > 0, elapsedMilliseconds >= 500 else { return nil }
