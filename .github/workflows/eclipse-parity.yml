@@ -95,6 +95,7 @@ jobs:
             --cpp build/Engine/gomoku_cli \
             --seed 20261121 \
             --tier 75:4 --tier 250:2 \
+            --reference-scope gomokubot-empty \
             --out Arena/evidence/original-swift-empty-learning.json
       - name: Upload synthetic full-Swift reference aggregate
         if: always() && hashFiles('Arena/evidence/original-swift-empty-learning.json') != ''
