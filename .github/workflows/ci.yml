@@ -1,0 +1,121 @@
+name: Gomoku CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Full reviewed commit SHA to validate and package as an unsigned IPA. Leave blank for CI only.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || (github.event_name == 'workflow_dispatch' && github.run_id) || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Validate requested commit SHA
+        if: inputs.expected_sha != ''
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Enter the full 40-character lowercase commit SHA."
+            exit 1
+          fi
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify checkout matches the reviewed SHA
+        if: inputs.expected_sha != ''
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Run Inbox and Python regression checks
+        run: bash Scripts/local_ci_preflight.sh inbox
+      - name: Load trusted policy from PR base
+        if: startsWith(github.head_ref, 'agent-drop/')
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .trusted-policy
+          persist-credentials: false
+      - name: Check isolated drop against trusted base
+        if: startsWith(github.head_ref, 'agent-drop/')
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          DROP_BRANCH: ${{ github.head_ref }}
+        run: python3 .trusted-policy/Scripts/inbox.py --repo . check-drop --base "$BASE_SHA" --head "$HEAD_SHA" --branch "$DROP_BRANCH"
+      - name: Build and test C++ and training
+        run: bash Scripts/local_ci_preflight.sh core
+      - name: Verify package, training evidence and provenance
+        run: bash Scripts/local_ci_preflight.sh provenance
+
+  ios:
+    needs: core
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Verify checkout matches the reviewed SHA
+        if: inputs.expected_sha != ''
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Build and run iOS simulator regression tests
+        run: bash Scripts/local_ci_preflight.sh ios
+      - name: Upload simulator test results
+        if: always() && hashFiles('GomokuTests.xcresult/**') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: Gomoku-simulator-test-results
+          path: GomokuTests.xcresult
+          if-no-files-found: error
+          retention-days: 7
+      - name: Build unsigned generic device app
+        if: inputs.expected_sha != ''
+        run: xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Confirm the actual device app contains no private training
+        if: inputs.expected_sha != ''
+        run: |
+          python3 Scripts/check_private_bundle.py --app DerivedData/Build/Products/Release-iphoneos/Gomoku.app --manifest DerivedData/Privacy/public-dev-unsigned.json
+      - name: Package unsigned device app for development investigation only
+        if: inputs.expected_sha != ''
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release-iphoneos/Gomoku.app"
+          test -d "$APP"
+          mkdir -p artifacts/Payload
+          ditto "$APP" artifacts/Payload/Gomoku.app
+          cd artifacts
+          zip -qr Gomoku-UNSIGNED-DEV-ONLY.ipa Payload
+          shasum -a 256 Gomoku-UNSIGNED-DEV-ONLY.ipa > Gomoku-UNSIGNED-DEV-ONLY.sha256
+      - name: Scan final IPA payload before any artifact upload
+        if: inputs.expected_sha != ''
+        run: python3 Scripts/check_private_bundle.py --ipa artifacts/Gomoku-UNSIGNED-DEV-ONLY.ipa
+      - name: Upload unsigned developer IPA
+        if: inputs.expected_sha != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: gomoku-unsigned-dev-ipa-not-installable-by-default
+          path: |
+            artifacts/Gomoku-UNSIGNED-DEV-ONLY.ipa
+            artifacts/Gomoku-UNSIGNED-DEV-ONLY.sha256
+          if-no-files-found: error
+          retention-days: 7
