@@ -37,6 +37,10 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     var verifiedTeachingCandidate: Int? = nil
     /// Actual ranked C++ root shortlist, truncated to 16. Only authorized
     /// teaching may render it and the board controller rechecks legality.
+    /// Set only for an analysis of this exact unchanged teaching position.
+    /// Its native engine snapshot has finished and remains reviewable until
+    /// the board, model or developer authorization changes.
+    var hasTeachingReview: Bool = false
     var nativeRootRanks: [Int] = []
     /// A validated *prefix*, not a guaranteed full-depth PV or proof tree.
     /// Caller has replayed every move on the actual 15×15 board.
@@ -44,7 +48,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     var nativePVDepth: Int? = nil
 
     var visibleTeachingPVPrefix: [Int] {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               let depth = nativePVDepth, depth > 0,
               !nativePVPrefix.isEmpty,
               nativePVPrefix.count <= depth,
@@ -53,7 +57,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     }
 
     var visibleTeachingRanks: [Int] {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               !nativeRootRanks.isEmpty,
               nativeRootRanks.count <= 16,
               Set(nativeRootRanks).count == nativeRootRanks.count,
@@ -65,7 +69,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Defense in depth: a formal-game caller cannot accidentally reveal an
     /// unplayed move even if an invalid fixture sets the underlying field.
     var visibleTeachingCandidate: Int? {
-        guard context == .teaching, isSearching,
+        guard context == .teaching, (isSearching || hasTeachingReview),
               let index = verifiedTeachingCandidate,
               (0..<225).contains(index), (completedDepth ?? 0) > 0 else {
             return nil
@@ -80,6 +84,7 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     }
     var shortStatus: String {
         if isSearching { return "搜索中 · 阶段未提供" }
+        if hasTeachingReview { return "教学分析已完成 · 未落子" }
         if stopReason != nil || elapsedMilliseconds != nil { return "本步已结束" }
         return "等待搜索"
     }

@@ -68,6 +68,23 @@ struct EclipseThinkingHUDView: View {
                     .accessibilityIdentifier("gomoku.thinking-hud.level")
                 }
             }
+            if expanded && engine.developerTeachingMode
+                && engine.developerAuthorization.isAuthorized
+                && engine.status == 0 {
+                Button {
+                    engine.analyzeTeachingPosition()
+                } label: {
+                    Label(
+                        engine.isThinking ? "正在分析此局面" : "分析当前局面 · 不自动落子",
+                        systemImage: "cpu"
+                    )
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(VeilTheme.goldBright)
+                }
+                .buttonStyle(.plain)
+                .disabled(engine.isThinking)
+                .accessibilityIdentifier("gomoku.thinking-hud.teaching-analyze")
+            }
             if expanded {
                 // Only this footer refreshes. 2 Hz in foreground, 1 Hz for
                 // Reduce Motion / Low Power; no background stream or board
@@ -142,7 +159,11 @@ struct EclipseThinkingHUDView: View {
                                 .foregroundColor(VeilTheme.tertiaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
+                        if snapshot.hasTeachingReview {
+                            Text("教学模式仅分析当前合法局面：没有自动落子、没有新增对局或训练棋谱。")
+                                .font(.caption2)
+                                .foregroundColor(VeilTheme.secondaryText)
+                        } else if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
                             Text(snapshot.backend == "未提供"
                                  ? "无法可靠解释本手：没有引擎决策证据。"
                                  : "本手已执行；引擎未提供可验证的战术解释。")

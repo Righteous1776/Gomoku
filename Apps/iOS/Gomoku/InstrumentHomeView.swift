@@ -451,6 +451,8 @@ struct InstrumentHomeView: View {
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
+            eclipseTeachingReviewAvailable:
+                engine.thinkingHUDSnapshot().hasTeachingReview,
             eclipseTeachingCandidate: {
                 guard engine.developerTeachingMode,
                       engine.developerAuthorization.isAuthorized,
