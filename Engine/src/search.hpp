@@ -61,12 +61,17 @@ public:
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
     using RankedRootsSink = std::function<void(const std::vector<int> &)>;
+    // Actual best-line continuation from the most recently COMPLETED depth.
+    // It is transposition-backed and may be shorter than the completed depth;
+    // never a mathematical win proof or a calibrated evaluation.
+    using CompletedPVSink = std::function<void(int, const std::vector<int> &)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
                          const std::atomic<bool> *cancel = nullptr,
                          const ProgressSink &progress = {},
-                         const RankedRootsSink &ranked_roots = {});
+                         const RankedRootsSink &ranked_roots = {},
+                         const CompletedPVSink &completed_pv = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
