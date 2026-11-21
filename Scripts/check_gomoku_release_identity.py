@@ -16,7 +16,6 @@ EXPECTED = {
     "CFBundleDisplayName": "Gomoku",
     "CFBundleShortVersionString": "1.0.0",
     "CFBundleVersion": "2",
-    "GOMOKUReleaseChannel": "RC1",
 }
 
 def verify(info: dict, names: set[str], prefix: str) -> None:

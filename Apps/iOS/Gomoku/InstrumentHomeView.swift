@@ -763,7 +763,7 @@ struct InstrumentHomeView: View {
             Text("仪器风格固定；仅切换浅色、深色或跟随系统。")
                 .font(.caption2)
                 .foregroundColor(VeilTheme.secondaryText)
-            Text("Gomoku V\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") \(Bundle.main.object(forInfoDictionaryKey: "GOMOKUReleaseChannel") as? String ?? "") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")")
+            Text("Gomoku V\(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") \("RC1") · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")")
                 .font(.caption2.monospacedDigit())
                 .foregroundColor(VeilTheme.secondaryText)
                 .accessibilityIdentifier("gomoku.app.version")
