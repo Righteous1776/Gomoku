@@ -310,6 +310,16 @@ final class NativeGomokuAppController: ObservableObject {
            state.value(at: candidate) == 0 {
             snapshot.verifiedTeachingCandidate = candidate
         }
+        if live && context == .teaching && nativeRun,
+           let serial = nativeLive?.searchSerial,
+           let ranks = activeCppSearch?.liveRankedRootMoves(),
+           ranks.serial == serial {
+            // Validate all coordinates against the ACTUAL current board.
+            // No duplicate or occupied position reaches the visualization.
+            snapshot.nativeRootRanks = ranks.moves.filter {
+                state.value(at: $0) == 0
+            }
+        }
         return snapshot
     }
 
