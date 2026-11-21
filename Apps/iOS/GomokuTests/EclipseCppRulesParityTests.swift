@@ -36,7 +36,7 @@ final class EclipseCppRulesParityTests: XCTestCase {
             [0, 15, 1, 16, 2, 17, 3, 18, 4],
             [15, 0, 30, 1, 45, 2, 60, 3, 100, 4],
             [0, 1, 16, 2, 32, 3, 48, 4, 64]
-        ].forEach(assertMatchesSwift)
+        ].forEach { assertMatchesSwift($0) }
     }
 
     func testMalformedSequencesNeverCrossAsValid() {
@@ -56,6 +56,6 @@ final class EclipseCppRulesParityTests: XCTestCase {
             history.append(square)
             histories.append(history)
         }
-        histories.forEach(assertMatchesSwift)
+        histories.forEach { assertMatchesSwift($0) }
     }
 }
