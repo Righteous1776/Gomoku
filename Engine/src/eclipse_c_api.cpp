@@ -25,6 +25,9 @@ struct EGEngine {
     std::atomic<std::int64_t> live_elapsed_ms{0};
     std::atomic<std::uint32_t> live_rank_count{0};
     std::array<std::atomic<std::int32_t>, EG_LIVE_RANKED_ROOTS_MAX> live_rank_moves{};
+    std::atomic<std::uint32_t> live_pv_count{0};
+    std::atomic<std::int32_t> live_pv_depth{0};
+    std::array<std::atomic<std::int32_t>, EG_LIVE_PV_MAX> live_pv_moves{};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
@@ -60,6 +63,9 @@ void clear_live(EGEngine *e) {
     e->live_elapsed_ms.store(0);
     e->live_rank_count.store(0);
     for (auto &index : e->live_rank_moves) index.store(-1);
+    e->live_pv_count.store(0);
+    e->live_pv_depth.store(0);
+    for (auto &index : e->live_pv_moves) index.store(-1);
     e->live_sequence.fetch_add(1);
 }
 void publish_ranked(EGEngine *e, const std::vector<int> &ranked) {
@@ -69,6 +75,16 @@ void publish_ranked(EGEngine *e, const std::vector<int> &ranked) {
     for (std::size_t i = 0; i < EG_LIVE_RANKED_ROOTS_MAX; ++i)
         e->live_rank_moves[i].store(i < count ? ranked[i] : -1);
     e->live_rank_count.store(static_cast<std::uint32_t>(count));
+    e->live_sequence.fetch_add(1);
+}
+void publish_completed_pv(EGEngine *e, int depth,
+                          const std::vector<int> &line) {
+    const auto count = std::min<std::size_t>(line.size(), EG_LIVE_PV_MAX);
+    e->live_sequence.fetch_add(1);
+    for (std::size_t i=0; i<EG_LIVE_PV_MAX; ++i)
+        e->live_pv_moves[i].store(i < count ? line[i] : -1);
+    e->live_pv_depth.store(depth);
+    e->live_pv_count.store(static_cast<std::uint32_t>(count));
     e->live_sequence.fetch_add(1);
 }
 } // namespace
@@ -248,6 +264,29 @@ int eg_read_ranked_roots_v1(const EGEngine *e, EGRankedRootsSnapshotV1 *out) {
     return 0;
 }
 
+int eg_read_search_pv_v1(const EGEngine *e, EGSearchPVSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGSearchPVSnapshotV1))
+        return 0;
+    for (int tries = 0; tries < 32; ++tries) {
+        const auto before = e->live_sequence.load();
+        if (before & 1) continue;
+        EGSearchPVSnapshotV1 reading{};
+        reading.size_bytes = sizeof(reading);
+        reading.search_serial = e->live_serial.load();
+        reading.count = e->live_pv_count.load();
+        reading.completed_depth = e->live_pv_depth.load();
+        if (reading.count > EG_LIVE_PV_MAX) return 0;
+        for (std::size_t i=0; i<EG_LIVE_PV_MAX; ++i)
+            reading.moves[i] = e->live_pv_moves[i].load();
+        const auto after = e->live_sequence.load();
+        if (before == after && !(after & 1)) {
+            *out = reading;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int eg_analyze_compute_policy_v2(
     EGEngine *e, const EGComputePolicyV2 *policy,
     const uint8_t *allowed, int32_t allowed_capacity,
@@ -314,6 +353,9 @@ int eg_analyze_compute_policy_v2(
         e->live_elapsed_ms.store(0);
         e->live_rank_count.store(0);
         for (auto &index : e->live_rank_moves) index.store(-1);
+        e->live_pv_count.store(0);
+        e->live_pv_depth.store(0);
+        for (auto &index : e->live_pv_moves) index.store(-1);
         e->live_state.store(EG_LIVE_SEARCH_RUNNING);
         e->live_sequence.fetch_add(1);
         const auto observer = [e](std::uint64_t nodes, int depth, int move) {
@@ -322,11 +364,14 @@ int eg_analyze_compute_policy_v2(
         const auto root_observer = [e](const std::vector<int> &ranked) {
             publish_ranked(e, ranked);
         };
+        const auto pv_observer = [e](int depth, const std::vector<int> &line) {
+            publish_completed_pv(e, depth, line);
+        };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
-            observer, root_observer);
+            observer, root_observer, pv_observer);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0)) {
             publish_live(e, found.reason == eclipse::SearchStopReason::cancelled
