@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Stop unsigned Gomoku IPA packaging if app identity or icons are wrong.
 
-App version belongs to Gomoku, not ECLIPSE engine R19/R23 or model 2.0.
+App release is Gomoku V2.0.0 build 200, distinct from model generation and checkpoint identity.
 The application must contain the owner's exact committed AppIcon.
 """
 from __future__ import annotations
@@ -14,8 +14,8 @@ from zipfile import ZipFile
 EXPECTED = {
     "CFBundleIdentifier": "studio.zeo.gomoku",
     "CFBundleDisplayName": "Gomoku",
-    "CFBundleShortVersionString": "1.0.0",
-    "CFBundleVersion": "2",
+    "CFBundleShortVersionString": "2.0.0",
+    "CFBundleVersion": "200",
 }
 
 def verify(info: dict, names: set[str], prefix: str) -> None:
@@ -60,7 +60,7 @@ def main() -> int:
                 names = set(z.namelist())
                 data = plistlib.loads(z.read(prefix + "Info.plist"))
                 verify(data, names, prefix)
-        print("GOMOKU_RELEASE_IDENTITY_PASS: V1.0.0 RC1 Build 2; owner AppIcon installed")
+        print("GOMOKU_RELEASE_IDENTITY_PASS: V2.0.0 Build 200; owner AppIcon installed")
         return 0
     except (OSError, ValueError, KeyError, plistlib.InvalidFileException) as e:
         print("GOMOKU_RELEASE_IDENTITY_BLOCKED:", str(e), file=sys.stderr)
