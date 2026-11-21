@@ -25,6 +25,13 @@ Owner（Righteous1776）→ Owner 明确委任的集成负责人 → Lane Agent�
 
 状态：OPEN → WORKING → REVIEW → ACCEPTED → APPLIED → VERIFIED → MERGED；另有 BLOCKED / REJECTED。Agent 最多自报 REVIEW，后续凭真实 Git/测试由受权审查者推进。提案合并不代表产品补丁已应用，MERGED 不代表 RELEASED。
 
+## 专属训练 Agent 强制规则（Owner 专项治理提案）
+
+- 在获授权的训练任务中，须阅读并遵守 Docs/Operations/TRAINING_AGENT_CONSTITUTION.md；该文件具体规定 Astra/Sol 双模型候选、自适应计算、数据隐私、搜索终止证据、验证及交接门槛。未经 Owner 审查合并，此项仍为提案，不得宣称正式生效。
+- 思考预算是**安全上限**而非必须耗尽的时间；任何自动提前停止都必须经过强制战术门禁，硬超时不得冒充正常收敛。原生产七档预算不因这份规则自动修改。
+- 训练 Agent 仅生成/验证候选，不命名正式型号、不修改已发布权重；交付需 Owner 明确授权，启动或命名节点 C 还需 Owner 另外明确指令。
+- 本专项条款不得凌驾于本文件的身份/INBOX_ONLY 权限、BOARD.json、R15 模型发布契约或原版 Swift 棋力门槛之上。
+
 ## 不可裁剪的项目边界
 
 - Righteous1776/VeilLink 全程只读；本仓库授权不能跨过去。
