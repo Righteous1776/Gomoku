@@ -138,8 +138,10 @@ final class EclipseThinkingHUDTests: XCTestCase {
         )
         formal.verifiedTeachingCandidate = 112 // malicious fixture
         formal.nativeRootRanks = [112, 113, 98]
+        formal.nativeCompletedPV = [112, 113, 98]
         XCTAssertNil(formal.visibleTeachingCandidate)
         XCTAssertTrue(formal.visibleTeachingRanks.isEmpty)
+        XCTAssertTrue(formal.visibleTeachingPV.isEmpty)
 
         var teaching = EclipseThinkingHUDSnapshot(
             searchID: UUID(), positionRevision: 12, context: .teaching,
@@ -160,8 +162,11 @@ final class EclipseThinkingHUDTests: XCTestCase {
             visitedNodes: 4800, completedDepth: 3, stopReason: nil
         )
         teaching.verifiedTeachingCandidate = 112
+        teaching.nativeCompletedPV = [112, 113, 98]
         XCTAssertEqual(teaching.visibleTeachingCandidate, 112)
+        XCTAssertEqual(teaching.visibleTeachingPV, [112, 113, 98])
         teaching.verifiedTeachingCandidate = 225
+        XCTAssertTrue(teaching.visibleTeachingPV.isEmpty)
         XCTAssertNil(teaching.visibleTeachingCandidate)
     }
 
@@ -175,6 +180,69 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertTrue(
             EclipseThinkingHUDSnapshot.Context.postgame.permitsUncommittedCandidates
         )
+    }
+
+    func testNativePVValidationUsesFullGomokuTurnAndBoardRules() {
+        let empty = GomokuState()
+        XCTAssertEqual(
+            EclipseThinkingHUDPVReplay.validate(
+                [112, 113, 98], from: empty, depth: 3, expectedFirstMove: 112
+            ), [112, 113, 98]
+        )
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            [112, 112], from: empty, depth: 3, expectedFirstMove: 112
+        )) // duplicate cell
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            [112, 113], from: empty, depth: 1, expectedFirstMove: 112
+        )) // depth not fully completed
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            [112, 113], from: empty, depth: 3, expectedFirstMove: 98
+        )) // wrong run/best-move identity
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            [225], from: empty, depth: 2, expectedFirstMove: 225
+        )) // out of bounds
+        var occupied = GomokuState()
+        XCTAssertTrue(occupied.apply(index: 112, actor: occupied.currentPlayer))
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            [112], from: occupied, depth: 1, expectedFirstMove: 112
+        )) // already played on the real match
+        let tooLong = [Int](0..<17)
+        XCTAssertNil(EclipseThinkingHUDPVReplay.validate(
+            tooLong, from: empty, depth: 20, expectedFirstMove: 0
+        ))
+    }
+
+    func testCompletedPVRemainsHiddenOutsideAuthorizedLiveTeaching() {
+        var teaching = EclipseThinkingHUDSnapshot(
+            searchID: UUID(), positionRevision: 2, context: .teaching,
+            isSearching: true, backend: "C++20 V2",
+            executedModel: "ECLIPSE 2.0 Astra", checkpointSHA256: nil,
+            computePolicySHA256: nil, elapsedMilliseconds: 1000,
+            visitedNodes: 4500, completedDepth: 3, stopReason: nil
+        )
+        teaching.verifiedTeachingCandidate = 112
+        teaching.nativeCompletedPV = [112, 113, 98]
+        XCTAssertEqual(teaching.visibleTeachingPV.count, 3)
+        teaching.nativeCompletedPV = [113, 112]
+        XCTAssertTrue(teaching.visibleTeachingPV.isEmpty) // wrong root
+        func fixture(
+            _ context: EclipseThinkingHUDSnapshot.Context,
+            searching: Bool
+        ) -> EclipseThinkingHUDSnapshot {
+            var result = EclipseThinkingHUDSnapshot(
+                searchID: UUID(), positionRevision: 2, context: context,
+                isSearching: searching, backend: "C++20 V2",
+                executedModel: "ECLIPSE 2.0 Astra", checkpointSHA256: nil,
+                computePolicySHA256: nil, elapsedMilliseconds: 1000,
+                visitedNodes: 4500, completedDepth: 3, stopReason: nil
+            )
+            result.verifiedTeachingCandidate = 112
+            result.nativeCompletedPV = [112, 113, 98]
+            return result
+        }
+        XCTAssertTrue(fixture(.teaching, searching: false).visibleTeachingPV.isEmpty)
+        XCTAssertTrue(fixture(.formal, searching: true).visibleTeachingPV.isEmpty)
+        XCTAssertTrue(fixture(.postgame, searching: true).visibleTeachingPV.isEmpty)
     }
 
     @MainActor
@@ -195,5 +263,7 @@ final class EclipseThinkingHUDTests: XCTestCase {
         XCTAssertNil(snapshot.stopReason)
         XCTAssertFalse(snapshot.isSearching)
         XCTAssertEqual(snapshot.positionRevision, 0)
+        XCTAssertEqual(controller.teachingPVPreviewCount, 0)
+        XCTAssertTrue(snapshot.visibleTeachingPV.isEmpty)
     }
 }

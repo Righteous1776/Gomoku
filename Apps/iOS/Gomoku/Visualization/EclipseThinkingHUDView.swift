@@ -111,23 +111,51 @@ struct EclipseThinkingHUDView: View {
                                     .font(.caption2)
                                     .foregroundColor(VeilTheme.secondaryText)
                             }
+                            if !snapshot.visibleTeachingPV.isEmpty {
+                                let line = snapshot.visibleTeachingPV
+                                let notation = line.enumerated().map { offset, index in
+                                    "\(offset + 1).(\(index % 15 + 1),\(index / 15 + 1))"
+                                }.joined(separator: " → ")
+                                item("已完成深度 D\(snapshot.completedDepth ?? 0) · 真实 PV 前缀",
+                                     notation)
+                                HStack(spacing: 12) {
+                                    Button("上一步") { engine.stepTeachingPV(-1) }
+                                        .disabled(engine.teachingPVPreviewCount == 0)
+                                    Text("预览 \(min(line.count, engine.teachingPVPreviewCount))/\(line.count)")
+                                        .font(.caption2.monospacedDigit())
+                                    Button("下一步") { engine.stepTeachingPV(1) }
+                                        .disabled(engine.teachingPVPreviewCount >= line.count)
+                                }
+                                .font(.caption2.weight(.semibold))
+                                .foregroundColor(VeilTheme.goldBright)
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("gomoku.thinking-hud.pv-replay")
+                                Text("来自已完成搜索及置换表的合法变化前缀；不足时截断，不是必胜证明。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             Text(snapshot.context == .formal
                                  ? "正式对局：落子前禁止显示 AI 候选、PV 与必防点。"
                                  : snapshot.context == .teaching
-                                   ? "授权教学：候选/PV 接口尚未提供，不生成演示数据。"
-                                   : "赛后复盘：没有可验证 PV 时不显示假设路线。")
+                                   ? "授权教学：只显示同一搜索已完成深度的真实候选与合法变化；不存在时隐藏。"
+                                   : "赛后复盘：未提供可信历史 PV 时不展示虚构路线。")
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("候选评分、热力图、PV、威胁证明：当前接口未提供")
+                            Text("已提供排序热图/有限 PV；尚无校准评分、VCF/VCT 证明或完整深度路线。")
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.tertiaryText)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
-                            Text(snapshot.backend == "未提供"
-                                 ? "无法可靠解释本手：没有引擎决策证据。"
-                                 : "本手已执行；引擎未提供可验证的战术解释。")
+                            // The actual native result may certify a preflight
+                            // stop *category*, never a full VCF/VCT proof line.
+                            // Swift fallbacks have no native certificate.
+                            Text(snapshot.stopReason.map {
+                                "本手真实引擎终止记录：\($0)。未提供完整战术证明链。"
+                            } ?? (snapshot.backend == "未提供"
+                                  ? "无法可靠解释本手：没有引擎决策证据。"
+                                  : "本手已执行；引擎未提供可验证的战术解释。"))
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.secondaryText)
                         }

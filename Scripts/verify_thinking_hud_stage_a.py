@@ -34,7 +34,23 @@ def verify():
     assert "&& engine.developerTeachingMode" in home
     assert ".disabled(!engine.developerTeachingMode)" in home
     assert "if eclipseVisualizationEnabled && developerTeachingMode," in controller
-    assert "候选评分、热力图、PV" in hud
+    # Stage A originally required all absent capabilities to say "not
+    # provided". Stage C2/C3 adds REAL ranked roots and bounded PV, so
+    # continuing to assert that exact obsolete text would reject the valid
+    # additive implementation. Verify the grounded/fail-closed capability
+    # chain instead; do not allow a decorative or invented PV to pass.
+    if "nativeCompletedPV" in state:
+        assert "visibleTeachingPV" in hud
+        assert "search-derived" in hud.lower() or "已完成搜索" in hud or "真实 PV 前缀" in hud
+        assert "EclipseThinkingHUDPVReplay.validate(" in controller
+        assert "candidateLine.searchSerial == serial" in controller
+        assert "candidateLine.completedDepth == depth" in controller
+        assert "nativeLive?.bestMoveForAuthorizedReview" in controller
+        assert "eg_read_search_pv_v1(" in adapter
+        assert "context == .teaching, isSearching" in state
+        assert "不是必胜证明" in hud
+    else:
+        assert "候选评分、热力图、PV" in hud
     assert "withAnimation" not in hud
     assert "Canvas(" not in hud
     assert "ProgressView(value:" not in hud

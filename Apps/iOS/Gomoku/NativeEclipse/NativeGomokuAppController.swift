@@ -24,6 +24,9 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var activeThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingStopReason: String?
+    /// Non-destructive, teaching-only hypothetical line preview. Never alters
+    /// board, played move history, model attribution or learning records.
+    @Published private(set) var teachingPVPreviewCount = 0
     private var searchStartedUptime: TimeInterval?
     // Ephemeral measured latencies only: isolated by executed SHA/policy,
     // bounded to 16 signatures x 128 samples, no private game records.
@@ -279,8 +282,8 @@ final class NativeGomokuAppController: ObservableObject {
         }
         let live = isThinking && activeThinkingRun != nil
         let context: EclipseThinkingHUDSnapshot.Context =
-            developerTeachingMode ? .teaching :
-                (status == 0 ? .formal : .postgame)
+            (developerTeachingMode && developerAuthorization.isAuthorized)
+                ? .teaching : (status == 0 ? .formal : .postgame)
         var snapshot = EclipseThinkingHUDSnapshot(
             searchID: identity?.id,
             positionRevision: identity?.positionRevision ?? state.moveCount,
@@ -320,7 +323,35 @@ final class NativeGomokuAppController: ObservableObject {
                 state.value(at: $0) == 0
             }
         }
+        if live && context == .teaching && nativeRun,
+           let serial = nativeLive?.searchSerial,
+           let depth = nativeLive?.completedDepth,
+           let best = nativeLive?.bestMoveForAuthorizedReview,
+           let candidateLine = activeCppSearch?.liveCompletedPV(),
+           candidateLine.searchSerial == serial,
+           candidateLine.completedDepth == depth,
+           let legal = EclipseThinkingHUDPVReplay.validate(
+               candidateLine.moves, from: state, depth: depth,
+               expectedFirstMove: best
+           ) {
+            snapshot.nativeCompletedPV = legal
+        }
         return snapshot
+    }
+
+    /// Move a non-mutating board preview through the SAME live, verified PV.
+    /// Developer authorization is checked for every interaction, not merely
+    /// when teaching mode is first entered.
+    func stepTeachingPV(_ offset: Int) {
+        guard developerTeachingMode && developerAuthorization.isAuthorized,
+              isThinking else {
+            teachingPVPreviewCount = 0
+            return
+        }
+        let available = thinkingHUDSnapshot().visibleTeachingPV.count
+        teachingPVPreviewCount = max(0, min(
+            available, teachingPVPreviewCount + offset
+        ))
     }
 
     /// P50/P95 are only valid for >=20 completed native runs with the same
@@ -384,6 +415,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        teachingPVPreviewCount = 0
         searchStartedUptime = nil
         state = resumed
         sessionID = previous.id
@@ -430,6 +462,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        teachingPVPreviewCount = 0
         searchStartedUptime = nil
         state = GomokuState()
         sessionID = UUID().uuidString
@@ -532,6 +565,7 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = nil
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        teachingPVPreviewCount = 0
         searchStartedUptime = nil
         state = GomokuState()
         archivedMoves.removeAll()
@@ -599,6 +633,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         lastThinkingRun = nil
         lastThinkingStopReason = nil
+        teachingPVPreviewCount = 0
         // The native runtime has been freshly created and attested at this
         // exact position. If that failed, do NOT claim selected Astra/Sol.
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
@@ -739,6 +774,7 @@ final class NativeGomokuAppController: ObservableObject {
         // Preserve the ID and exact revision of the completed search only.
         // Subsequent reset/model switch clears this last-run context.
         lastThinkingRun = activeThinkingRun
+        teachingPVPreviewCount = 0
         activeThinkingRun = nil
         searchStartedUptime = nil
         isThinking = false

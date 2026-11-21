@@ -66,6 +66,9 @@ struct GomokuBoardView: View {
     /// developer-authorized teaching path supplies a non-nil value.
     var eclipseTeachingCandidate: (() -> Int?)? = nil
     var eclipseTeachingRootRanks: (() -> [Int])? = nil
+    /// An explicitly stepped, independently validated teaching-only PV.
+    /// This is a translucent PREVIEW, never an actual stone placement.
+    var eclipseTeachingPV: (() -> [Int])? = nil
     let onMove: (Int) -> Void
 
     private let starPoints = [48, 56, 112, 168, 176]
@@ -167,6 +170,52 @@ struct GomokuBoardView: View {
                                     .position(point)
                                     .accessibilityLabel("教学：完整搜索深度的最佳候选落点")
                             }
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+
+                    // C3: non-interactive, clearly numbered HYPOTHETICAL
+                    // continuation. Never changes GomokuState or competes
+                    // with the original VeilLink wood-board touch surface.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let pvProvider = eclipseTeachingPV {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            let preview = pvProvider()
+                            Canvas(opaque: false, rendersAsynchronously: false) { context, _ in
+                                for (ply, index) in preview.prefix(16).enumerated() {
+                                    guard (0..<225).contains(index),
+                                          state.value(at: index) == 0 else { continue }
+                                    let point = gomokuPoint(
+                                        index: index, margin: margin, step: step
+                                    )
+                                    let black = (state.currentPlayer == .host)
+                                        == (ply % 2 == 0)
+                                    let radius = step * 0.40
+                                    let ghost = Path(ellipseIn: CGRect(
+                                        x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2
+                                    ))
+                                    context.fill(ghost, with: .color(
+                                        black ? Color.black.opacity(0.78)
+                                              : Color.white.opacity(0.82)
+                                    ))
+                                    context.stroke(ghost, with: .color(
+                                        VeilTheme.goldBright.opacity(0.95)
+                                    ), lineWidth: 1.1)
+                                    context.draw(
+                                        Text("\(ply + 1)")
+                                            .font(.system(size: max(9, step * 0.32),
+                                                          weight: .bold))
+                                            .foregroundColor(black ? .white : .black),
+                                        at: point
+                                    )
+                                }
+                            }
+                            .frame(width: side, height: side)
                         }
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
