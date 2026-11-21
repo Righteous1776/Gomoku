@@ -131,6 +131,50 @@ int eg_analyze_compute_policy_v2(
     const uint8_t *allowed225, int32_t allowed_capacity,
     const int32_t *bonuses225, int32_t bonus_capacity,
     EGComputeRunV2 *out);
+/* Adaptive V3: USER/Trainer authorized position-sensitive thinking.
+ * Additive; V1/V2 ABI functions keep EXACT historical search behavior.
+ * This path NEVER silently treats ADAPTIVE's 0ms as "think forever".
+ * Minimum-depth + stable-best + native root-score separation can produce a
+ * HEURISTIC early convergence (not a mathematical tactical proof).
+ * Dangerous/ambiguous boards receive more budget, but every search has
+ * the explicit finite complex_budget_ms ceiling. Next-depth forecasts may
+ * prevent spending nearly the entire budget on an incomplete iteration.
+ * The score gap is in uncalibrated native units, not a win probability.
+ */
+#define EG_ADAPTIVE_STOP_ABI_VERSION 3
+#define EG_SEARCH_REASON_ADAPTIVE_CONVERGED 7
+#define EG_SEARCH_REASON_ADAPTIVE_EFFORT_CAP 8
+#define EG_SEARCH_REASON_ADAPTIVE_NEXT_DEPTH_COST 9
+typedef struct EGAdaptiveStopConfigV3 {
+    uint32_t size_bytes;                  /* must match sizeof */
+    uint32_t reserved;                    /* must be 0 */
+    int32_t minimum_depth;                /* 1..max_depth */
+    int32_t stable_rounds;                /* 2..max_depth */
+    int32_t minimum_score_gap;            /* 1..100000, native units */
+    int32_t reserved2;                    /* must be 0 */
+    int64_t clear_budget_ms;              /* positive */
+    int64_t uncertain_budget_ms;          /* >= clear, positive */
+    int64_t complex_budget_ms;            /* >= uncertain, max 120000 */
+} EGAdaptiveStopConfigV3;
+typedef struct EGAdaptiveRunV3 {
+    uint32_t size_bytes;
+    uint32_t reserved;
+    EGComputeRunV2 base;                  /* exact V2 policy round-trip */
+    EGAdaptiveStopConfigV3 applied_stopping; /* exact independent stopping policy */
+    int32_t stable_rounds_observed;
+    int32_t native_score_gap;             /* uncalibrated, not win probability */
+    int32_t complexity_tier;              /* 0 clear, 1 uncertain, 2 complex */
+    int32_t reserved2;
+    int64_t predicted_next_depth_ms;      /* observation-based ESTIMATE */
+} EGAdaptiveRunV3;
+int eg_adaptive_stop_abi_version(void);
+int eg_analyze_compute_policy_v3(
+    EGEngine *engine, const EGComputePolicyV2 *trainer_policy,
+    const EGAdaptiveStopConfigV3 *stopping,
+    const uint8_t *allowed225, int32_t allowed_capacity,
+    const int32_t *bonuses225, int32_t bonus_capacity,
+    EGAdaptiveRunV3 *out);
+
 /* The only concurrent-safe other operation during eg_analyze... is cancel.
  * The caller must NOT mutate/play/reset/destroy engine until search returns.
  */
