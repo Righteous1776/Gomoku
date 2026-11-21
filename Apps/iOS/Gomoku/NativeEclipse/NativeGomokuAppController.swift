@@ -332,10 +332,11 @@ final class NativeGomokuAppController: ObservableObject {
             var replay = state
             var accepted = true
             for index in nativePV.moves {
+                let actor = replay.currentPlayer
                 guard (0..<225).contains(index),
                       replay.value(at: index) == 0,
                       replay.winner == nil, !replay.isDraw,
-                      replay.apply(index: index, actor: replay.currentPlayer)
+                      replay.apply(index: index, actor: actor)
                 else {
                     accepted = false
                     break
