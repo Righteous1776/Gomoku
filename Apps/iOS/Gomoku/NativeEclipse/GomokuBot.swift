@@ -9,6 +9,8 @@ struct GomokuBotMove: Equatable, Sendable {
     /// C++ V2 emits measured completed depth; original Swift may provide
     /// depth separately through its search-trace metrics pipeline.
     var completedDepth: Int? = nil
+    /// Actual C++ V2 search-stop enum; Swift path leaves it unavailable.
+    var nativeStopReason: Int32? = nil
 }
 
 struct GomokuBotBudget: Equatable, Sendable {

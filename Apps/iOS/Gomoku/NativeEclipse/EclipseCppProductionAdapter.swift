@@ -210,7 +210,8 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
             engineLabel: "ECLIPSE 2.0 \(model.family) · C++20 V2",
-            completedDepth: Int(run.search.completed_depth)
+            completedDepth: Int(run.search.completed_depth),
+            nativeStopReason: run.search.reason
         )
     }
 }

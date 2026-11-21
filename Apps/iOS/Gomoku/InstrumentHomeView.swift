@@ -38,13 +38,19 @@ struct InstrumentHomeView: View {
                 VStack(spacing: 14) {
                     statusCard
                     eclipseIdentity
-                    VeilEclipseRuntimeInstruments(
-                        running: showingSearch,
-                        start: showingSearch ? engine.searchStartedAt : nil,
-                        lastNodes: engine.lastDecisionNodes,
-                        lastMilliseconds: engine.lastDecisionMilliseconds,
-                        trainedGames: engine.trainedGames
-                    )
+                    // One VeilLink R17 runtime card. Thinking HUD lives
+                    // inside the existing original material and layout,
+                    // not as a second invented instrument or board overlay.
+                    VStack(alignment: .leading, spacing: 8) {
+                        VeilEclipseRuntimeInstruments(
+                            running: showingSearch,
+                            start: showingSearch ? engine.searchStartedAt : nil,
+                            lastNodes: engine.lastDecisionNodes,
+                            lastMilliseconds: engine.lastDecisionMilliseconds,
+                            trainedGames: engine.trainedGames
+                        )
+                        EclipseThinkingHUDView(engine: engine)
+                    }
                     .veilCard()
                     .accessibilityIdentifier("gomoku.eclipse.runtime-source-card")
                     boardQuickControls
