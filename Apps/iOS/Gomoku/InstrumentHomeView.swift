@@ -445,23 +445,27 @@ struct InstrumentHomeView: View {
             eclipseThinking: showingSearch,
             actualSearchStartedAt: engine.searchStartedAt,
             eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled
-                && engine.developerTeachingMode,
+                && engine.developerTeachingMode
+                && engine.developerAuthorization.isAuthorized,
             eclipseTraceStore: engine.eclipseTraceStore,
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
             eclipseTeachingCandidate: {
                 guard engine.developerTeachingMode,
+                      engine.developerAuthorization.isAuthorized,
                       engine.eclipseVisualizationEnabled else { return nil }
                 return engine.thinkingHUDSnapshot().visibleTeachingCandidate
             },
             eclipseTeachingRootRanks: {
                 guard engine.developerTeachingMode,
+                      engine.developerAuthorization.isAuthorized,
                       engine.eclipseVisualizationEnabled else { return [] }
                 return engine.thinkingHUDSnapshot().visibleTeachingRanks
             },
             eclipseTeachingPVPrefix: {
                 guard engine.developerTeachingMode,
+                      engine.developerAuthorization.isAuthorized,
                       engine.eclipseVisualizationEnabled else { return [] }
                 return engine.thinkingHUDSnapshot().visibleTeachingPVPrefix
             },
