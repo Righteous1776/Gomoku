@@ -81,7 +81,7 @@ class ForcingForkTests(unittest.TestCase):
             conn.close()
             games = list(verified_sources(path))
             self.assertEqual(len(games), 1)
-            self.assertEqual(games[0][1], 6)  # total trusted observations
+            self.assertEqual(games[0][1], 4)  # max one source, no snapshot inflation
             self.assertEqual(games[0][2], 2)  # no quarantined source counted
             cases, report = analyze(path, max_positions=0)
             self.assertGreaterEqual(report["distinct_ordered_prefixes"], 2)
