@@ -335,11 +335,20 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     timed_out_ = false;
     table_.clear();
     allowed_proof_root_.fill(false);
-    const int max_ms = std::clamp(milliseconds, 1, 20'000);
-    deadline_ = started + std::chrono::milliseconds(max_ms);
-    proof_deadline_ = started + std::chrono::milliseconds(max_ms * 3 / 10);
-    node_cap_ = static_cast<std::uint64_t>(
-        std::clamp(max_ms * 400, 8'000, 3'000'000));
+    // Research API convention: 0 means no imposed wall-clock deadline.
+    // Positive time budgets come from the training agent or experiment
+    // caller. Do not silently clamp a requested 30s / 90s to 20s.
+    const bool open_ended = milliseconds == 0;
+    const int max_ms = std::max(0, milliseconds);
+    deadline_ = open_ended ? Clock::time_point::max()
+        : started + std::chrono::milliseconds(max_ms);
+    proof_deadline_ = open_ended ? Clock::time_point::max()
+        : started + std::chrono::milliseconds(
+            static_cast<std::int64_t>(max_ms) * 3 / 10);
+    // No second, hidden node cap derived from a trainer-owned time budget.
+    // Search still terminates on a chosen finite depth, forced mate, or a
+    // caller-supplied deadline; no 3M cap silently truncates evaluation.
+    node_cap_ = std::numeric_limits<std::uint64_t>::max();
     cells_ = root.cells;
     free_ = static_cast<int>(std::count(cells_.begin(), cells_.end(), 0));
     hash_ = 0;
@@ -441,7 +450,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (max_ms >= 40) {
+    if (open_ended || max_ms >= 40) {
         std::vector<int> pv;
         if (prove_four(side, 5, true, pv) && !pv.empty())
             return finish(pv.front(), SearchStopReason::forced_win,
@@ -451,7 +460,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible, std::min(18, static_cast<int>(eligible.size())));
-    const int max_depth = max_ms >= 2500 ? 9 : max_ms >= 900 ? 8 : 6;
+    const int max_depth = open_ended || max_ms >= 2500 ? 9 : max_ms >= 900 ? 8 : 6;
     for (int depth = 1; depth <= max_depth; ++depth) {
         int round_best = -1, round_score = -kInf;
         for (int move : ranked) {
