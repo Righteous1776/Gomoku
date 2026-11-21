@@ -144,9 +144,11 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// no separate model budget overriding the Training Agent's policy.
     /// The search always executes off the MainActor.
     func decide(
-        policy: EclipseTrainerComputePolicy
+        policy: EclipseTrainerComputePolicy,
+        rootPolicy: EclipseCppRootLearningPolicy? = nil
     ) -> GomokuBotMove? {
-        guard policy.isValid,
+        guard rootPolicy?.isValid != false,
+              policy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
@@ -167,9 +169,26 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
 
         var run = EGComputeRunV2()
         run.size_bytes = UInt32(MemoryLayout<EGComputeRunV2>.size)
-        guard eg_analyze_compute_policy_v2(
-            engine, &config, nil, 0, nil, 0, &run
-        ) == 1,
+        let executed: Int32
+        if let rootPolicy {
+            // Always pass a complete 225-cell allowed mask. Never narrow the
+            // candidates before mandatory tactical and fork checks.
+            executed = rootPolicy.allowed.withUnsafeBufferPointer { allowed in
+                rootPolicy.bonuses.withUnsafeBufferPointer { bonuses in
+                    eg_analyze_compute_policy_v2(
+                        engine, &config,
+                        allowed.baseAddress, Int32(allowed.count),
+                        bonuses.baseAddress, Int32(bonuses.count),
+                        &run
+                    )
+                }
+            }
+        } else {
+            executed = eg_analyze_compute_policy_v2(
+                engine, &config, nil, 0, nil, 0, &run
+            )
+        }
+        guard executed == 1,
             run.size_bytes == UInt32(MemoryLayout<EGComputeRunV2>.size),
             run.search.size_bytes ==
                 UInt32(MemoryLayout<EGSearchDiagnosticsV1>.size),
