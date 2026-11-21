@@ -53,5 +53,9 @@ jobs:
         run: |
           python3 Scripts/audit_git_blobs.py
           python3 Scripts/audit_migration.py
-      - name: Enforce owner R17.2 UI exclusions
+      - name: Verify VeilLink R17 original UI source and production ABI
+        run: python3 Scripts/verify_veillink_r17_migration.py
+      - name: Run VeilLink original UI migration regressions
+        run: python3 -m unittest discover -s Scripts/tests -p 'test_verify_gomoku_ui_contract.py' -v
+      - name: Enforce VeilLink source UI hierarchy
         run: python3 Scripts/verify_gomoku_ui_contract.py
