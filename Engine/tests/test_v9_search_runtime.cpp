@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
