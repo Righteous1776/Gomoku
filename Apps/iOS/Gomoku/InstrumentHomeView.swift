@@ -296,8 +296,8 @@ struct InstrumentHomeView: View {
                                             .foregroundColor(VeilTheme.goldBright)
                                             .accessibilityLabel("当前模型")
                                     }
-                                    Text("\(model.recommendedBudgetMilliseconds)ms")
-                                        .font(.caption2.monospacedDigit())
+                                    Text("策略可更新")
+                                        .font(.caption2.monospaced())
                                         .foregroundColor(VeilTheme.secondaryText)
                                 }
                             }
@@ -312,7 +312,7 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("版本号只代表模型世代，算力强度单独设置。Luna 为经典 Swift 搜索，其余复用经训练的 Swift Unified 主链；新版本必须经过训练检查点与棋力验收，不能单靠增加算力提升版本号。")
+                    Text("模型版本代表训练/算法世代，不代表思考时间。当前原版 Swift 使用历史预算仅为兼容与评测；训练 Agent 的新检查点可指定自适应搜索，没有固定的时间或节点上限。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
@@ -388,12 +388,17 @@ struct InstrumentHomeView: View {
         } label: {
             HStack(spacing: 5) {
                 Text("算力")
-                Text(engine.computeTier.title).foregroundColor(VeilTheme.goldBright)
+                Text(engine.trainerControlsCompute ? "训练 Agent" : engine.computeTier.title)
+                    .foregroundColor(VeilTheme.goldBright)
                 Image(systemName: "chevron.up.chevron.down")
             }
             .font(.caption.weight(.medium))
             .foregroundColor(VeilTheme.text)
         }
+        .disabled(engine.trainerControlsCompute)
+        .accessibilityHint(engine.trainerControlsCompute
+            ? "该训练检查点的搜索策略由训练 Agent 裁决，用户算力偏好不施加固定时限"
+            : "当前为原版 Swift 历史兼容策略；新的训练检查点不会被旧档位时间限制")
         .accessibilityIdentifier("gomoku.eclipse.compute.selector")
     }
 
