@@ -106,6 +106,63 @@ struct VeilMachinedRim: View {
 
 /// Small sunken, slotted fastener; under the board's existing UIKit tap
 /// surface. Geometry and search overlays remain entirely untouched.
+/// Recessed smoke-glass cover in the metal frame. Purely a background.
+struct VeilGlassPanel: View {
+    var cornerRadius: CGFloat = 14
+    @ObservedObject private var appearance = VeilAppearanceController.shared
+
+    var body: some View {
+        let dark = appearance.isDarkAppearance
+        let shape = RoundedRectangle(cornerRadius: cornerRadius,
+                                      style: .continuous)
+        shape
+            .fill(LinearGradient(
+                colors: dark
+                    ? [Color(red: 0.15, green: 0.17, blue: 0.19).opacity(0.81),
+                       Color(red: 0.052, green: 0.061, blue: 0.074).opacity(0.76)]
+                    : [Color.white.opacity(0.56),
+                       Color(red: 0.86, green: 0.88, blue: 0.89).opacity(0.33)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            ))
+            .overlay {
+                shape.fill(LinearGradient(
+                    stops: [
+                        .init(color: Color.white.opacity(dark ? 0.14 : 0.37),
+                              location: 0),
+                        .init(color: Color.white.opacity(dark ? 0.035 : 0.08),
+                              location: 0.23),
+                        .init(color: .clear, location: 0.40),
+                        .init(color: Color.black.opacity(dark ? 0.15 : 0.025),
+                              location: 1)
+                    ],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+            }
+            .overlay {
+                shape.strokeBorder(
+                    LinearGradient(colors: [
+                        Color.white.opacity(dark ? 0.32 : 0.80),
+                        Color.white.opacity(0.055),
+                        Color.black.opacity(dark ? 0.65 : 0.22)
+                    ], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1
+                )
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: max(1, cornerRadius - 3),
+                                 style: .continuous)
+                    .strokeBorder(
+                        dark ? Color.black.opacity(0.50)
+                             : Color.white.opacity(0.39),
+                        lineWidth: 0.8
+                    )
+                    .padding(3)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
 struct VeilMachinedRivet: View {
     var diameter: CGFloat = 9
     @ObservedObject private var appearance = VeilAppearanceController.shared

@@ -261,11 +261,14 @@ struct InstrumentHomeView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
-        .background(
-            VeilInstrumentPlate(
-                shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
-            )
-        )
+        .background {
+            ZStack {
+                VeilInstrumentPlate(
+                    shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                )
+                VeilGlassPanel(cornerRadius: 11).padding(4)
+            }
+        }
         .overlay(VeilMachinedRim(cornerRadius: 14, width: 1.35))
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
@@ -540,12 +543,13 @@ struct InstrumentHomeView: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(VeilTheme.elevated)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(VeilTheme.subtleStroke, lineWidth: 0.8)
+                ZStack {
+                    VeilInstrumentPlate(
+                        shape: RoundedRectangle(cornerRadius: 14, style: .continuous)
                     )
+                    VeilGlassPanel(cornerRadius: 11).padding(4)
+                }
+                .overlay(VeilMachinedRim(cornerRadius: 14, width: 1.2))
             )
         }
         .accessibilityIdentifier("gomoku.eclipse.live-telemetry")
@@ -567,10 +571,9 @@ struct InstrumentHomeView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
         .padding(.horizontal, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(VeilTheme.subtleFillStrong)
-        )
+        .background {
+            VeilGlassPanel(cornerRadius: 7)
+        }
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .strokeBorder(VeilTheme.subtleStroke, lineWidth: 0.7)

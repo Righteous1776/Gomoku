@@ -385,9 +385,12 @@ int Search::negamax(int side, int depth, int alpha, int beta,
         first = false;
     }
     if (best_move >= 0 && std::abs(best) < kMate / 2) {
-        if (table_.size() > 50'000) table_.clear();
-        const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
-        table_[key] = Entry{depth, best, best_move, flag};
+        // Retain transpositions for later iterations; the previous full
+        // clear at 50k entries erased most earlier search evidence.
+        if (table_.size() < 200'000 || table_.find(key) != table_.end()) {
+            const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
+            table_[key] = Entry{depth, best, best_move, flag};
+        }
     }
     return best == -kInf ? static_value(side) : best;
 }
@@ -444,6 +447,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     forced_line_depth_ = compute ? compute->forced_line_depth : 5;
     leaf_forced_blocks_ = compute ? compute->forced_line_depth : 2;
     table_.clear();
+    if (adaptive_profile_ == 3) table_.reserve(200'000);
     allowed_proof_root_.fill(false);
     // Research API convention: 0 means no imposed wall-clock deadline.
     // Positive time budgets come from the training agent or experiment
@@ -615,14 +619,37 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
+    // Reuse the last COMPLETE iteration's PV at the root, without dropping
+    // any of the trainer-approved root candidates.
+    auto root_candidates = ranked;
     int previous_completed_best = -1, stable_rounds = 0;
     for (int depth = 1; depth <= max_depth_; ++depth) {
         int round_best = -1, round_score = -kInf, runner_up = -kInf;
-        for (int move : ranked) {
+        for (int move : root_candidates) {
             ++nodes_;
             if (limit_reached()) break;
             place(move, side);
-            int score = -negamax(other(side), depth - 1, -kInf, kInf, move, 1);
+            int score = 0;
+            if (adaptive_profile_ == 3 && depth > 1 &&
+                round_score != -kInf) {
+                // Narrow window for alternatives; every fail-high is
+                // re-searched with full bounds before it can replace PV.
+                // Root policy bonuses are added AFTER the child search.
+                // Account for this BEFORE setting the scout window, or a
+                // learned +2000 tactical preference could be missed.
+                const int bonus = policy
+                    ? std::clamp(policy->bonus[move], -2000, 2000) : 0;
+                const int required_raw_score = round_score - bonus;
+                score = -negamax(other(side), depth - 1,
+                                 -required_raw_score - 1,
+                                 -required_raw_score, move, 1);
+                if (!timed_out_ && score > required_raw_score)
+                    score = -negamax(other(side), depth - 1,
+                                     -kInf, kInf, move, 1);
+            } else {
+                score = -negamax(other(side), depth - 1,
+                                 -kInf, kInf, move, 1);
+            }
             unplace(move, side);
             if (timed_out_) break;
             report_root(move, completed, side);
@@ -645,6 +672,13 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             previous_completed_best = round_best;
             report_root(incumbent, completed, side);
             if (round_score >= kMate / 2) break;
+            if (adaptive_profile_ == 3) {
+                auto it = std::find(root_candidates.begin(),
+                                    root_candidates.end(), incumbent);
+                if (it != root_candidates.end() &&
+                    it != root_candidates.begin())
+                    std::rotate(root_candidates.begin(), it, it + 1);
+            }
             const int gap = runner_up == -kInf
                 ? kInf : round_score - runner_up;
             if (should_stop_adaptive(AdaptiveSearchEvidence{

@@ -80,6 +80,35 @@ int main() {
     CHECK(result.search.move==4);
     CHECK(result.search.reason==EG_SEARCH_REASON_FORCED_WIN);
     CHECK(result.search.elapsed_ms<2000);
+    // Root PVS + TT retention must NOT change the best move produced by
+    // a full 3-ply comparison, including learned root bonuses. Both engines
+    // use identical candidate widths and deterministic board positions.
+    eclipse::Board sample;
+    CHECK(sample.play(112));
+    CHECK(sample.play(97));
+    eclipse::ComputePolicy full{};
+    full.max_wall_time_ms = 6000;
+    full.max_nodes = 1'500'000;
+    full.max_depth = 3;
+    full.root_width = 4;
+    full.reply_width = 3;
+    full.continuation_width = 2;
+    full.forced_line_depth = 0;
+    full.candidate_radius = 2;
+    eclipse::RootPolicy learned{};
+    learned.allowed.fill(true);
+    learned.bonus.fill(0);
+    learned.bonus[111] = 2000;
+    learned.bonus[113] = -1100;
+    const auto baseline = eclipse::Search{}.analyze(
+        sample, 0, &learned, &full, nullptr, nullptr, {}, 0);
+    const auto protectedSearch = eclipse::Search{}.analyze(
+        sample, 0, &learned, &full, nullptr, nullptr, {}, 3);
+    CHECK(baseline.completed_depth == 3);
+    CHECK(protectedSearch.completed_depth == 3);
+    CHECK(protectedSearch.move == baseline.move);
+    CHECK(protectedSearch.reason != eclipse::SearchStopReason::adaptive_stable);
+    CHECK(sample.moves.size() == 2);
     std::cout<<"Adaptive early stop: confidence, threat and immediate win PASS\n";
     return 0;
 }

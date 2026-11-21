@@ -100,12 +100,15 @@ struct VeilEclipseIdentityCard: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                VeilInstrumentPlate(
-                    shape: RoundedRectangle(cornerRadius: 18, style: .continuous),
-                    emphasized: true
-                )
-            )
+            .background {
+                ZStack {
+                    VeilInstrumentPlate(
+                        shape: RoundedRectangle(cornerRadius: 18, style: .continuous),
+                        emphasized: true
+                    )
+                    VeilGlassPanel(cornerRadius: 15).padding(4)
+                }
+            }
             .overlay(VeilMachinedRim(cornerRadius: 18, width: 1.7))
             // A static engraved seam: the user still taps the whole panel
             // to enter analysis, no additional gesture or animation.
