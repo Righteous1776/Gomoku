@@ -4,7 +4,14 @@ import XCTest
 @MainActor
 final class NativeGomokuAppControllerTests: XCTestCase {
     func testStartsWithOriginalSwiftModelAnd15x15Board() {
-        let app = NativeGomokuAppController()
+        // An isolated app-support root must not inherit a real user's
+        // persisted model selection from a previous UITest launch.
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("EclipseDefault-(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = NativeGomokuAppController(
+            archiveDirectory: root.appendingPathComponent("history"),
+            trainingDirectory: root.appendingPathComponent("training"))
         XCTAssertEqual(app.board.count, 225)
         XCTAssertEqual(app.status, 0)
         XCTAssertEqual(app.toMove, 1)
