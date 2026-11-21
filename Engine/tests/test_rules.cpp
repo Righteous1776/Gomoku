@@ -49,6 +49,23 @@ int main(){
     assert(metrics.move==4 && metrics.reason==EG_SEARCH_REASON_FORCED_BLOCK);
     assert(eg_ply_count(e.get())==8);
     eg_reset(e.get());
+    // Swift R4/R8: placing 112 creates two DISTINCT future five-completions
+    // (109 and 114), not simply two overlapping five-windows for one point.
+    const int double_threat[6] = {110, 0, 111, 15, 113, 30};
+    for (int index : double_threat) assert(eg_play(e.get(), index)==1);
+    metrics.size_bytes=sizeof(metrics);
+    assert(eg_best_move_diagnostics_v1(e.get(),250,&metrics)==1);
+    assert(metrics.move==112 && metrics.reason==EG_SEARCH_REASON_FORCED_WIN);
+    assert(eg_ply_count(e.get())==6); // analysis never changes board
+    eg_reset(e.get());
+    // Opponent's next move at 112 would fork two distinct winning squares.
+    // The safe choices interrupt either the fork cell or one completion.
+    const int white_fork[6] = {0, 110, 17, 111, 34, 113};
+    for (int index : white_fork) assert(eg_play(e.get(), index)==1);
+    const int fork_defense=eg_best_move(e.get(),300);
+    assert(fork_defense==109 || fork_defense==112 || fork_defense==114);
+    assert(eg_ply_count(e.get())==6);
+    eg_reset(e.get());
     std::array<std::uint8_t,225> b{};
     assert(eg_copy_board(e.get(),b.data(),static_cast<int>(b.size()))==225);
     for(auto v:b)assert(v==0);
