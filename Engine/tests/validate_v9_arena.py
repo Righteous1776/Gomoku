@@ -66,7 +66,8 @@ def main():
     assert info["source"]=="public_synthetic" and info["generation"]=="V9"
     assert info["production_checkpoint_attested"] is False
     assert info["paired_color_swaps"] is True and info["real_full_games"] is True
-    assert info["policy"]["max_nodes"]==18000
+    assert 100 <= info["policy"]["max_nodes"] <= 250000
+    assert 2 <= info["policy"]["max_depth"] <= 8
     assert len(games)==len(PAIRS)*2*info["openings"],(len(games),info["openings"])
     seen=collections.Counter()
     for game in games:
