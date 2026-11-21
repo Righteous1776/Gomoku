@@ -31,7 +31,7 @@ class Generation3ModelIdentityTests(unittest.TestCase):
         self.assertEqual(c["flagship_checkpoint_id"], "eclipse-3.0-r07-249")
         self.assertFalse(c["production_enabled"])
         self.assertFalse(c["ios_runtime_loaded"])
-        self.assertEqual(c["native_feature_abi"], "34D-not-implemented")
+        self.assertEqual(c["native_feature_abi"], "34D-r07-compatibility-port-experimental")
         self.assertIn("V9 Astra/Sol 2.0 26D", c["old_runtime_preserved"])
         self.assertFalse(self.manifest["active_in_ios_gomoku"])
         self.assertFalse(self.manifest["active_in_native_v9"])
