@@ -2,6 +2,25 @@ import XCTest
 @testable import Gomoku
 
 final class EclipseThinkingHUDTests: XCTestCase {
+    func testNativeLiveSnapshotUsesVersionedReadOnlyABI() {
+        guard let engine = eg_create() else {
+            XCTFail("Native engine unavailable")
+            return
+        }
+        defer { eg_destroy(engine) }
+        var snapshot = EGSearchLiveSnapshotV1()
+        snapshot.size_bytes = UInt32(MemoryLayout<EGSearchLiveSnapshotV1>.size)
+        XCTAssertEqual(eg_read_live_search_v1(engine, &snapshot), 1)
+        XCTAssertEqual(snapshot.state, UInt32(EG_LIVE_SEARCH_IDLE))
+        XCTAssertEqual(snapshot.search_serial, 0)
+        XCTAssertEqual(snapshot.best_move, -1)
+        XCTAssertEqual(snapshot.reason, -1)
+        snapshot.size_bytes = 0
+        snapshot.reason = 876
+        XCTAssertEqual(eg_read_live_search_v1(engine, &snapshot), 0)
+        XCTAssertEqual(snapshot.reason, 876)
+    }
+
     func testNativeStopReasonsAreRealABIAndUnknownIsNil() {
         XCTAssertEqual(
             EclipseThinkingHUDSnapshot.nativeStopReason(Int32(EG_SEARCH_REASON_FORCED_WIN)),
