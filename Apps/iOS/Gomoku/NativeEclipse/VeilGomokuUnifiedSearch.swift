@@ -317,11 +317,19 @@ enum VeilGomokuUnifiedSearch {
         }
 
         private mutating func overBudget() -> Bool {
-            if nodes >= max(1, limits.maxNodes) {
+            // Explicit policy 0 means no artificial time/node ceiling.
+            // Cancellation remains responsive when the user restarts a match.
+            if Task<Never, Never>.isCancelled {
                 interrupted = true
                 return true
             }
-            if Date.timeIntervalSinceReferenceDate - started >= Double(max(1, limits.maxMilliseconds)) / 1000 {
+            if limits.maxNodes > 0 && nodes >= limits.maxNodes {
+                interrupted = true
+                return true
+            }
+            if limits.maxMilliseconds > 0 &&
+               Date.timeIntervalSinceReferenceDate - started >=
+               Double(limits.maxMilliseconds) / 1000 {
                 interrupted = true
                 return true
             }
@@ -334,8 +342,9 @@ enum VeilGomokuUnifiedSearch {
             nodes += 1
             // Reserve at least 70% of the wall budget for ordinary PVS.
             // Missing a VCF proof is acceptable; a false proof is not.
-            if Date.timeIntervalSinceReferenceDate - started >
-                Double(max(1, limits.maxMilliseconds)) * 0.30 / 1000 { return false }
+            if limits.maxMilliseconds > 0 &&
+               Date.timeIntervalSinceReferenceDate - started >
+               Double(limits.maxMilliseconds) * 0.30 / 1000 { return false }
             if overBudget() || remaining <= 0 { return false }
             let opponentSide = opponent(side)
             let all = neighbors(radius: limits.candidateRadius)
@@ -574,7 +583,7 @@ enum VeilGomokuUnifiedSearch {
             }.prefix(max(1, min(eligible.count, limits.width))).map { $0.0 }
             var lastDecision = Decision(index: fallback, score: 0, completedDepth: 0,
                                         nodes: nodes, variation: [fallback], rule: "safe-fallback")
-            for depth in 1...max(1, min(12, limits.maxDepth)) {
+            for depth in 1...max(1, limits.maxDepth) {
                 interrupted = false
                 var best = -infinity
                 var bestPV: [Int] = []
