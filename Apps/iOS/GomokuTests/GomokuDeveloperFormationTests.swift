@@ -22,7 +22,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
     func testOnlyAuthorizedValidatedLessonsCanEnterSignedRepertoire() throws {
         let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
-        let store = GomokuDeveloperLessonLibrary(fileURL: file)
+        let store = GomokuDeveloperLessonLibrary(fileURL: file, fixtureMacKey: Data(repeating: 0xA5, count: 32))
         let valid: [GomokuDeveloperLessonLibrary.Move] = [
             .init(index: 112, stone: 1),
             .init(index: 111, stone: 2)
@@ -42,7 +42,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
             moves: valid, authorized: true
         )
         XCTAssertEqual(store.lessons.count, 1)
-        let restarted = GomokuDeveloperLessonLibrary(fileURL: file)
+        let restarted = GomokuDeveloperLessonLibrary(fileURL: file, fixtureMacKey: Data(repeating: 0xA5, count: 32))
         XCTAssertFalse(restarted.requiresRecovery)
         XCTAssertEqual(restarted.lessons.count, 1)
         let influence = restarted.influence(for: [valid[0]], aiStone: 2)
@@ -54,7 +54,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
     func testTamperingLocksReadOnlyAndPreservesDamagedOriginal() throws {
         let file = try path()
         defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
-        let writer = GomokuDeveloperLessonLibrary(fileURL: file)
+        let writer = GomokuDeveloperLessonLibrary(fileURL: file, fixtureMacKey: Data(repeating: 0xA5, count: 32))
         try writer.capture(
             name: "防线突破", purpose: "测试签名是否防篡改", objective: "保留原始字节",
             moves: [.init(index: 112, stone: 1), .init(index: 111, stone: 2)],
@@ -66,7 +66,7 @@ final class GomokuDeveloperFormationTests: XCTestCase {
         text = text.replacingOccurrences(of: "防线突破", with: "伪造阵法")
         let corrupt = Data(text.utf8)
         try corrupt.write(to: file, options: .atomic)
-        let reader = GomokuDeveloperLessonLibrary(fileURL: file)
+        let reader = GomokuDeveloperLessonLibrary(fileURL: file, fixtureMacKey: Data(repeating: 0xA5, count: 32))
         XCTAssertTrue(reader.requiresRecovery)
         XCTAssertTrue(reader.lessons.isEmpty)
         XCTAssertThrowsError(try reader.capture(
@@ -76,4 +76,44 @@ final class GomokuDeveloperFormationTests: XCTestCase {
         ))
         XCTAssertEqual(try Data(contentsOf: file), corrupt)
     }
+    func testWrongFixtureKeyCannotAuthenticateOrOverwriteSavedLessons() throws {
+        let file = try path()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        let writer = GomokuDeveloperLessonLibrary(
+            fileURL: file, fixtureMacKey: Data(repeating: 0xA5, count: 32)
+        )
+        let valid: [GomokuDeveloperLessonLibrary.Move] = [
+            .init(index: 112, stone: 1), .init(index: 111, stone: 2)
+        ]
+        try writer.capture(
+            name: "验证密钥", purpose: "错误密钥必须阻断读取", objective: "数据安全",
+            moves: valid, authorized: true
+        )
+        let original = try Data(contentsOf: file)
+        let wrong = GomokuDeveloperLessonLibrary(
+            fileURL: file, fixtureMacKey: Data(repeating: 0xB6, count: 32)
+        )
+        XCTAssertTrue(wrong.requiresRecovery)
+        XCTAssertTrue(wrong.lessons.isEmpty)
+        XCTAssertThrowsError(try wrong.capture(
+            name: "伪造数据", purpose: "无效密钥不能写入", objective: "只读保护",
+            moves: valid, authorized: true
+        ))
+        XCTAssertEqual(try Data(contentsOf: file), original)
+    }
+
+    func testBadFixtureKeySizeFailsClosed() throws {
+        let file = try path()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        let store = GomokuDeveloperLessonLibrary(
+            fileURL: file, fixtureMacKey: Data(repeating: 1, count: 31)
+        )
+        XCTAssertThrowsError(try store.capture(
+            name: "验证长度", purpose: "非法密钥拒绝写入", objective: "不会写入",
+            moves: [.init(index: 112, stone: 1), .init(index: 111, stone: 2)],
+            authorized: true
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
 }
