@@ -17,6 +17,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastDecisionMilliseconds: Int?
     @Published private(set) var lastExecutedModel: EclipseModelID?
     @Published private(set) var lastExecutedTrainerRevision: String?
+    @Published private(set) var lastExecutionBackend: String?
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
@@ -73,6 +74,7 @@ final class NativeGomokuAppController: ObservableObject {
     private let developerLessons = GomokuDeveloperLessonLibrary()
     private var generation = UUID()
     private var searchTask: Task<Void, Never>?
+    private var activeCppSearch: EclipseCppProductionAdapter?
     private let archive: VeilGomokuMatchArchive
     private let trainingJournal: GomokuNativeTrainingJournal
     private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
@@ -223,6 +225,8 @@ final class NativeGomokuAppController: ObservableObject {
             return false
         }
         generation = UUID()
+        activeCppSearch?.cancel()
+        activeCppSearch = nil
         searchTask?.cancel()
         searchTask = nil
         eclipseTraceStore.clear()
@@ -245,6 +249,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionMilliseconds = nil
         lastExecutedModel = nil
         lastExecutedTrainerRevision = nil
+        lastExecutionBackend = nil
         recoveryAvailable = false
         refresh()
         if Int32(state.currentPlayer == .host ? 1 : 2) != humanColor {
@@ -262,6 +267,8 @@ final class NativeGomokuAppController: ObservableObject {
             persistArchive(status: .interrupted)
         }
         generation = UUID()
+        activeCppSearch?.cancel()
+        activeCppSearch = nil
         searchTask?.cancel()
         searchTask = nil
         eclipseTraceStore.clear()
@@ -278,6 +285,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionMilliseconds = nil
         lastExecutedModel = nil
         lastExecutedTrainerRevision = nil
+        lastExecutionBackend = nil
         fallbackWarning = nil
         refresh()
         if !humanIsBlack && !developerTeachingMode { scheduleAI() }
@@ -357,6 +365,8 @@ final class NativeGomokuAppController: ObservableObject {
     func stopDeveloperTeaching() {
         developerTeachingMode = false
         generation = UUID()
+        activeCppSearch?.cancel()
+        activeCppSearch = nil
         searchTask?.cancel()
         searchTask = nil
         state = GomokuState()
@@ -406,9 +416,25 @@ final class NativeGomokuAppController: ObservableObject {
         let selectedMode = searchMode
         let verifiedTrainer = verifiedTrainerExecution?.model == model
             ? verifiedTrainerExecution : nil
+        // C++20 is a real RELEASE-compiled execution backend, not a DEBUG
+        // research-only view. It becomes the authoritative search route
+        // when the trained C++ scorer actually reports the verified digest.
+        // Until that exact artifact is installed, retain original Swift
+        // with a visible, non-success fallback warning.
+        let cppRuntime = verifiedTrainer.flatMap {
+            EclipseCppProductionAdapter.make(
+                history: archivedMoves.map(\.index), trainer: $0
+            )
+        }
+        activeCppSearch = cppRuntime
+        if verifiedTrainer != nil && cppRuntime == nil {
+            fallbackWarning = "训练模型尚未在 C++ 引擎中完成加载核验，当前由原版 Swift 运行。"
+        }
         isThinking = true
         searchStartedAt = Date()
-        fallbackWarning = nil
+        if verifiedTrainer == nil || cppRuntime != nil {
+            fallbackWarning = nil
+        }
         let traceStore = eclipseTraceStore
         let metricSink = eclipseMetricsStore
         let metricToken = metricSink.begin(
@@ -443,6 +469,26 @@ final class NativeGomokuAppController: ObservableObject {
         )
         searchTask = Task.detached(priority: .userInitiated) { [weak self] in
             guard !Task.isCancelled else { return }
+            // The official architecture first dispatches a verified trained
+            // model through native C++ V2. This is the same production worker
+            // path as original Swift, not a separate developer-only game.
+            if let cppRuntime, let verifiedTrainer {
+                let cppDecision = cppRuntime.decide(
+                    policy: verifiedTrainer.computePolicy
+                )
+                guard !Task.isCancelled else { return }
+                if let cppDecision {
+                    await self?.applyDecision(
+                        cppDecision, boardAtStart: boardAtStart, token: token,
+                        executedModel: model,
+                        trainerRevision: verifiedTrainer.trainingRevision
+                    )
+                    return
+                }
+                // Invalid/cancelled native search never becomes a fake model
+                // success. Continue through the trusted original Swift route
+                // only if the user has not cancelled the session.
+            }
             // Construct from verified records off the main/UI actor. The exact
             // immutable snapshot is used for this decision, not display only.
             let learning = GomokuLearningRepertoire.build(
@@ -456,8 +502,7 @@ final class NativeGomokuAppController: ObservableObject {
             // A verified training Agent checkpoint owns its real compute
             // policy. Never pass it through legacy tier multipliers, hidden
             // time limits or local reinforcement caps.
-            let budget = verifiedTrainer?.computePolicy.budget()
-                ?? GomokuBotBudget.forDifficulty(
+            let budget = GomokuBotBudget.forDifficulty(
                     selectedTier, profileLabel: selectedMode.budgetProfileLabel
                 ).reinforced(by: learning.trainingLevel)
             let decision = GomokuBot.chooseMove(
@@ -469,7 +514,7 @@ final class NativeGomokuAppController: ObservableObject {
                 diagnosticEclipseUnified: model.usesTrainedUnifiedSearch,
                 difficultyRawValue: model.usesTrainedUnifiedSearch
                     ? selectedTier.rawValue : nil,
-                trainerSearchLimits: verifiedTrainer?.computePolicy.unifiedLimits(),
+                trainerSearchLimits: nil,
                 onExploredLine: observer,
                 onSearchTrace: metricObserver
             )
@@ -477,7 +522,7 @@ final class NativeGomokuAppController: ObservableObject {
             await self?.applyDecision(
                 decision, boardAtStart: boardAtStart, token: token,
                 executedModel: model,
-                trainerRevision: verifiedTrainer?.trainingRevision
+                trainerRevision: nil
             )
         }
     }
@@ -498,16 +543,19 @@ final class NativeGomokuAppController: ObservableObject {
         isThinking = false
         searchStartedAt = nil
         searchTask = nil
+        activeCppSearch = nil
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
         lastExecutedModel = nil
         lastExecutedTrainerRevision = nil
+        lastExecutionBackend = nil
         let selectedIndex: Int
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
             lastExecutedModel = executedModel
             lastExecutedTrainerRevision = trainerRevision
+            lastExecutionBackend = decision.engineLabel ?? "ECLIPSE Swift"
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal
             fallbackWarning = "搜索未返回有效落子，已采用合法性保底；本局不计入棋力评测。"
