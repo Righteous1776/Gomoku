@@ -5,6 +5,7 @@ they do NOT independently replay private games, regenerate LightGBM
 weights, certify Elo, or replace genuine headless-native chess tests.
 """
 import ast
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -22,9 +23,11 @@ class R07PublicEvidenceTests(unittest.TestCase):
         for field in (
             "includes_private_raw_games", "includes_private_positions",
             "includes_private_test_fixture",
-            "includes_private_derived_model_weights",
         ):
             self.assertIs(p[field], False, field)
+        # Research model weights are PUBLIC by explicit Owner request.
+        # Their underlying real-human match records are not.
+        self.assertIs(p["includes_private_derived_model_weights"], True)
         self.assertEqual(self.m["status"], "RESEARCH_NOT_PROMOTED")
         self.assertFalse(self.m["gates"]["promoted"])
 
@@ -77,6 +80,40 @@ class R07PublicEvidenceTests(unittest.TestCase):
         for name in ("features34.py", "train_r07.py", "arena_ranker_r07.py"):
             source = root / "research" / "r07" / "source" / name
             ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+
+    def test_real_published_booster_bytes_match_original_archive(self):
+        """This is a true committed-file checkpoint gate, not metadata alone."""
+        root = Path(__file__).resolve().parents[1]
+        directory = root / "research" / "r07" / "checkpoints"
+        model_manifest = json.loads(
+            (directory / "MODEL_MANIFEST.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(model_manifest["status"], "RESEARCH_ONLY_NOT_PROMOTED")
+        self.assertFalse(model_manifest["release_approved"])
+        self.assertTrue(model_manifest["trained_with_private_user_game_records"])
+        self.assertEqual(model_manifest["checkpoint_count"], 7)
+        self.assertEqual(len(model_manifest["model_files"]), 7)
+        self.assertEqual(self.m["public_checkpoint_files"], 7)
+        total = 0
+        for item in model_manifest["model_files"]:
+            filename = directory / item["file"]
+            data = filename.read_bytes()
+            self.assertEqual(len(data), item["bytes"], filename.name)
+            self.assertEqual(
+                hashlib.sha256(data).hexdigest(), item["sha256"], filename.name
+            )
+            self.assertTrue(data.startswith(b"tree\n"), filename.name)
+            self.assertIn(
+                ("max_feature_idx=%d" % (item["features"] - 1)).encode(),
+                data[:1500], filename.name
+            )
+            self.assertEqual(
+                sum(line.startswith(b"Tree=") for line in data.splitlines()),
+                item["trees"], filename.name
+            )
+            total += len(data)
+        self.assertEqual(total, 4166924)
+        self.assertEqual(total, model_manifest["bytes_total"])
 
     def test_model_hashes_are_structurally_verifiable(self):
         lineage = self.m["source_lineage"]

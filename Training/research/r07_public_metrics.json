@@ -7,8 +7,9 @@
     "includes_private_raw_games": false,
     "includes_private_positions": false,
     "includes_private_test_fixture": false,
-    "includes_private_derived_model_weights": false,
-    "private_source_counts_are_aggregated": true
+    "includes_private_derived_model_weights": true,
+    "private_source_counts_are_aggregated": true,
+    "private_derived_model_weights_public_note": "Seven LightGBM research weight files, trained partly on private owner games, are now explicitly published by Owner request. Raw game histories and private board fixtures remain excluded."
   },
   "source_lineage": {
     "r04": {
@@ -146,5 +147,9 @@
     "Some private and public games share opening families; lineage leakage risk remains.",
     "Research ranker full games are not verified V9 engine or trained release games.",
     "Original training model weights and personal records are not part of this PUBLIC metadata upload."
-  ]
+  ],
+  "public_checkpoint_files": 7,
+  "public_checkpoint_dir": "Training/research/r07/checkpoints",
+  "public_checkpoint_manifest": "Training/research/r07/checkpoints/MODEL_MANIFEST.json",
+  "model_promotion_status": "RESEARCH_NOT_PROMOTED"
 }
