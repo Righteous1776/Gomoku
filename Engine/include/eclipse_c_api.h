@@ -63,6 +63,21 @@ typedef struct EGSearchDiagnosticsV1 {
 } EGSearchDiagnosticsV1;
 int eg_best_move_diagnostics_v1(const EGEngine *engine, int max_milliseconds,
                                  EGSearchDiagnosticsV1 *out);
+
+/* Research-only opt-in Swift formation/learning compatibility bridge.
+ * allowed225[i] is 0 or 1; bonuses225[i] must be within [-2000, 2000].
+ * Both arrays contain 225 entries, capacity MUST equal 225.
+ * Caller must include compulsory win/block squares in allowed roots.
+ * Invalid policy, no legal allowed move, or wrong diagnostics struct size
+ * returns 0 without writing out. Tactical proofs outrank any bonuses.
+ * Does not persist or reveal learning histories; inputs are caller-owned.
+ * NOT production default until full Swift GomokuBot parity is certified.
+ */
+#define EG_ROOT_POLICY_ABI_VERSION 1
+int eg_best_move_root_policy_v1(const EGEngine *engine, int max_milliseconds,
+                                const uint8_t *allowed225, int allowed_capacity,
+                                const int32_t *bonuses225, int bonus_capacity,
+                                EGSearchDiagnosticsV1 *out);
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */
 int eg_status(const EGEngine *engine); /* 0 ongoing, 1 black win, 2 white win, 3 draw */

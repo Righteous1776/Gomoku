@@ -172,6 +172,7 @@ std::vector<int> Search::ordered(const std::vector<int> &moves,
     sorted.reserve(moves.size());
     for (int i : moves) sorted.emplace_back(i, trained_model::score(cells_, i, side));
     std::sort(sorted.begin(), sorted.end(), [preferred](const auto &a, const auto &b) {
+        if (a.first == b.first) return false; // strict weak ordering, including self
         if (a.first == preferred) return true;
         if (b.first == preferred) return false;
         if (a.second == b.second) return a.first < b.first;
@@ -327,7 +328,8 @@ int Search::negamax(int side, int depth, int alpha, int beta,
     return best == -kInf ? static_value(side) : best;
 }
 
-SearchResult Search::analyze(const Board &root, int milliseconds) {
+SearchResult Search::analyze(const Board &root, int milliseconds,
+                             const RootPolicy *policy) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -356,17 +358,43 @@ SearchResult Search::analyze(const Board &root, int milliseconds) {
     };
     if (root.outcome != 0 || free_ == 0)
         return finish(-1, SearchStopReason::no_move, 0);
-    const auto roots = neighbors();
+    const auto all_roots = neighbors();
+    std::vector<int> roots;
+    for (const int move : all_roots)
+        if (!policy || policy->allowed[move]) roots.push_back(move);
     if (roots.empty()) return finish(-1, SearchStopReason::no_move, 0);
-    if (roots.size() == 1)
+    if (roots.size() == 1 && all_roots.size() == 1)
         return finish(roots.front(), SearchStopReason::only_move, 0);
     const int side = root.turn;
-    const auto wins = immediate_wins(side, roots);
-    if (!wins.empty())
+    const auto all_wins = immediate_wins(side, all_roots);
+    if (!all_wins.empty()) {
+        const auto wins = immediate_wins(side, roots);
+        if (wins.empty()) return finish(-1, SearchStopReason::no_move, 0);
         return finish(wins.front(), SearchStopReason::forced_win, 0);
-    const auto blocks = immediate_wins(other(side), roots);
-    if (!blocks.empty())
+    }
+    const auto all_blocks = immediate_wins(other(side), all_roots);
+    if (!all_blocks.empty()) {
+        const auto blocks = immediate_wins(other(side), roots);
+        if (blocks.empty()) return finish(-1, SearchStopReason::no_move, 0);
         return finish(blocks.front(), SearchStopReason::forced_block, 0);
+    }
+    // Original Swift normalized root ranking is additive only after verified
+    // mandatory tactics, and never changes a mate / forced-loss certificate.
+    auto root_ordered = [&](const std::vector<int> &candidates, int limit) {
+        if (!policy) return ordered(candidates, side, limit);
+        std::vector<std::pair<int,int>> scored;
+        for (int move : candidates) {
+            const int preference = std::clamp(policy->bonus[move], -2000, 2000);
+            scored.push_back({move, trained_model::score(cells_, move, side) + preference});
+        }
+        std::sort(scored.begin(), scored.end(), [](const auto &a, const auto &b) {
+            return a.second == b.second ? a.first < b.first : a.second > b.second;
+        });
+        std::vector<int> result;
+        for (int i = 0; i < static_cast<int>(scored.size()) && i < limit; ++i)
+            result.push_back(scored[i].first);
+        return result;
+    };
 
     // Exact two-different-five-completions: an unanswerable one-move fork
     // when the opponent has no immediate win after our hypothetical move.
@@ -407,7 +435,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds) {
         // Partial safety classification cannot silently omit unchecked roots.
         eligible = roots;
     }
-    const auto fallbacks = ordered(eligible, side, static_cast<int>(eligible.size()));
+    const auto fallbacks = root_ordered(eligible, static_cast<int>(eligible.size()));
     if (fallbacks.empty()) return finish(-1, SearchStopReason::no_move, 0);
     int incumbent = fallbacks.front(), completed = 0;
     if (Clock::now() >= deadline_)
@@ -422,7 +450,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds) {
     timed_out_ = false; // A missed proof isn't necessarily a failed game search.
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
-    const auto ranked = ordered(eligible, side, std::min(18, static_cast<int>(eligible.size())));
+    const auto ranked = root_ordered(eligible, std::min(18, static_cast<int>(eligible.size())));
     const int max_depth = max_ms >= 2500 ? 9 : max_ms >= 900 ? 8 : 6;
     for (int depth = 1; depth <= max_depth; ++depth) {
         int round_best = -1, round_score = -kInf;
@@ -433,6 +461,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds) {
             int score = -negamax(other(side), depth - 1, -kInf, kInf, move, 1);
             unplace(move, side);
             if (timed_out_) break;
+            if (policy && std::abs(score) < kMate / 2)
+                score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
                 round_score = score;
                 round_best = move;

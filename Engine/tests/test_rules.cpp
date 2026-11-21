@@ -31,6 +31,37 @@ int main(){
     assert(eg_best_move_diagnostics_v1(e.get(),1,&metrics)==1);
     assert(metrics.move==4 && metrics.reason==EG_SEARCH_REASON_FORCED_WIN);
     assert(metrics.completed_depth==0 && eg_ply_count(e.get())==8);
+    // Native Swift root learning may bias a legal alternative, but it must
+    // NEVER override a certified immediate win. Invalid policies fail closed.
+    std::array<std::uint8_t,225> allowed{};
+    allowed.fill(1);
+    std::array<std::int32_t,225> bonuses{};
+    bonuses.fill(-2000);
+    bonuses[9]=2000;
+    EGSearchDiagnosticsV1 learned{};
+    learned.size_bytes=sizeof(learned);
+    assert(eg_best_move_root_policy_v1(e.get(),100,allowed.data(),225,
+                                      bonuses.data(),225,&learned)==1);
+    assert(learned.move==4 && learned.reason==EG_SEARCH_REASON_FORCED_WIN);
+    assert(eg_ply_count(e.get())==8);
+    allowed[4]=0;
+    assert(eg_best_move_root_policy_v1(e.get(),100,allowed.data(),225,
+                                      bonuses.data(),225,&learned)==0);
+    assert(learned.move==4); // no partial overwrite on excluded mandatory win
+    allowed[4]=1;
+    bonuses[9]=2001;
+    assert(eg_best_move_root_policy_v1(e.get(),100,allowed.data(),225,
+                                      bonuses.data(),225,&learned)==0);
+    assert(learned.move==4);
+    bonuses[9]=2000;
+    allowed[9]=2;
+    assert(eg_best_move_root_policy_v1(e.get(),100,allowed.data(),225,
+                                      bonuses.data(),225,&learned)==0);
+    assert(learned.move==4);
+    allowed[9]=1;
+    assert(eg_best_move_root_policy_v1(e.get(),100,allowed.data(),224,
+                                      bonuses.data(),225,&learned)==0);
+    assert(learned.move==4);
     assert(eg_best_move(e.get(),100)==4); // immediate win
     assert(eg_play(e.get(),4)==1);
     assert(eg_status(e.get())==1);

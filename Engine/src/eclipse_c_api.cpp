@@ -47,6 +47,32 @@ int eg_best_move_diagnostics_v1(const EGEngine *e, int ms,
     *out = snapshot;
     return 1;
 }
+int eg_best_move_root_policy_v1(const EGEngine *e, int ms,
+                                const uint8_t *allowed, int allowed_capacity,
+                                const int32_t *bonuses, int bonus_capacity,
+                                EGSearchDiagnosticsV1 *out) {
+    if (!e || !allowed || !bonuses || !out ||
+        out->size_bytes != sizeof(EGSearchDiagnosticsV1) ||
+        allowed_capacity != eclipse::kCells ||
+        bonus_capacity != eclipse::kCells) return 0;
+    eclipse::RootPolicy policy{};
+    for (int i = 0; i < eclipse::kCells; ++i) {
+        if (allowed[i] > 1 || bonuses[i] < -2000 || bonuses[i] > 2000) return 0;
+        policy.allowed[i] = allowed[i] == 1;
+        policy.bonus[i] = bonuses[i];
+    }
+    const auto search = eclipse::Search{}.analyze(e->board, ms, &policy);
+    if (search.move < 0 && e->board.outcome == 0) return 0;
+    EGSearchDiagnosticsV1 snapshot{};
+    snapshot.size_bytes = sizeof(EGSearchDiagnosticsV1);
+    snapshot.move = search.move;
+    snapshot.completed_depth = search.completed_depth;
+    snapshot.elapsed_ms = search.elapsed_ms;
+    snapshot.nodes = search.nodes;
+    snapshot.reason = static_cast<int>(search.reason);
+    *out = snapshot;
+    return 1;
+}
 int eg_copy_board(const EGEngine *e,std::uint8_t *out225,int capacity){
     if(!e||!out225||capacity<eclipse::kCells)return -1;
     std::copy(e->board.cells.begin(),e->board.cells.end(),out225);

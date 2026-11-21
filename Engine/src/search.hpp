@@ -26,9 +26,17 @@ struct SearchResult {
     SearchStopReason reason = SearchStopReason::no_move;
 };
 
+// V1 bounded root policy from the unchanged Swift learning/formation layer.
+// Restrictions cannot bypass mandatory immediate win / block checks.
+struct RootPolicy {
+    std::array<bool, kCells> allowed{};
+    std::array<int, kCells> bonus{};
+};
+
 class Search {
 public:
-    SearchResult analyze(const Board &root, int milliseconds);
+    SearchResult analyze(const Board &root, int milliseconds,
+                         const RootPolicy *policy = nullptr);
     int best_move(const Board &root, int milliseconds);
 
 private:
