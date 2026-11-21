@@ -38,11 +38,6 @@ def legal_near(b,radius=2):
   for dr in range(-radius,radius+1):
    for dc in range(-radius,radius+1):
     rr=r+dr;cc=c+dc
-    if 0<=rr<15 and 0<=cc<15 and b[15*rr+dc+dr*0+cc] == 0: # sentinel replaced below
-     pass
-  for dr in range(-radius,radius+1):
-   for dc in range(-radius,radius+1):
-    rr=r+dr;cc=c+dc
     if 0<=rr<15 and 0<=cc<15 and b[15*rr+cc]==0:opts.add(15*rr+cc)
  return sorted(opts)
 
