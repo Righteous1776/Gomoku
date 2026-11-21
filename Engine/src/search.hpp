@@ -76,6 +76,7 @@ private:
     const std::atomic<bool> *cancel_signal_ = nullptr;
     int candidate_radius_ = 2;
     int root_width_ = 18;
+    int proof_width_ = 28;
     int reply_width_ = 14;
     int continuation_width_ = 14;
     int forced_line_depth_ = 5;
