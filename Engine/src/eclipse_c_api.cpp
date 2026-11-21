@@ -33,6 +33,20 @@ void eg_reset(EGEngine *e){if(e)e->board.reset();}
 int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
 int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
+int eg_best_move_diagnostics_v1(const EGEngine *e, int ms,
+                                 EGSearchDiagnosticsV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGSearchDiagnosticsV1)) return 0;
+    const auto search = eclipse::Search{}.analyze(e->board, ms);
+    EGSearchDiagnosticsV1 snapshot{};
+    snapshot.size_bytes = sizeof(EGSearchDiagnosticsV1);
+    snapshot.move = search.move;
+    snapshot.completed_depth = search.completed_depth;
+    snapshot.elapsed_ms = search.elapsed_ms;
+    snapshot.nodes = search.nodes;
+    snapshot.reason = static_cast<int>(search.reason);
+    *out = snapshot;
+    return 1;
+}
 int eg_copy_board(const EGEngine *e,std::uint8_t *out225,int capacity){
     if(!e||!out225||capacity<eclipse::kCells)return -1;
     std::copy(e->board.cells.begin(),e->board.cells.end(),out225);
