@@ -38,6 +38,19 @@ struct EclipseThinkingHUDSnapshot: Equatable {
     /// Actual ranked C++ root shortlist, truncated to 16. Only authorized
     /// teaching may render it and the board controller rechecks legality.
     var nativeRootRanks: [Int] = []
+    /// A validated *prefix*, not a guaranteed full-depth PV or proof tree.
+    /// Caller has replayed every move on the actual 15×15 board.
+    var nativePVPrefix: [Int] = []
+    var nativePVDepth: Int? = nil
+
+    var visibleTeachingPVPrefix: [Int] {
+        guard context == .teaching, isSearching,
+              let depth = nativePVDepth, depth > 0,
+              !nativePVPrefix.isEmpty,
+              nativePVPrefix.count <= depth,
+              nativePVPrefix.count <= 16 else { return [] }
+        return nativePVPrefix
+    }
 
     var visibleTeachingRanks: [Int] {
         guard context == .teaching, isSearching else { return [] }
