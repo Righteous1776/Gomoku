@@ -450,6 +450,11 @@ struct InstrumentHomeView: View {
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
+            eclipseTeachingCandidate: {
+                guard engine.developerTeachingMode,
+                      engine.eclipseVisualizationEnabled else { return nil }
+                return engine.thinkingHUDSnapshot().visibleTeachingCandidate
+            },
             onMove: { engine.play($0) }
         )
         // The wood board already owns its material and 5.5% edge-safe grid
