@@ -50,34 +50,82 @@ std::int64_t Search::negamax(const Board &b,int depth,std::int64_t alpha,std::in
     return best;
 }
 
-int Search::best_move(const Board &root,int milliseconds) {
-    if(root.outcome!=0)return -1;
-    auto moves=root.candidates();
-    if(moves.empty())return -1;
-    if(moves.size()==1)return moves.front();
-    // Mandatory immediate win / block. Tactical preference independent of time budget.
-    for(int m:moves)if(root.winning_move(m,root.turn))return m;
+SearchResult Search::analyze(const Board &root, int milliseconds) {
+    const auto started = Clock::now();
+    nodes_ = 0;
+    timed_out_ = false;
+    auto finish = [&](int move, SearchStopReason reason, int depth) {
+        SearchResult result;
+        result.move = move;
+        result.reason = reason;
+        result.completed_depth = depth;
+        result.nodes = nodes_;
+        result.elapsed_ms = static_cast<int>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                Clock::now() - started).count());
+        return result;
+    };
+
+    if (root.outcome != 0)
+        return finish(-1, SearchStopReason::no_move, 0);
+    const auto moves = root.candidates();
+    if (moves.empty())
+        return finish(-1, SearchStopReason::no_move, 0);
+    if (moves.size() == 1)
+        return finish(moves.front(), SearchStopReason::only_move, 0);
+
+    // Preserve mandatory tactical gates, even for very small time budgets.
+    for (int m : moves)
+        if (root.winning_move(m, root.turn))
+            return finish(m, SearchStopReason::forced_win, 0);
     std::vector<int> urgent;
-    for(int m:moves)if(root.winning_move(m,other(root.turn)))urgent.push_back(m);
-    if(!urgent.empty())return *std::min_element(urgent.begin(),urgent.end());
-    deadline_=Clock::now()+std::chrono::milliseconds(std::clamp(milliseconds,1,20'000));
-    nodes_=0;timed_out_=false;
-    auto ranked=sorted_candidates(root,18);
-    int incumbent=ranked.front();
-    for(int depth=1;depth<=4;++depth) {
-        int round_best=incumbent;
-        std::int64_t round_score=-kInfinity;
-        for(int m:ranked) {
-            if(Clock::now()>=deadline_){timed_out_=true;break;}
-            Board next=root;next.play(m);
-            std::int64_t score=-negamax(next,depth-1,-kInfinity,kInfinity);
-            if(timed_out_)break;
-            if(score>round_score||(score==round_score&&m<round_best)){round_score=score;round_best=m;}
+    for (int m : moves)
+        if (root.winning_move(m, other(root.turn)))
+            urgent.push_back(m);
+    if (!urgent.empty())
+        return finish(*std::min_element(urgent.begin(), urgent.end()),
+                      SearchStopReason::forced_block, 0);
+
+    deadline_ = Clock::now()
+        + std::chrono::milliseconds(std::clamp(milliseconds, 1, 20'000));
+    auto ranked = sorted_candidates(root, 18);
+    if (ranked.empty())
+        return finish(-1, SearchStopReason::no_move, 0);
+    int incumbent = ranked.front();
+    int completed_depth = 0;
+    for (int depth = 1; depth <= 4; ++depth) {
+        int round_best = incumbent;
+        std::int64_t round_score = -kInfinity;
+        for (int m : ranked) {
+            if (Clock::now() >= deadline_) {
+                timed_out_ = true;
+                break;
+            }
+            Board next = root;
+            next.play(m);
+            const std::int64_t score =
+                -negamax(next, depth - 1, -kInfinity, kInfinity);
+            if (timed_out_) break;
+            if (score > round_score ||
+                (score == round_score && m < round_best)) {
+                round_score = score;
+                round_best = m;
+            }
         }
-        if(timed_out_)break;
-        incumbent=round_best;
-        if(Clock::now()>=deadline_)break;
+        if (timed_out_) break;
+        incumbent = round_best;
+        completed_depth = depth;
+        if (Clock::now() >= deadline_) {
+            timed_out_ = true;
+            break;
+        }
     }
-    return incumbent;
+    return finish(incumbent, timed_out_ ? SearchStopReason::time_limit
+                                      : SearchStopReason::complete,
+                  completed_depth);
+}
+
+int Search::best_move(const Board &root, int milliseconds) {
+    return analyze(root, milliseconds).move;
 }
 }

@@ -37,6 +37,32 @@ void eg_reset(EGEngine *engine);
 int eg_play(EGEngine *engine, int index); /* 1 accepted; 0 rejected */
 int eg_undo(EGEngine *engine); /* 1 undone; 0 no history */
 int eg_best_move(const EGEngine *engine, int max_milliseconds); /* -1 on failure or finished */
+
+/* Additive, experimental telemetry ABI. Does NOT imply Swift parity.
+ * Caller initializes size_bytes=sizeof(EGSearchDiagnosticsV1).
+ * Returns 1 and replaces all fields on success; on failure returns 0 and
+ * leaves the supplied output untouched. Does not mutate the game board.
+ * Each invocation performs one search; do not call eg_best_move again just
+ * to obtain the same move's diagnostics.
+ */
+#define EG_SEARCH_DIAGNOSTICS_ABI_VERSION 1
+#define EG_SEARCH_REASON_COMPLETE 0
+#define EG_SEARCH_REASON_FORCED_WIN 1
+#define EG_SEARCH_REASON_FORCED_BLOCK 2
+#define EG_SEARCH_REASON_ONLY_MOVE 3
+#define EG_SEARCH_REASON_NO_MOVE 4
+#define EG_SEARCH_REASON_TIME_LIMIT 5
+typedef struct EGSearchDiagnosticsV1 {
+    uint32_t size_bytes;
+    int32_t move;            /* -1 for no legal move */
+    int32_t completed_depth; /* fully finished iterative-deepening rounds */
+    int32_t elapsed_ms;      /* observed wall-clock duration of this search */
+    uint64_t nodes;          /* visited negamax nodes, excluding root preflight */
+    int32_t reason;          /* EG_SEARCH_REASON_* */
+    int32_t reserved;        /* must be 0 */
+} EGSearchDiagnosticsV1;
+int eg_best_move_diagnostics_v1(const EGEngine *engine, int max_milliseconds,
+                                 EGSearchDiagnosticsV1 *out);
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */
 int eg_status(const EGEngine *engine); /* 0 ongoing, 1 black win, 2 white win, 3 draw */
