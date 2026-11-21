@@ -58,5 +58,8 @@
       "production_eligible": false
     }
   ],
-  "note": "The label ECLIPSE 3.0 is the owner-selected NEW research generation. It is NOT a claim that R07 currently replaces production V9 model, or that Astra/Sol 3.0 distillation exists."
+  "note": "Astra 3.0 is the Owner-designated research DISPLAY ID for existing R07-249 weights, not an independently retrained or currently executable native checkpoint; historical 2.0 Astra and Sol stay unchanged. No 3.0 Sol weight is present.",
+  "flagship_alias_id": "eclipse-3.0-astra",
+  "flagship_alias_name": "Astra 3.0",
+  "flagship_checkpoint_id": "eclipse-3.0-r07-249"
 }
