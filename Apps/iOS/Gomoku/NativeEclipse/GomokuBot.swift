@@ -62,7 +62,9 @@ struct GomokuBotBudget: Equatable, Sendable {
                 ? 0
                 : min(22, continuationCandidateLimit + reinforcement),
             // Never shrink or clip an explicitly selected 2×/4×/6× tier.
-            timeLimitMilliseconds: min(max(1_100, timeLimitMilliseconds), timeLimitMilliseconds + reinforcement * 45)
+            timeLimitMilliseconds: timeLimitMilliseconds == 0
+                ? 0  // Trainer requested open-ended search; do not overwrite.
+                : min(max(1_100, timeLimitMilliseconds), timeLimitMilliseconds + reinforcement * 45)
         )
     }
 
@@ -91,6 +93,7 @@ enum GomokuBot {
         diagnosticR8ForcedWin: Bool = true,
         diagnosticEclipseUnified: Bool = true,
         difficultyRawValue: String? = nil,
+        trainerSearchLimits: VeilGomokuUnifiedSearch.Limits? = nil,
         onExploredLine: (@Sendable ([Int], Int) -> Void)? = nil,
         onSearchTrace: (@Sendable (VeilGomokuUnifiedSearch.Trace) -> Void)? = nil
     ) -> GomokuBotMove? {
@@ -104,7 +107,11 @@ enum GomokuBot {
         if state.moveCount == 0 {
             return result(index: Self.size * Self.size / 2, score: 0, nodes: 1, started: started)
         }
-        let deadline = started + Double(max(30, budget.timeLimitMilliseconds)) / 1_000.0
+        // R16: zero is a deliberate trainer-owned open-ended policy, not a
+        // 30ms fallback. The depth/branching of this algorithm remains finite.
+        let deadline = budget.timeLimitMilliseconds == 0
+            ? Double.infinity
+            : started + Double(max(1, budget.timeLimitMilliseconds)) / 1_000.0
         var nodes = 0
         var candidates = candidateIndices(in: state, radius: budget.candidateRadius)
 
@@ -191,7 +198,8 @@ enum GomokuBot {
         // ECLIPSE R10: preserve all incumbent mandatory rules and learned
         // root scores, then search with the trained entire-tree ordering.
         // The real rules below the bridge remain the final legality gate.
-        let remainingMilliseconds = Int(max(0, (deadline - Date.timeIntervalSinceReferenceDate) * 1_000))
+        let remainingMilliseconds = budget.timeLimitMilliseconds == 0
+            ? 0 : Int(max(0, (deadline - Date.timeIntervalSinceReferenceDate) * 1_000))
         let unifiedBudget = GomokuBotBudget(
             candidateRadius: budget.candidateRadius,
             rootCandidateLimit: budget.rootCandidateLimit,
@@ -199,12 +207,14 @@ enum GomokuBot {
             continuationCandidateLimit: budget.continuationCandidateLimit,
             timeLimitMilliseconds: remainingMilliseconds
         )
-        if diagnosticEclipseUnified, remainingMilliseconds >= 30,
+        if diagnosticEclipseUnified,
+           (budget.timeLimitMilliseconds == 0 || remainingMilliseconds >= 30),
            let unified = VeilGomokuUnifiedBridge.chooseMove(
                 in: state, for: player, budget: unifiedBudget,
                 permittedRoots: rankedRoots.map { $0.0 },
                 rootScores: Dictionary(uniqueKeysWithValues: rankedRoots.map { ($0.0, $0.1) }),
                 difficultyRawValue: difficultyRawValue,
+                trainerLimits: trainerSearchLimits,
                 onTrace: onSearchTrace,
                 onExploredLine: onExploredLine
            ) {
@@ -220,7 +230,8 @@ enum GomokuBot {
         var bestScore = Int.min
 
         for (index, priority) in rankedRoots {
-            guard Date.timeIntervalSinceReferenceDate < deadline else { break }
+            guard !Task<Never, Never>.isCancelled,
+                  Date.timeIntervalSinceReferenceDate < deadline else { break }
             nodes += 1
             var next = state
             guard next.apply(index: index, actor: player) else { continue }
@@ -249,7 +260,8 @@ enum GomokuBot {
 
                 var worstReply = Int.max
                 for (reply, _) in replies {
-                    guard Date.timeIntervalSinceReferenceDate < deadline else { break }
+                    guard !Task<Never, Never>.isCancelled,
+                  Date.timeIntervalSinceReferenceDate < deadline else { break }
                     nodes += 1
                     var afterReply = next
                     guard afterReply.apply(index: reply, actor: opponent) else { continue }
@@ -286,7 +298,8 @@ enum GomokuBot {
                             var bestContinuation = Int.min
                             for rankedIndex in 0..<continuationLimit {
                                 let continuation = continuationScores[rankedIndex].index
-                                guard Date.timeIntervalSinceReferenceDate < deadline else { break }
+                                guard !Task<Never, Never>.isCancelled,
+                  Date.timeIntervalSinceReferenceDate < deadline else { break }
                                 nodes += 1
                                 var afterContinuation = afterReply
                                 guard afterContinuation.apply(index: continuation, actor: player) else { continue }
