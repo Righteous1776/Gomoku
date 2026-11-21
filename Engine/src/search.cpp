@@ -219,6 +219,9 @@ int Search::static_value(int side) const {
     return std::clamp(value, -kMate / 4, kMate / 4);
 }
 bool Search::limit_reached() {
+    // Only sample nodes occasionally; never synchronously call SwiftUI.
+    if (progress_ && (nodes_ & 2047ULL) == 0)
+        progress_(nodes_, last_completed_depth_, last_best_move_);
     if (cancel_signal_ && cancel_signal_->load(std::memory_order_relaxed)) {
         cancelled_ = true;
         timed_out_ = true;
@@ -353,12 +356,17 @@ int Search::negamax(int side, int depth, int alpha, int beta,
 SearchResult Search::analyze(const Board &root, int milliseconds,
                              const RootPolicy *policy,
                              const ComputePolicy *compute,
-                             const std::atomic<bool> *cancel) {
+                             const std::atomic<bool> *cancel,
+                             const ProgressSink &progress) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
     cancelled_ = false;
     cancel_signal_ = cancel;
+    progress_ = progress;
+    last_completed_depth_ = 0;
+    last_best_move_ = -1;
+    if (progress_) progress_(0, 0, -1);
     candidate_radius_ = compute ? compute->candidate_radius : 2;
     root_width_ = compute ? compute->root_width : 18;
     reply_width_ = compute ? compute->reply_width : 14;
@@ -404,6 +412,7 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         result.elapsed_ms = static_cast<int>(
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 Clock::now() - started).count());
+        if (progress_) progress_(nodes_, depth, move);
         return result;
     };
     if (root.outcome != 0 || free_ == 0)
@@ -526,6 +535,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         if (round_best >= 0) {
             incumbent = round_best;
             completed = depth;
+            last_completed_depth_ = completed;
+            last_best_move_ = incumbent;
+            if (progress_) progress_(nodes_, completed, incumbent);
             if (round_score >= kMate / 2) break;
         }
     }
