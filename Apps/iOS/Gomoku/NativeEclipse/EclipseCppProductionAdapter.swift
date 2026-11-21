@@ -119,7 +119,8 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE C++20 V2"
+            engineLabel: "ECLIPSE C++20 V2",
+            completedDepth: Int(run.search.completed_depth)
         )
     }
 }
