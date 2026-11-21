@@ -89,3 +89,28 @@ struct EclipseThinkingRunIdentity: Equatable {
     let checkpointSHA256: String?
     let computePolicySHA256: String?
 }
+
+/** In-memory measured native decision latency, tied to ONE attested model SHA
+    and exact compute policy SHA. No private board position is stored.
+    A 20-sample floor avoids presenting a single turn as a P95 distribution. */
+enum EclipseNativeLatencyStatistics {
+    struct Summary: Equatable {
+        let count: Int
+        let p50Milliseconds: Int
+        let p95Milliseconds: Int
+    }
+
+    static func summarize(_ samples: [Int]) -> Summary? {
+        guard samples.count >= 20,
+              samples.allSatisfy({ $0 > 0 }) else { return nil }
+        let sorted = samples.sorted()
+        func nearestRank(_ quantile: Double) -> Int {
+            let index = max(0, min(sorted.count - 1,
+                Int(ceil(quantile * Double(sorted.count))) - 1))
+            return sorted[index]
+        }
+        return Summary(count: sorted.count,
+                       p50Milliseconds: nearestRank(0.5),
+                       p95Milliseconds: nearestRank(0.95))
+    }
+}

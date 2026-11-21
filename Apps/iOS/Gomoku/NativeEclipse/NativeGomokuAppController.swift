@@ -25,6 +25,10 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastThinkingRun: EclipseThinkingRunIdentity?
     @Published private(set) var lastThinkingStopReason: String?
     private var searchStartedUptime: TimeInterval?
+    // Ephemeral measured latencies only: isolated by executed SHA/policy,
+    // bounded to 16 signatures x 128 samples, no private game records.
+    private var nativeLatencyBySignature: [String: [Int]] = [:]
+    private var nativeLatencyOrder: [String] = []
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
     @Published private(set) var computeTier: EclipseComputeTier = .standard
@@ -307,6 +311,17 @@ final class NativeGomokuAppController: ObservableObject {
             snapshot.verifiedTeachingCandidate = candidate
         }
         return snapshot
+    }
+
+    /// P50/P95 are only valid for >=20 completed native runs with the same
+    /// verified model and trainer-authorized compute policy.
+    func currentNativeLatencySummary() -> EclipseNativeLatencyStatistics.Summary? {
+        guard !isThinking, let id = lastThinkingRun,
+              let checkpoint = id.checkpointSHA256,
+              let policy = id.computePolicySHA256 else { return nil }
+        return EclipseNativeLatencyStatistics.summarize(
+            nativeLatencyBySignature[checkpoint + ":" + policy] ?? []
+        )
     }
 
     var completedMoves: [VeilEclipseTracePolicy.PlacedMove] {
@@ -759,6 +774,26 @@ final class NativeGomokuAppController: ObservableObject {
             }
             if !verifiedV9Played {
                 fallbackWarning = "本手实际由原版 Swift 接管，尚未执行验证的 2.0 训练模型；不能计入 Astra/Sol 棋力。"
+            }
+            if !cppFailed, trainerRevision != nil,
+               decision.nativeStopReason != nil,
+               decision.elapsedMilliseconds > 0,
+               let verified = lastThinkingRun,
+               let checkpoint = verified.checkpointSHA256,
+               let policy = verified.computePolicySHA256 {
+                let signature = checkpoint + ":" + policy
+                if nativeLatencyBySignature[signature] == nil {
+                    nativeLatencyOrder.append(signature)
+                    if nativeLatencyOrder.count > 16 {
+                        nativeLatencyBySignature.removeValue(
+                            forKey: nativeLatencyOrder.removeFirst()
+                        )
+                    }
+                }
+                var samples = nativeLatencyBySignature[signature] ?? []
+                samples.append(decision.elapsedMilliseconds)
+                if samples.count > 128 { samples.removeFirst(samples.count - 128) }
+                nativeLatencyBySignature[signature] = samples
             }
         } else if let legal = (0..<225).first(where: { boardAtStart.value(at: $0) == 0 }) {
             selectedIndex = legal

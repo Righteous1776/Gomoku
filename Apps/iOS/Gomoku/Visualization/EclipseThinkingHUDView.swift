@@ -121,6 +121,23 @@ struct EclipseThinkingHUDView: View {
                                 .foregroundColor(VeilTheme.secondaryText)
                         }
                         if level == .developer {
+                            if let sample = engine.currentNativeLatencySummary() {
+                                item("同模型/策略本机样本数", String(sample.count))
+                                HStack(spacing: 7) {
+                                    item("真实搜索耗时 P50",
+                                         "\(sample.p50Milliseconds) ms")
+                                    item("真实搜索耗时 P95",
+                                         "\(sample.p95Milliseconds) ms")
+                                }
+                            } else {
+                                item("C++ 本机延迟分位",
+                                     "相同已验证模型/策略样本不足 20 手")
+                            }
+                            HStack(spacing: 7) {
+                                item("系统热状态（非摄氏温度）", thermalStatus)
+                                item("低电量模式",
+                                     ProcessInfo.processInfo.isLowPowerModeEnabled ? "开启" : "关闭")
+                            }
                             item("位置版本", String(snapshot.positionRevision))
                             item("搜索 ID", snapshot.searchID?.uuidString ?? "未提供")
                             item("模型 SHA-256", snapshot.checkpointSHA256 ?? "未提供")
@@ -143,6 +160,17 @@ struct EclipseThinkingHUDView: View {
                 .allowsHitTesting(false)
         }
         .accessibilityIdentifier("gomoku.thinking-hud")
+    }
+
+    /// Apple thermal pressure category, not a temperature sensor or joules.
+    private var thermalStatus: String {
+        switch ProcessInfo.processInfo.thermalState {
+        case .nominal: return "正常"
+        case .fair: return "轻度压力"
+        case .serious: return "严重压力"
+        case .critical: return "临界压力"
+        @unknown default: return "系统未提供"
+        }
     }
 
     private func item(_ label: String, _ value: String) -> some View {

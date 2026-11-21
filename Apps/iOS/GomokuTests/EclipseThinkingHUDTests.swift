@@ -2,6 +2,21 @@ import XCTest
 @testable import Gomoku
 
 final class EclipseThinkingHUDTests: XCTestCase {
+    func testNativeP50P95UsesRealSamePolicySamplesAndMinimumTwenty() {
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize([1, 2, 3]))
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize(
+            [Int](repeating: 100, count: 19)
+        ))
+        XCTAssertNil(EclipseNativeLatencyStatistics.summarize(
+            [Int](repeating: 0, count: 20)
+        ))
+        let measured = Array((1...20).reversed())
+        let summary = EclipseNativeLatencyStatistics.summarize(measured)
+        XCTAssertEqual(summary?.count, 20)
+        XCTAssertEqual(summary?.p50Milliseconds, 10)
+        XCTAssertEqual(summary?.p95Milliseconds, 19)
+    }
+
     func testNativeLiveSnapshotUsesVersionedReadOnlyABI() {
         guard let engine = eg_create() else {
             XCTFail("Native engine unavailable")
