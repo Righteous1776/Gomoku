@@ -294,6 +294,37 @@ struct InstrumentHomeView: View {
                     }
                     .padding(.bottom, 6)
 
+                    if let generation3 = EclipseGeneration3ResearchCatalog.bundled,
+                       let candidate = generation3.preferredResearchCandidate {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                Text(generation3.flagshipAliasName)
+                                    .font(.headline)
+                                    .foregroundColor(VeilTheme.text)
+                                Spacer(minLength: 6)
+                                Label("研究版 · 暂不可对弈", systemImage: "lock.fill")
+                                    .font(.caption2.monospaced())
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
+                            Text("ECLIPSE 3.0 / \(candidate.researchRevision) · \(candidate.trees) 树 · \(candidate.features)D")
+                                .font(.caption.monospaced())
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("SHA-256: \(String(candidate.sha256.prefix(16)))…")
+                                .font(.caption.monospaced())
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("新一代 Astra 候选权重已登记，但只通过 8/9 研究门禁。34D 原生推理尚未完成，当前不能选择；实际对局继续使用已验证的 Astra/Sol 2.0。")
+                                .font(.caption)
+                                .foregroundColor(VeilTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            VeilTheme.subtleFill,
+                            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        )
+                        .accessibilityIdentifier("gomoku.eclipse.model.astra30.research-unavailable")
+                    }
                     ForEach(engine.availableModels) { model in
                         Button {
                             requestModelSelection(model)
@@ -335,34 +366,7 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    if let generation3 = EclipseGeneration3ResearchCatalog.bundled,
-                       let candidate = generation3.preferredResearchCandidate {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 8) {
-                                Text("ECLIPSE 3.0 · R07")
-                                    .font(.headline)
-                                    .foregroundColor(VeilTheme.text)
-                                Spacer(minLength: 6)
-                                Text("研究候选 · 未开放")
-                                    .font(.caption2.monospaced())
-                                    .foregroundColor(VeilTheme.secondaryText)
-                            }
-                            Text("\(candidate.trees) 棵树 · \(candidate.features)D · 权重 SHA: \(String(candidate.sha256.prefix(12)))…")
-                                .font(.caption.monospaced())
-                                .foregroundColor(VeilTheme.goldBright)
-                            Text("新一代权重已登记，但 R07-249 仅通过 8/9 研究门禁；34D 原生推理尚未验收，不能选择、不能冒充已加载的 Astra/Sol 2.0。")
-                                .font(.caption)
-                                .foregroundColor(VeilTheme.secondaryText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(12)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            VeilTheme.subtleFill,
-                            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        )
-                        .accessibilityIdentifier("gomoku.eclipse.model3.research-unavailable")
-                    }
+
                     Text("模型代际与应用版本、思考预算彼此独立。当前原生 Astra/Sol 维持真实已加载的 2.0 身份；搜索器在训练 Agent 核准的预算内根据局面复杂度自适应收敛。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
