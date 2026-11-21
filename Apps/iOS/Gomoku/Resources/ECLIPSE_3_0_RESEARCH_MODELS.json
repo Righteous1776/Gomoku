@@ -1,0 +1,62 @@
+{
+  "schema": "eclipse.generation3.research-catalog.v1",
+  "application_version": "2.0.0",
+  "generation": "3.0",
+  "label": "ECLIPSE 3.0",
+  "model_family": "R07 34D research lineage",
+  "production_enabled": false,
+  "ios_runtime_loaded": false,
+  "native_feature_abi": "34D-not-implemented",
+  "old_runtime_preserved": "V9 Astra/Sol 2.0 26D",
+  "release_gate": "9/9 tactical and independent paired native games plus audited 34D source feature parity",
+  "checkpoints": [
+    {
+      "id": "eclipse-3.0-r07-244",
+      "research_revision": "R07-244",
+      "features": 34,
+      "trees": 244,
+      "sha256": "4cb64cc6fa2e88b538523e77cc627e841af4e52c3d07d853ff167c074494e3f9",
+      "source_file": "eclipse_r07_34d_244_trees.txt",
+      "production_eligible": false
+    },
+    {
+      "id": "eclipse-3.0-r07-249",
+      "research_revision": "R07-249",
+      "features": 34,
+      "trees": 249,
+      "sha256": "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234",
+      "source_file": "eclipse_r07_34d_249_trees.txt",
+      "production_eligible": false,
+      "exploratory_gates_passed": 8,
+      "exploratory_gates_total": 9
+    },
+    {
+      "id": "eclipse-3.0-r07-259",
+      "research_revision": "R07-259",
+      "features": 34,
+      "trees": 259,
+      "sha256": "cafa6e2b0380521f175d857a9c4383251b7b45128a42c769ce43cc39e04f84bf",
+      "source_file": "eclipse_r07_34d_259_trees.txt",
+      "production_eligible": false
+    },
+    {
+      "id": "eclipse-3.0-r07-274",
+      "research_revision": "R07-274",
+      "features": 34,
+      "trees": 274,
+      "sha256": "ec0c246db24d1a9a76346c4975a70507d87d83abad1d711ba3907d284991197c",
+      "source_file": "eclipse_r07_34d_274_trees.txt",
+      "production_eligible": false
+    },
+    {
+      "id": "eclipse-3.0-r07-289",
+      "research_revision": "R07-289",
+      "features": 34,
+      "trees": 289,
+      "sha256": "17d2c91dbaf8f93a950d7ad8ae038670d4d00f25914cde27fafda190f493343e",
+      "source_file": "eclipse_r07_34d_289_trees.txt",
+      "production_eligible": false
+    }
+  ],
+  "note": "The label ECLIPSE 3.0 is the owner-selected NEW research generation. It is NOT a claim that R07 currently replaces production V9 model, or that Astra/Sol 3.0 distillation exists."
+}
