@@ -15,6 +15,7 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastDecisionNodes: Int?
     @Published private(set) var lastDecisionDepth: Int?
     @Published private(set) var lastDecisionMilliseconds: Int?
+    @Published private(set) var lastExecutedModel: EclipseModelID?
     @Published private(set) var fallbackWarning: String?
     @Published var humanIsBlack = true
     @Published private(set) var selectedModel: EclipseModelID = .currentDefault
@@ -202,6 +203,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionNodes = nil
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
+        lastExecutedModel = nil
         recoveryAvailable = false
         refresh()
         if Int32(state.currentPlayer == .host ? 1 : 2) != humanColor {
@@ -233,6 +235,7 @@ final class NativeGomokuAppController: ObservableObject {
         lastDecisionNodes = nil
         lastDecisionDepth = nil
         lastDecisionMilliseconds = nil
+        lastExecutedModel = nil
         fallbackWarning = nil
         refresh()
         if !humanIsBlack && !developerTeachingMode { scheduleAI() }
@@ -422,12 +425,16 @@ final class NativeGomokuAppController: ObservableObject {
                 onSearchTrace: metricObserver
             )
             guard !Task.isCancelled else { return }
-            await self?.applyDecision(decision, boardAtStart: boardAtStart, token: token)
+            await self?.applyDecision(
+                decision, boardAtStart: boardAtStart, token: token,
+                executedModel: model
+            )
         }
     }
 
     private func applyDecision(
-        _ decision: GomokuBotMove?, boardAtStart: GomokuState, token: UUID
+        _ decision: GomokuBotMove?, boardAtStart: GomokuState, token: UUID,
+        executedModel: EclipseModelID
     ) {
         // The detached worker never captures mutable actor-isolated self in a
         // concurrently executing MainActor.run closure (Swift 6 safe).
@@ -442,6 +449,7 @@ final class NativeGomokuAppController: ObservableObject {
         searchTask = nil
         lastDecisionNodes = decision?.nodes
         lastDecisionMilliseconds = decision?.elapsedMilliseconds
+        lastExecutedModel = decision == nil ? nil : executedModel
         let selectedIndex: Int
         if let decision, boardAtStart.value(at: decision.index) == 0 {
             selectedIndex = decision.index
