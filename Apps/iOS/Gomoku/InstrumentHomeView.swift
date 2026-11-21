@@ -117,6 +117,12 @@ struct InstrumentHomeView: View {
                 statusMetric("联网", "不需要")
                 statusMetric("上步耗时", engine.lastDecisionMilliseconds.map { "\($0)ms" } ?? "—")
             }
+            if let executed = engine.lastExecutedModel {
+                Text("上一手由 ECLIPSE \(executed.name) 实际执行")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(VeilTheme.secondaryText)
+                    .accessibilityIdentifier("gomoku.eclipse.last-executed-model")
+            }
             if engine.recoveryAvailable {
                 Button {
                     _ = engine.restoreLastPlayingSession()
