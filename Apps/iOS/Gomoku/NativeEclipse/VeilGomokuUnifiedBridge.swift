@@ -11,6 +11,7 @@ enum VeilGomokuUnifiedBridge {
         permittedRoots: [Int],
         rootScores: [Int: Int],
         difficultyRawValue: String? = nil,
+        trainerLimits: VeilGomokuUnifiedSearch.Limits? = nil,
         onTrace: (@Sendable (VeilGomokuUnifiedSearch.Trace) -> Void)? = nil,
         onExploredLine: (@Sendable ([Int], Int) -> Void)? = nil
     ) -> GomokuBotMove? {
@@ -41,8 +42,11 @@ enum VeilGomokuUnifiedBridge {
             bonuses[entry.key] = 2_000 - offset
         }
         var limits = VeilGomokuUnifiedSearch.Limits()
-        limits.maxMilliseconds = max(30, budget.timeLimitMilliseconds)
-        limits.maxNodes = max(2_000, min(180_000, budget.timeLimitMilliseconds * 125))
+        // For explicitly verified trainer compute policies, zero means
+        // no wall-clock/node deadline; there is no automatic 180k-node cap.
+        limits.maxMilliseconds = budget.timeLimitMilliseconds
+        limits.maxNodes = budget.timeLimitMilliseconds == 0 ? 0
+            : max(2_000, min(180_000, budget.timeLimitMilliseconds * 125))
         limits.maxDepth = budget.continuationCandidateLimit > 0 ? 6 : 3
         limits.width = max(4, min(24, budget.rootCandidateLimit))
         limits.candidateRadius = budget.candidateRadius
@@ -55,6 +59,10 @@ enum VeilGomokuUnifiedBridge {
             )
             limits.candidateRadius = budget.candidateRadius
         }
+
+        // The trainer's approved policy overrides legacy tier limits.
+        // Never re-clamp to 5.7 seconds/30k nodes after this assignment.
+        if let trainerLimits { limits = trainerLimits }
 
         guard let decision = VeilGomokuUnifiedSearch.decide(
             position, limits: limits,
