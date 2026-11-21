@@ -1,0 +1,52 @@
+name: ECLIPSE full native Swift GomokuBot versus C++20
+on:
+  pull_request:
+    paths:
+      - 'Arena/**'
+      - 'Engine/**'
+      - 'Apps/iOS/Gomoku/NativeEclipse/**'
+      - '.github/workflows/eclipse-full-bot-parity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  full-bot-headless-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Swift / C++ compiler versions
+        run: swiftc --version && c++ --version
+      - name: Build the current experimental C++20 engine
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Compile original full native GomokuBot from app sources
+        run: |
+          swiftc -O -swift-version 5 -o build/swift_original_gomoku_bot \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift
+      - name: Original native GomokuBot versus C++ tactical and paired-game arena
+        run: |
+          python3 Arena/compare_swift_cpp.py \
+            --swift build/swift_original_gomoku_bot \
+            --cpp build/Engine/gomoku_cli \
+            --pairs 12 --ms 75 --swift-kind gomokubot \
+            --out Arena/evidence/full-gomokubot-24games.json
+      - name: Upload privacy-minimal original Bot paired-match evidence
+        if: always() && hashFiles('Arena/evidence/full-gomokubot-24games.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-full-GomokuBot-paired-matches
+          path: Arena/evidence/full-gomokubot-24games.json
