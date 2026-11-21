@@ -148,9 +148,14 @@ struct EclipseThinkingHUDView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         if !snapshot.isSearching && snapshot.elapsedMilliseconds != nil {
-                            Text(snapshot.backend == "未提供"
-                                 ? "无法可靠解释本手：没有引擎决策证据。"
-                                 : "本手已执行；引擎未提供可验证的战术解释。")
+                            // The actual native result may certify a preflight
+                            // stop *category*, never a full VCF/VCT proof line.
+                            // Swift fallbacks have no native certificate.
+                            Text(snapshot.stopReason.map {
+                                "本手真实引擎终止记录：\($0)。未提供完整战术证明链。"
+                            } ?? (snapshot.backend == "未提供"
+                                  ? "无法可靠解释本手：没有引擎决策证据。"
+                                  : "本手已执行；引擎未提供可验证的战术解释。"))
                                 .font(.caption2)
                                 .foregroundColor(VeilTheme.secondaryText)
                         }
