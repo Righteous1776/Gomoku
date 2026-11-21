@@ -444,7 +444,8 @@ struct InstrumentHomeView: View {
             enabled: canPlaceStone,
             eclipseThinking: showingSearch,
             actualSearchStartedAt: engine.searchStartedAt,
-            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
+            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled
+                && engine.developerTeachingMode,
             eclipseTraceStore: engine.eclipseTraceStore,
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
@@ -535,12 +536,13 @@ struct InstrumentHomeView: View {
             Toggle(isOn: $engine.eclipseVisualizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                    Text("仅原生搜索展示真实分支；可能透露策略，默认关闭。")
+                    Text("仅授权教学可展示真实分支；正式对局不会公开候选。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                 }
             }
             .tint(VeilTheme.gold)
+            .disabled(!engine.developerTeachingMode)
             .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
 
             HStack(spacing: 8) {

@@ -571,7 +571,8 @@ final class NativeGomokuAppController: ObservableObject {
             _ = metricSink.record(trace, token: metricToken)
         }
         let observer: (@Sendable ([Int], Int) -> Void)?
-        if eclipseVisualizationEnabled, let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
+        if eclipseVisualizationEnabled && developerTeachingMode,
+           let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
             observer = { indices, nodes in
                 _ = traceStore.record(indices, nodes: nodes, token: traceToken)
             }

@@ -31,6 +31,9 @@ def verify():
     assert "completedDepth.map" in hud and "visitedNodes.map" in hud
     assert "未提供" in hud
     assert "正式对局：落子前禁止显示" in hud
+    assert "&& engine.developerTeachingMode" in home
+    assert ".disabled(!engine.developerTeachingMode)" in home
+    assert "if eclipseVisualizationEnabled && developerTeachingMode," in controller
     assert "候选评分、热力图、PV" in hud
     assert "withAnimation" not in hud
     assert "Canvas(" not in hud
