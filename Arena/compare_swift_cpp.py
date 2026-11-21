@@ -10,6 +10,7 @@ import argparse
 from collections import Counter
 import json
 from pathlib import Path
+import random
 import subprocess
 import sys
 
@@ -71,9 +72,12 @@ def run_tactics(swift: Path, cpp: Path, ms: int) -> tuple[int, int, int]:
 
 
 def game(swift: Path, cpp: Path, swift_black: bool, ms: int,
-         opening: int) -> str:
-    history = [opening]
-    board, _ = replay_board(history)
+         opening: list[int]) -> str:
+    # Same full opening sequence in the side-swapped partner game.
+    history = opening.copy()
+    board, won = replay_board(history)
+    if won:
+        raise ValueError("Opening must not be terminal")
     while len(history) < 225:
         player = 1 + len(history) % 2
         is_swift = (player == 1) == swift_black
@@ -91,14 +95,47 @@ def arena(swift: Path, cpp: Path, pairs: int, milliseconds: int) -> dict:
     if pairs < 1 or milliseconds < 1:
         raise ValueError("pairs and milliseconds must be positive")
     checked, identical, expected = run_tactics(swift, cpp, milliseconds)
-    openings = [112, 111, 97, 127]
     counts = Counter()
+    side_counts = Counter()
+    paired_points = []
+    openings_used = set()
+    anchors = [r*15+c for r in range(5,10) for c in range(5,10)]
     for pair in range(pairs):
-        opening = openings[pair % len(openings)]
+        # Unrepeated synthetic 2-ply openings; avoid repeatedly measuring
+        # the same center game and misreporting correlated samples.
+        first = anchors[pair % len(anchors)]
+        options = [
+            r*15+c for r in range(max(0,first//15-3), min(15,first//15+4))
+            for c in range(max(0,first%15-3), min(15,first%15+4))
+            if r*15+c != first
+        ]
+        rng = random.Random(20261121 + pair * 7919)
+        rng.shuffle(options)
+        opening = next(
+            ([first, response] for response in options
+             if (first, response) not in openings_used), None
+        )
+        if opening is None:
+            raise ValueError("No fresh opening; reduce pair count")
+        openings_used.add(tuple(opening))
+        score = 0.0
         for swift_black in (True, False):
-            result = game(swift, cpp, swift_black, milliseconds, opening)
-            counts[result] += 1
+            outcome = game(swift, cpp, swift_black, milliseconds, opening)
+            counts[outcome] += 1
+            if outcome == "Cpp":
+                score += 1.0
+                side_counts["Cpp_black" if not swift_black else "Cpp_white"] += 1
+            elif outcome == "draw":
+                score += 0.5
+        paired_points.append(score / 2)
     games = pairs * 2
+    # Reproducible paired-opening bootstrap, only for reporting uncertainty.
+    rng = random.Random(20261121)
+    bootstrap = sorted(
+        sum(rng.choice(paired_points) for _ in paired_points) / pairs
+        for _ in range(2000)
+    )
+    ci = [bootstrap[49], bootstrap[1949]]
     return {
         "schema": "eclipse.swift-cpp.headless-arena.v1",
         "swift_reference": "actual compiled VeilGomokuUnifiedSearch.swift + R10",
@@ -109,13 +146,17 @@ def arena(swift: Path, cpp: Path, pairs: int, milliseconds: int) -> dict:
         "forced_tactical_cases_total": expected,
         "exact_move_agreement_within_forced_cases": identical,
         "color_swapped_paired_games": games,
+        "distinct_opening_pairs": len(openings_used),
+        "Cpp_score_pair_bootstrap_95_interval": ci,
+        "Cpp_wins_as_black": side_counts["Cpp_black"],
+        "Cpp_wins_as_white": side_counts["Cpp_white"],
         "Swift_wins": counts["Swift"],
         "Cpp_wins": counts["Cpp"],
         "draws": counts["draw"],
         "Cpp_score_fraction": (counts["Cpp"] + 0.5*counts["draw"]) / games,
         "full_original_GomokuBot_parity_verified": False,
         "statistical_strength_parity_verified": False,
-        "qualification": "small synthetic smoke; no personalized learning or calibrated Elo"
+        "qualification": "paired-opening exploratory bootstrap, NOT a noninferiority proof; no personalized learning or calibrated Elo"
     }
 
 
