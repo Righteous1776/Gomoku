@@ -1,4 +1,4 @@
-name: Gomoku V1.0.0 RC1 icon-verified unsigned iPhone IPA
+name: Gomoku V2.0.0 unsigned iPhone IPA candidate
 on:
   pull_request:
     paths:
@@ -24,7 +24,7 @@ jobs:
         run: python3 Scripts/check_private_bundle.py
       - name: Install project generator
         run: brew install xcodegen
-      - name: Generate Gomoku V1.0.0 RC1 iOS project
+      - name: Generate Gomoku V2.0.0 iOS project
         run: xcodegen generate --spec project.yml
       - name: Build actual Release iphoneos application with C++ V2 production path
         run: |
@@ -47,19 +47,19 @@ jobs:
             artifacts/Payload/Gomoku.app
           (
             cd artifacts
-            zip -qr Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa Payload
-            shasum -a 256 Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa \
-              > Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.sha256
+            zip -qr Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.ipa Payload
+            shasum -a 256 Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.ipa \
+              > Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.sha256
           )
           python3 Scripts/check_private_bundle.py \
-            --ipa artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
+            --ipa artifacts/Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.ipa
           python3 Scripts/check_gomoku_release_identity.py \
-            --ipa artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
+            --ipa artifacts/Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.ipa
       - name: Export actual unsigned device IPA (not stock iOS installable)
         uses: actions/upload-artifact@v4
         with:
-          name: Gomoku-V1.0.0-RC1-Build2-UNSIGNED-DEVICE
+          name: Gomoku-V2.0.0-Build200-UNSIGNED-DEVICE
           path: |
-            artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.ipa
-            artifacts/Gomoku-V1.0.0-RC1-Build2-ECLIPSE2-UNSIGNED.sha256
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.ipa
+            artifacts/Gomoku-V2.0.0-Build200-ECLIPSE2-UNSIGNED.sha256
           retention-days: 7
