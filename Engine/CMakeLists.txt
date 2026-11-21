@@ -33,6 +33,14 @@ if(BUILD_TESTING)
   target_include_directories(eclipse_v9_forest_research_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
   add_test(NAME eclipse_v9_forest_research COMMAND eclipse_v9_forest_research_tests)
   # R21: actual opt-in V9 V2 ABI execution test, not an active model binding.
+  # Optional portable Python CLI smoke: only synthetic boards, no private data.
+  find_package(Python3 QUIET COMPONENTS Interpreter)
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME eclipse_v9_cli_rankers
+      COMMAND ${Python3_EXECUTABLE}
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_v9_cli_rankers.py
+        $<TARGET_FILE:gomoku_cli>)
+  endif()
   add_executable(eclipse_v9_search_runtime_tests tests/test_v9_search_runtime.cpp)
   target_link_libraries(eclipse_v9_search_runtime_tests PRIVATE eclipse_core)
   target_include_directories(eclipse_v9_search_runtime_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
