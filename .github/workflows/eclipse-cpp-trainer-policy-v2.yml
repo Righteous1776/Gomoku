@@ -1,0 +1,33 @@
+name: ECLIPSE R17 actual C++ trainer policy V2
+on:
+  pull_request:
+    paths:
+      - 'Engine/**'
+      - 'Arena/cpp_compute_policy_v2_probe.py'
+      - '.github/workflows/eclipse-cpp-trainer-policy-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  cpp-trainer-policy-v2:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile actual C++20 ABI V1 + V2
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Verify C++ V2 cancellability, parameter roundtrip and tactical safety
+        run: ctest --test-dir build --output-on-failure -R 'eclipse_compute_policy_v2'
+      - name: Execute research CLI with real trainer policies, no user histories
+        run: |
+          python3 Arena/cpp_compute_policy_v2_probe.py \
+            --cpp build/Engine/gomoku_cli \
+            --out Arena/evidence/cpp-trainer-policy-v2.json
+      - name: Upload actual aggregate policy-execution evidence
+        if: always() && hashFiles('Arena/evidence/cpp-trainer-policy-v2.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R17-Cpp-Actual-Compute-Policy
+          path: Arena/evidence/cpp-trainer-policy-v2.json
