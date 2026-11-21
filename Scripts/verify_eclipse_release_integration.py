@@ -36,7 +36,7 @@ def check(root: Path) -> dict:
     checks = {
         "all_required_sources_present": True,
         "release_adapter_not_debug_only":
-            "#if DEBUG" not in src[PRODUCTION_ADAPTER],
+            re.search(r"(?m)^\s*#if\s+DEBUG\b", src[PRODUCTION_ADAPTER]) is None,
         "official_controller_routes_to_cpp":
             "EclipseCppProductionAdapter.make(" in src[CONTROLLER]
             and "cppRuntime.decide(" in src[CONTROLLER],
