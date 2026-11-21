@@ -1,0 +1,51 @@
+name: ECLIPSE original Swift seven-tier tactical parity gate
+on:
+  pull_request:
+    paths:
+      - 'Arena/seven_tier_tactical_gate.py'
+      - 'Arena/SwiftGomokuBotReference.swift'
+      - 'Apps/iOS/Gomoku/NativeEclipse/**'
+      - 'Engine/**'
+      - '.github/workflows/eclipse-seven-tier-tactics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seven-tier-tactics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Swift compiler and build C++20
+        run: |
+          swiftc --version
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Compile original full native GomokuBot from app sources
+        run: |
+          swiftc -O -swift-version 5 -o build/swift_original_gomoku_bot \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift
+      - name: Seven original Swift difficulty tiers against research C++20 tactical gates
+        run: |
+          python3 Arena/seven_tier_tactical_gate.py \
+            --swift build/swift_original_gomoku_bot \
+            --cpp build/Engine/gomoku_cli \
+            --out Arena/evidence/original-seven-tier-tactics.json
+      - name: Upload aggregate seven-tier tactical audit (no private game histories)
+        if: always() && hashFiles('Arena/evidence/original-seven-tier-tactics.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-original-seven-tier-tactical-audit
+          path: Arena/evidence/original-seven-tier-tactics.json
