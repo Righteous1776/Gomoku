@@ -460,6 +460,11 @@ struct InstrumentHomeView: View {
                       engine.eclipseVisualizationEnabled else { return [] }
                 return engine.thinkingHUDSnapshot().visibleTeachingRanks
             },
+            eclipseTeachingPVPrefix: {
+                guard engine.developerTeachingMode,
+                      engine.eclipseVisualizationEnabled else { return [] }
+                return engine.thinkingHUDSnapshot().visibleTeachingPVPrefix
+            },
             onMove: { engine.play($0) }
         )
         // The wood board already owns its material and 5.5% edge-safe grid
