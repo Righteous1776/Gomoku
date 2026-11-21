@@ -258,6 +258,7 @@ int eg_read_pv_prefix_v1(const EGEngine *engine, EGPVPrefixSnapshotV1 *out);
 #define EG_RESEARCH_RANKER_LEGACY 0
 #define EG_RESEARCH_RANKER_V9_ASTRA 1
 #define EG_RESEARCH_RANKER_V9_SOL 2
+#define EG_RESEARCH_RANKER_R07_ASTRA 3
 int eg_select_research_ranker_v3(EGEngine *engine, int32_t ranker);
 int eg_research_ranker_v3(const EGEngine *engine); /* -1 if NULL */
 
@@ -280,6 +281,18 @@ int eg_select_compiled_v9_model_v4(EGEngine *engine,
 int eg_active_compiled_v9_sha256_v4(const EGEngine *engine,
                                     char *out65, int32_t capacity);
 
+
+/* R07 Astra 3.0 experimental executable: load original 34D LightGBM bytes,
+ * internally verify pinned SHA256 and every tree's numeric split array.
+ * Only use native V2/V3 policy analysis after successful load. R04 legacy
+ * 26D feature parity is not yet externally certified; this is NOT a claim
+ * of production Elo superiority. No private training records are bundled.
+ */
+int eg_load_astra_r07_v5(EGEngine *engine,const char *text_bytes,
+                          int32_t byte_count,const char *expected_sha256);
+int eg_active_astra_r07_sha256_v5(const EGEngine *engine,
+                                  char *out65,int32_t capacity);
+int eg_astra_r07_score_v5(const EGEngine *engine,int32_t move);
 
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */

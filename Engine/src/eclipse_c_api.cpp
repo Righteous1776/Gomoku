@@ -1,6 +1,7 @@
 #include "eclipse_c_api.h"
 #include "board.hpp"
 #include "search.hpp"
+#include "eclipse_r07_ranker.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <memory>
 
 struct EGEngine {
     eclipse::Board board;
@@ -31,6 +33,7 @@ struct EGEngine {
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
+    std::shared_ptr<const eclipse::research_r07::Forest> r07_forest;
 };
 
 namespace {
@@ -115,7 +118,7 @@ EGEngine *eg_create(void){
     return e;
 }
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; clear_live(e);}}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; e->r07_forest.reset(); clear_live(e);}}
 int eg_play(EGEngine *e,int index){if(!e||!e->board.play(index))return 0;clear_live(e);return 1;}
 int eg_undo(EGEngine *e){if(!e||!e->board.undo())return 0;clear_live(e);return 1;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -174,6 +177,7 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
     e->verified_v9_model = 0; // Research selection never inherits production attestation.
+    e->r07_forest.reset();
     clear_live(e);
     return 1;
 }
@@ -198,6 +202,7 @@ int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
         std::strncmp(actual, expected_sha256, 65) != 0) return 0;
     e->research_ranker = model;
     e->verified_v9_model = model;
+    e->r07_forest.reset();
     clear_live(e);
     return 1;
 }
@@ -209,6 +214,32 @@ int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
     if (!actual) return 0;
     std::memcpy(out, actual, 65);
     return 64;
+}
+int eg_load_astra_r07_v5(EGEngine *e,const char *bytes,int32_t count,
+                            const char *expected_sha256) {
+    if(!e||!bytes||count<=0||count>2000000||!expected_sha256||
+       std::strncmp(expected_sha256,eclipse::research_r07::kR07SHA,65)!=0||
+       e->live_state.load()==EG_LIVE_SEARCH_RUNNING)return 0;
+    auto forest=std::make_shared<eclipse::research_r07::Forest>();
+    if(!forest->load(std::string_view(bytes,static_cast<std::size_t>(count))))
+        return 0;
+    e->r07_forest=std::move(forest);
+    e->research_ranker=EG_RESEARCH_RANKER_R07_ASTRA;
+    e->verified_v9_model=0;
+    clear_live(e);
+    return 1;
+}
+int eg_active_astra_r07_sha256_v5(const EGEngine *e,char *out,int32_t capacity) {
+    if(!e||!out||capacity<65||!e->r07_forest||
+       e->research_ranker!=EG_RESEARCH_RANKER_R07_ASTRA)return 0;
+    std::memcpy(out,eclipse::research_r07::kR07SHA,65);
+    return 64;
+}
+int eg_astra_r07_score_v5(const EGEngine *e,int32_t move) {
+    if(!e||!e->r07_forest||e->research_ranker!=EG_RESEARCH_RANKER_R07_ASTRA)
+        return 0;
+    return eclipse::research_r07::score(*e->r07_forest,
+        e->board.cells,move,e->board.turn);
 }
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
@@ -398,7 +429,8 @@ static int analyze_compute_impl(
         };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
-            static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
+            static_cast<eclipse::ResearchRanker>(e->research_ranker),
+            e->r07_forest.get()}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
             observer, root_observer, pv_observer,
             stop ? &adaptive : nullptr);

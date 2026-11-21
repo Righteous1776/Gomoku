@@ -1,6 +1,7 @@
 #include "search.hpp"
 #include "eclipse_trained_ordering.hpp"
 #include "eclipse_v9_research_ranker.hpp"
+#include "eclipse_r07_ranker.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -174,6 +175,8 @@ int Search::move_rank(int index, int side) const {
         return research_v9::score(cells_, index, side, 1);
     case ResearchRanker::v9_sol:
         return research_v9::score(cells_, index, side, 2);
+    case ResearchRanker::r07_astra:
+        return r07_ ? research_r07::score(*r07_,cells_,index,side) : 0;
     case ResearchRanker::legacy:
     default:
         return trained_model::score(cells_, index, side);

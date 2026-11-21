@@ -9,6 +9,7 @@
 #include <vector>
 
 namespace eclipse {
+namespace research_r07 { struct Forest; }
 // Experimental search telemetry. NOT native Swift ECLIPSE strength parity.
 // The enum's integer values are frozen by EG_SEARCH_DIAGNOSTICS_ABI_VERSION 1.
 enum class SearchStopReason : int {
@@ -76,12 +77,13 @@ struct AdaptiveStopPolicy {
 
 // An explicit research-only selection; legacy remains the default for all
 // previously supported callers and original Swift/C++ parity benchmarks.
-enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
+enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2, r07_astra = 3 };
 
 class Search {
 public:
-    explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
-        : ranker_(ranker) {}
+    explicit Search(ResearchRanker ranker = ResearchRanker::legacy,
+                    const research_r07::Forest *r07 = nullptr)
+        : ranker_(ranker), r07_(r07) {}
     // Optional per-search, read-only diagnostics sink. It must never choose a
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
@@ -99,6 +101,7 @@ public:
 
 private:
     ResearchRanker ranker_ = ResearchRanker::legacy;
+    const research_r07::Forest *r07_ = nullptr;
     int move_rank(int index, int side) const;
     using Clock = std::chrono::steady_clock;
     static constexpr int kMate = 10'000'000;
