@@ -66,6 +66,7 @@ struct GomokuBoardView: View {
     /// developer-authorized teaching path supplies a non-nil value.
     var eclipseTeachingCandidate: (() -> Int?)? = nil
     var eclipseTeachingRootRanks: (() -> [Int])? = nil
+    var eclipseTeachingPVPrefix: (() -> [Int])? = nil
     let onMove: (Int) -> Void
 
     private let starPoints = [48, 56, 112, 168, 176]
@@ -135,6 +136,49 @@ struct GomokuBoardView: View {
                                         VeilTheme.goldBright.opacity(0.08 + 0.35 * intensity)
                                     ))
                                 }
+                            }
+                            .frame(width: side, height: side)
+                        }
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    }
+
+                    // Real, board-replayed native exact-TT principal
+                    // variation PREFIX. Every hop is hypothetical, never
+                    // presented as a forced win or an actual played stone.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let pvProvider = eclipseTeachingPVPrefix {
+                        TimelineView(.periodic(
+                            from: .now, by: ProcessInfo.processInfo.isLowPowerModeEnabled
+                                || reduceMotion ? 1.0 : 0.5
+                        )) { _ in
+                            let pv = pvProvider()
+                            Canvas(opaque: false, rendersAsynchronously: false) { context, _ in
+                                let verified = Array(pv.prefix(16).filter {
+                                    (0..<225).contains($0) && state.value(at: $0) == 0
+                                })
+                                guard !verified.isEmpty else { return }
+                                var path = Path()
+                                for (offset, index) in verified.enumerated() {
+                                    let point = gomokuPoint(
+                                        index: index, margin: margin, step: step
+                                    )
+                                    if offset == 0 { path.move(to: point) }
+                                    else { path.addLine(to: point) }
+                                    let radius = step * 0.22
+                                    let ring = Path(ellipseIn: CGRect(
+                                        x: point.x - radius, y: point.y - radius,
+                                        width: radius * 2, height: radius * 2
+                                    ))
+                                    context.stroke(ring, with: .color(
+                                        VeilTheme.paleMetal.opacity(0.9)
+                                    ), lineWidth: 1.5)
+                                }
+                                context.stroke(path, with: .color(
+                                    VeilTheme.paleMetal.opacity(0.6)
+                                ), style: StrokeStyle(
+                                    lineWidth: 1, lineCap: .round, dash: [2, 3]
+                                ))
                             }
                             .frame(width: side, height: side)
                         }

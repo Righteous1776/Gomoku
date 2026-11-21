@@ -353,12 +353,43 @@ int Search::negamax(int side, int depth, int alpha, int beta,
     return best == -kInf ? static_value(side) : best;
 }
 
+std::vector<int> Search::extract_verified_pv_prefix(
+    int first, int side, int completed_depth) {
+    std::vector<int> pv;
+    if (completed_depth < 1 || first < 0 || first >= kCells ||
+        cells_[first] != 0) return pv;
+    std::vector<std::pair<int,int>> applied;
+    const int max_ply = std::min(16, completed_depth);
+    int current_side = side;
+    int next = first;
+    for (int ply = 0; ply < max_ply; ++ply) {
+        if (next < 0 || next >= kCells || cells_[next] != 0) break;
+        place(next, current_side);
+        applied.emplace_back(next, current_side);
+        pv.push_back(next);
+        if (five_at(next, current_side) || free_ == 0) break;
+        current_side = other(current_side);
+        if (ply + 1 == max_ply) break;
+        const auto found = table_.find(hash_ ^ side_hash()[current_side]);
+        // Only exact TT entries of sufficient remaining depth can support
+        // the next hypothetical reply. Bound/cutoff entries are NOT a PV.
+        const int remaining = completed_depth - ply - 1;
+        if (found == table_.end() || found->second.flag != 0 ||
+            found->second.depth < remaining) break;
+        next = found->second.best;
+    }
+    for (auto it = applied.rbegin(); it != applied.rend(); ++it)
+        unplace(it->first, it->second);
+    return pv;
+}
+
 SearchResult Search::analyze(const Board &root, int milliseconds,
                              const RootPolicy *policy,
                              const ComputePolicy *compute,
                              const std::atomic<bool> *cancel,
                              const ProgressSink &progress,
-                             const RankedRootsSink &ranked_roots) {
+                             const RankedRootsSink &ranked_roots,
+                             const PVSink &pv) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -542,6 +573,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             last_completed_depth_ = completed;
             last_best_move_ = incumbent;
             if (progress_) progress_(nodes_, completed, incumbent);
+            if (pv) pv(completed, extract_verified_pv_prefix(
+                incumbent, side, completed));
             if (round_score >= kMate / 2) break;
         }
     }

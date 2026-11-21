@@ -61,12 +61,14 @@ public:
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
     using RankedRootsSink = std::function<void(const std::vector<int> &)>;
+    using PVSink = std::function<void(int, const std::vector<int> &)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
                          const std::atomic<bool> *cancel = nullptr,
                          const ProgressSink &progress = {},
-                         const RankedRootsSink &ranked_roots = {});
+                         const RankedRootsSink &ranked_roots = {},
+                         const PVSink &pv = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -127,5 +129,9 @@ private:
                     std::vector<int> &variation);
     int tactical_leaf(int side, int ply, int remaining_forced);
     int negamax(int side, int depth, int alpha, int beta, int last, int ply);
+    // Build only a real principal-variation PREFIX: exact TT entries that
+    // were stored by the finished search, never a hypothetical filler line.
+    std::vector<int> extract_verified_pv_prefix(int first, int side,
+                                                 int completed_depth);
 };
 }

@@ -104,6 +104,18 @@ struct EclipseThinkingHUDView: View {
                                     .font(.caption2)
                                     .foregroundColor(VeilTheme.secondaryText)
                             }
+                            if !snapshot.visibleTeachingPVPrefix.isEmpty {
+                                let sequence = snapshot.visibleTeachingPVPrefix
+                                    .enumerated().map { ply, index in
+                                        "\(ply % 2 == 0 ? "根方" : "应方") " +
+                                        "(\(index % 15 + 1),\(index / 15 + 1))"
+                                    }.joined(separator: " → ")
+                                item("搜索主变化前缀 · D\(snapshot.nativePVDepth ?? 0)",
+                                     sequence)
+                                Text("仅含真实完整迭代及精确置换表应手；不足深度已截断，非强制必胜证明。")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
                             if let index = snapshot.visibleTeachingCandidate {
                                 item("已完成深度最佳落点 · 教学",
                                      "第 \(index / 15 + 1) 行 · 第 \(index % 15 + 1) 列")

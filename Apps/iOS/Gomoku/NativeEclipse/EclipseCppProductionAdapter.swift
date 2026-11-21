@@ -193,6 +193,31 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         return (serial: reading.search_serial, moves: moves)
     }
 
+    /// A short, actual principal variation PREFIX rooted in a finished
+    /// iteration and followed exclusively through exact native TT entries.
+    /// Position replay/alternating-stone legality is checked by the controller.
+    func livePVPrefix() -> (serial: UInt64, depth: Int, moves: [Int])? {
+        var reading = EGPVPrefixSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGPVPrefixSnapshotV1>.size)
+        guard eg_read_pv_prefix_v1(engine, &reading) == 1,
+              reading.count > 0,
+              reading.count <= UInt32(EG_LIVE_PV_PREFIX_MAX),
+              reading.completed_depth > 0,
+              reading.count <= UInt32(reading.completed_depth),
+              reading.search_serial > 0 else { return nil }
+        let moves: [Int] = withUnsafeBytes(of: reading.moves) { bytes in
+            bytes.bindMemory(to: Int32.self)
+                .prefix(Int(reading.count)).map { Int($0) }
+        }
+        guard moves.count == Int(reading.count),
+              Set(moves).count == moves.count,
+              moves.allSatisfy({ (0..<225).contains($0) })
+        else { return nil }
+        return (serial: reading.search_serial,
+                depth: Int(reading.completed_depth),
+                moves: moves)
+    }
+
     /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
     /// no separate model budget overriding the Training Agent's policy.
     /// The search always executes off the MainActor.

@@ -320,6 +320,32 @@ final class NativeGomokuAppController: ObservableObject {
                 state.value(at: $0) == 0
             }
         }
+        if live && context == .teaching && nativeRun,
+           let serial = nativeLive?.searchSerial,
+           let nativePV = activeCppSearch?.livePVPrefix(),
+           nativePV.serial == serial,
+           nativePV.depth == nativeLive?.completedDepth,
+           nativePV.moves.first == nativeLive?.bestMoveForAuthorizedReview {
+            // Replay every actual TT-sourced move with alternating player
+            // identity and original freestyle win/terminal rules. Never
+            // render a PV that collides, skips a turn or crosses game end.
+            var replay = state
+            var accepted = true
+            for index in nativePV.moves {
+                guard (0..<225).contains(index),
+                      replay.value(at: index) == 0,
+                      replay.winner == nil, !replay.isDraw,
+                      replay.apply(index: index, actor: replay.currentPlayer)
+                else {
+                    accepted = false
+                    break
+                }
+            }
+            if accepted {
+                snapshot.nativePVDepth = nativePV.depth
+                snapshot.nativePVPrefix = nativePV.moves
+            }
+        }
         return snapshot
     }
 
