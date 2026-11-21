@@ -522,7 +522,8 @@ final class NativeGomokuAppController: ObservableObject {
             await self?.applyDecision(
                 decision, boardAtStart: boardAtStart, token: token,
                 executedModel: model,
-                trainerRevision: nil
+                trainerRevision: nil,
+                cppFailed: cppRuntime != nil
             )
         }
     }
@@ -530,7 +531,8 @@ final class NativeGomokuAppController: ObservableObject {
     private func applyDecision(
         _ decision: GomokuBotMove?, boardAtStart: GomokuState, token: UUID,
         executedModel: EclipseModelID,
-        trainerRevision: String?
+        trainerRevision: String?,
+        cppFailed: Bool = false
     ) {
         // The detached worker never captures mutable actor-isolated self in a
         // concurrently executing MainActor.run closure (Swift 6 safe).
@@ -549,6 +551,9 @@ final class NativeGomokuAppController: ObservableObject {
         lastExecutedModel = nil
         lastExecutedTrainerRevision = nil
         lastExecutionBackend = nil
+        if cppFailed {
+            fallbackWarning = "C++ 搜索未返回有效结果，本手由原版 Swift 接管；本手不计入 C++ 棋力评测。"
+        }
         let selectedIndex: Int
         if let decision, (0..<225).contains(decision.index),
            boardAtStart.value(at: decision.index) == 0 {
