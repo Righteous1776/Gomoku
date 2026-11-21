@@ -48,8 +48,14 @@ struct ComputePolicy {
     int candidate_radius = 2;
 };
 
+// An explicit research-only selection; legacy remains the default for all
+// previously supported callers and original Swift/C++ parity benchmarks.
+enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
+
 class Search {
 public:
+    explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
+        : ranker_(ranker) {}
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
@@ -57,6 +63,8 @@ public:
     int best_move(const Board &root, int milliseconds);
 
 private:
+    ResearchRanker ranker_ = ResearchRanker::legacy;
+    int move_rank(int index, int side) const;
     using Clock = std::chrono::steady_clock;
     static constexpr int kMate = 10'000'000;
     static constexpr int kInf = kMate + 100'000;

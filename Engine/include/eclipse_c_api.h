@@ -136,6 +136,23 @@ int eg_analyze_compute_policy_v2(
  */
 void eg_cancel_search_v2(EGEngine *engine);
 
+/* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
+ * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
+ * Mutators are forbidden while any search runs. eg_reset restores 0.
+ * This is RESEARCH ONLY; it does not attest an installed checkpoint.
+ * eg_active_trained_checkpoint_sha256_v2 must continue to return 0
+ * until the independent production binding and loaded-model validation
+ * contract has actually been completed.
+ * Only eg_analyze_compute_policy_v2 reads this selector. Older V1 and
+ * seven-tier historical parity operations remain the original R10 path.
+ */
+#define EG_RESEARCH_RANKER_ABI_VERSION 3
+#define EG_RESEARCH_RANKER_LEGACY 0
+#define EG_RESEARCH_RANKER_V9_ASTRA 1
+#define EG_RESEARCH_RANKER_V9_SOL 2
+int eg_select_research_ranker_v3(EGEngine *engine, int32_t ranker);
+int eg_research_ranker_v3(const EGEngine *engine); /* -1 if NULL */
+
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */
 int eg_status(const EGEngine *engine); /* 0 ongoing, 1 black win, 2 white win, 3 draw */

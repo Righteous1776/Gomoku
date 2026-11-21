@@ -59,7 +59,7 @@ std::vector<int> parse_moves(std::string data){
     return result;
 }
 void usage(){std::cout<<"gomoku_cli --best <comma-separated-move-indices> [--ms 100] (0 = no time ceiling)\n"
-                       "gomoku_cli --best <moves> --policy-v2 <mode,ms,nodes,depth,root,reply,continuation,forcing,radius>\n"
+                       "gomoku_cli --best <moves> --policy-v2 <mode,ms,nodes,depth,root,reply,continuation,forcing,radius> [--research-ranker v9-astra|v9-sol]\n"
                        "gomoku_cli --state <comma-separated-move-indices> (rules-only replay)\n"
                        "gomoku_cli --selfplay --games N [--ms 10] [--out file.jsonl] [--seed N]\n";}
 }
@@ -68,6 +68,8 @@ int main(int argc,char**argv){
 try {
     bool best=false,selfplay=false,state_mode=false,has_policy=false,explicit_ms=false;
     int games=1,ms=10,seed=42;std::string position,out;
+    int research_ranker = EG_RESEARCH_RANKER_LEGACY;
+    bool explicit_research_ranker = false;
     EGComputePolicyV2 trainer_policy{};
     for(int i=1;i<argc;++i){const std::string a=argv[i];
         auto val=[&](){if(i+1>=argc)throw std::runtime_error("missing value: "+a);return std::string(argv[++i]);};
@@ -77,6 +79,14 @@ try {
         else if(a=="--games")games=number(val());
         else if(a=="--ms"){explicit_ms=true;ms=number(val());}
         else if(a=="--policy-v2"){has_policy=true;trainer_policy=parse_trainer_policy(val());}
+        else if(a=="--research-ranker"){
+            if(explicit_research_ranker)throw std::runtime_error("duplicate research ranker");
+            explicit_research_ranker=true;
+            const auto name=val();
+            if(name=="v9-astra")research_ranker=EG_RESEARCH_RANKER_V9_ASTRA;
+            else if(name=="v9-sol")research_ranker=EG_RESEARCH_RANKER_V9_SOL;
+            else throw std::runtime_error("unsupported research ranker: "+name);
+        }
         else if(a=="--seed")seed=number(val());
         else if(a=="--out")out=val();
         else if(a=="--help"){usage();return 0;}
@@ -88,6 +98,8 @@ try {
     if(ms<0||games<1||games>1000000)throw std::runtime_error("invalid limits");
     if(has_policy && (!best || explicit_ms))
         throw std::runtime_error("--policy-v2 only works with --best and without --ms");
+    if(explicit_research_ranker && (!has_policy || !best))
+        throw std::runtime_error("--research-ranker requires --best and --policy-v2");
     Engine engine{eg_create(),eg_destroy};if(!engine)throw std::runtime_error("out of memory");
     if(state_mode){
         const auto parsed=parse_moves(position);
@@ -109,6 +121,9 @@ try {
     }
     if(best){for(int m:parse_moves(position))if(!eg_play(engine.get(),m))throw std::runtime_error("illegal history");
         if(has_policy) {
+            if(explicit_research_ranker &&
+               !eg_select_research_ranker_v3(engine.get(),research_ranker))
+                throw std::runtime_error("research scorer selection failed");
             EGComputeRunV2 outcome{};
             outcome.size_bytes=sizeof(outcome);
             if(!eg_analyze_compute_policy_v2(
@@ -128,7 +143,10 @@ try {
                      <<",\"continuation_width\":"<<p.continuation_width
                      <<",\"forced_line_depth\":"<<p.forced_line_depth
                      <<",\"candidate_radius\":"<<p.candidate_radius
-                     <<"},\"engine_revision\":\""<<eg_engine_revision()
+                     <<"}" << (explicit_research_ranker
+                         ? (research_ranker==EG_RESEARCH_RANKER_V9_ASTRA
+                             ? ",\"research_ranker\":\"v9-astra\"" : ",\"research_ranker\":\"v9-sol\"") : "")
+                     << ",\"engine_revision\":\""<<eg_engine_revision()
                      <<"\"}\n";
             return d.move<0?1:0;
         }

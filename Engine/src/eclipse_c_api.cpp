@@ -9,6 +9,8 @@
 struct EGEngine {
     eclipse::Board board;
     std::atomic<bool> cancelled{false};
+    // Explicit research-only V2 ranking selection (default R10).
+    int research_ranker = EG_RESEARCH_RANKER_LEGACY;
 };
 
 extern "C" {
@@ -34,7 +36,7 @@ int eg_rules_replay_v1(const int32_t *moves, int32_t count,
 }
 EGEngine *eg_create(void){return new(std::nothrow) EGEngine{};}
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e)e->board.reset();}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY;}}
 int eg_play(EGEngine *e,int index){return e&&e->board.play(index)?1:0;}
 int eg_undo(EGEngine *e){return e&&e->board.undo()?1:0;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -87,6 +89,15 @@ int eg_active_trained_checkpoint_sha256_v2(char *out, int capacity) {
     (void)out;
     (void)capacity;
     return 0;
+}
+int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
+    if (!e || ranker < EG_RESEARCH_RANKER_LEGACY ||
+        ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
+    e->research_ranker = ranker;
+    return 1;
+}
+int eg_research_ranker_v3(const EGEngine *e) {
+    return e ? e->research_ranker : -1;
 }
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
@@ -148,7 +159,8 @@ int eg_analyze_compute_policy_v2(
     try {
         e->cancelled.store(false, std::memory_order_release);
         // No game history or training source escapes through this telemetry.
-        const auto found = eclipse::Search{}.analyze(
+        const auto found = eclipse::Search{
+            static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0))
