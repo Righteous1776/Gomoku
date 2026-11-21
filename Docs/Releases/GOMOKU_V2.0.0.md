@@ -10,7 +10,7 @@
 
 ## New MODEL generation: ECLIPSE 3.0 — research assets
 
-The newly uploaded R07 family is designated **ECLIPSE 3.0 (research generation)**, distinct from the **Gomoku application V2.0.0** release version. Five full 34D R07 weights — 244, 249, 259, 274 and 289 LightGBM trees — are preserved in the source repository and each is registered with its own immutable SHA-256. R04 239-tree weights remain the historical predecessor, not renamed as generation 3.0.
+The newly uploaded R07 family is designated **ECLIPSE 3.0 (research generation)**, with its R07-249 flagship research candidate displayed as **Astra 3.0**. This is an Owner-selected product alias for those exact existing R07-249 weights, **not** a separate trained 3.0 Astra checkpoint or proof of native execution. Model generation is distinct from the **Gomoku application V2.0.0** release version. Five full 34D R07 weights — 244, 249, 259, 274 and 289 LightGBM trees — are preserved in the source repository and each is registered with its own immutable SHA-256. R04 239-tree weights remain the historical predecessor, not renamed as generation 3.0.
 
 The iOS developer diagnostics can identify **ECLIPSE 3.0 · R07-249 (34D / 249 trees)** but MUST show **research only / not loaded**. The active playable compiled model remains Astra V9 314-tree or Sol V9 160-tree (**ECLIPSE 2.0**) until a genuine 34D native feature extractor, identical feature vectors, independent tactical regression and checkpoint attestation all pass.
 
