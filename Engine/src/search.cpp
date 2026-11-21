@@ -1,4 +1,5 @@
 #include "search.hpp"
+#include "adaptive_convergence.hpp"
 #include "eclipse_trained_ordering.hpp"
 #include "eclipse_v9_research_ranker.hpp"
 #include <algorithm>
@@ -457,18 +458,31 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return result;
     };
 
-    // Exact two-different-five-completions: an unanswerable one-move fork
-    // when the opponent has no immediate win after our hypothetical move.
+    // First-ply forcing-four existence is a NECESSARY condition for
+    // prove_four() to construct any line in this particular solver.
+    // A quiet root need not repeatedly enumerate an impossible VCF tree.
+    // Keep the COMPLETE audit flag: a timeout/cancelled partial scan is not
+    // evidence that there was no forcing starter.
+    bool has_forcing_four_starter = false;
+    bool finished_forcing_starter_audit = true;
     for (const int move : roots) {
-        if (limit_reached()) break;
+        if (limit_reached()) {
+            finished_forcing_starter_audit = false;
+            break;
+        }
         place(move, side);
         const auto next = neighbors(candidate_radius_);
         const auto finishers = immediate_wins(side, next);
         const auto enemy = immediate_wins(other(side), next);
         unplace(move, side);
+        if (enemy.empty() && !finishers.empty())
+            has_forcing_four_starter = true;
         if (finishers.size() >= 2 && enemy.empty())
             return finish(move, SearchStopReason::forced_win, 0);
-        if (limit_reached()) break;
+        if (limit_reached()) {
+            finished_forcing_starter_audit = false;
+            break;
+        }
     }
 
     // Rule-certified opponent fork filter, before trained/heuristic ordering.
@@ -477,11 +491,13 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     std::vector<int> eligible;
     std::vector<std::pair<int,int>> risks;
     bool finished_fork_audit = true;
+    bool has_opponent_fork_risk = false;
     for (const int move : roots) {
         if (limit_reached()) { finished_fork_audit = false; break; }
         place(move, side);
         const int forks = fork_count(other(side));
         unplace(move, side);
+        if (forks != 0) has_opponent_fork_risk = true;
         if (forks == 0) eligible.push_back(move);
         risks.push_back({move, forks});
     }
@@ -504,7 +520,11 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
+    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)
+        && (!finished_forcing_starter_audit || has_forcing_four_starter)) {
+        // If the complete first-ply audit found no legal forcing-four
+        // starter, prove_four() has no success path. Skipping its repeated
+        // scan is exact for THIS solver, not a claim that no VCT exists.
         std::vector<int> pv;
         if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
             return finish(pv.front(), SearchStopReason::forced_win,
@@ -520,8 +540,16 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     // Report exactly the shortlist this search actually uses, once per
     // search. This is rank order, NOT probability or a shared score scale.
     if (ranked_roots) ranked_roots(ranked);
+    // All independent preflight gates must finish, and NO root may expose an
+    // opponent fork or forcing-four start. A complex board must keep
+    // thinking, even if the last few candidate choices looked stable.
+    const bool quiet_position = finished_forcing_starter_audit &&
+        finished_fork_audit && !has_forcing_four_starter &&
+        !has_opponent_fork_risk;
+    AdaptiveConvergence convergence;
+    bool stopped_for_convergence = false;
     for (int depth = 1; depth <= max_depth_; ++depth) {
-        int round_best = -1, round_score = -kInf;
+        int round_best = -1, round_score = -kInf, round_second = -kInf;
         for (int move : ranked) {
             ++nodes_;
             if (limit_reached()) break;
@@ -532,8 +560,11 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             if (policy && std::abs(score) < kMate / 2)
                 score += std::clamp(policy->bonus[move], -2000, 2000);
             if (score > round_score) {
+                round_second = round_score;
                 round_score = score;
                 round_best = move;
+            } else if (score > round_second) {
+                round_second = score;
             }
         }
         if (timed_out_) break;
@@ -577,10 +608,23 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             }
             if (progress_) progress_(nodes_, completed, incumbent);
             if (round_score >= kMate / 2) break;
+            // ONLY ADAPTIVE policy, never a budgeted or historic Swift search.
+            // Stop at a completed iteration after four consecutive, separated,
+            // parity-consistent root decisions on a low-risk board. No hidden
+            // 5.7s/20s cap; difficult positions may use the trainer's full
+            // depth/node/time policy and user cancellation always applies.
+            if (compute && compute->adaptive_convergence &&
+                convergence.observe({completed, incumbent,
+                                     round_score, round_second,
+                                     !quiet_position})) {
+                stopped_for_convergence = true;
+                break;
+            }
         }
     }
     return finish(incumbent, cancelled_ ? SearchStopReason::cancelled
         : timed_out_ ? SearchStopReason::time_limit
+        : stopped_for_convergence ? SearchStopReason::stable_convergence
                      : SearchStopReason::complete, completed);
 }
 int Search::best_move(const Board &root, int milliseconds) {
