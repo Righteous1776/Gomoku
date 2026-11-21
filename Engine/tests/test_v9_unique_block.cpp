@@ -63,6 +63,12 @@ int main() {
     bonuses[kOnlyBlock] = -2000;
 
     for (int family = 0; family != 2; ++family) {
+        // R21 actually selects the C++ V9 tree forest used by the search,
+        // rather than merely passing the Astra/Sol compute policy.
+        const int ranker = family == 0 ? EG_RESEARCH_RANKER_V9_ASTRA
+                                       : EG_RESEARCH_RANKER_V9_SOL;
+        REQUIRE(eg_select_research_ranker_v3(engine.get(), ranker) == 1);
+        REQUIRE(eg_research_ranker_v3(engine.get()) == ranker);
         const auto policy = researchPolicy(family == 0);
         EGComputeRunV2 result{};
         result.size_bytes = sizeof(result);
