@@ -47,7 +47,7 @@ final class InstrumentUITests: XCTestCase {
         scrollUntilHittable(selector, in: app)
         selector.tap()
 
-        let astra = app.buttons["gomoku.eclipse.model.eclipse-1.2-astra"]
+        let astra = app.buttons["gomoku.eclipse.model.eclipse-1.0-astra"]
         XCTAssertTrue(astra.waitForExistence(timeout: 6))
         XCTAssertTrue(app.buttons["gomoku.eclipse.model.eclipse-1.0-luna"].exists)
         capture(app, named: "Gomoku-ECLIPSE-versioned-model-library")
@@ -55,7 +55,7 @@ final class InstrumentUITests: XCTestCase {
 
         let changed = app.buttons["gomoku.eclipse.model.selector"]
         XCTAssertTrue(changed.waitForExistence(timeout: 6))
-        XCTAssertTrue((changed.label).contains("1.2 Astra"),
+        XCTAssertTrue((changed.label).contains("1.0 Astra"),
                       "Model selection must change the bound runtime identity")
     }
 
