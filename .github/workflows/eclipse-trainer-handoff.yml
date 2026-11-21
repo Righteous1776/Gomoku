@@ -1,0 +1,20 @@
+name: ECLIPSE R15 training Agent checkpoint protocol (synthetic)
+on:
+  pull_request:
+    paths:
+      - 'Arena/trainer_handoff_gate.py'
+      - 'Arena/tests/test_trainer_handoff_gate.py'
+      - '.github/workflows/eclipse-trainer-handoff.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  handoff-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject private training artifacts and histories
+        run: python3 Scripts/check_private_bundle.py
+      - name: Verify actual SHA match, running checkpoint identity and privacy contract (synthetic only)
+        run: python3 -m unittest discover -v -s Arena/tests -p 'test_trainer_handoff_gate.py'

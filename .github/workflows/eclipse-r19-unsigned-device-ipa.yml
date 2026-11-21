@@ -1,0 +1,57 @@
+name: ECLIPSE R19 unsigned device IPA candidate
+on:
+  pull_request:
+    paths:
+      - 'Apps/iOS/**'
+      - 'Engine/**'
+      - 'project.yml'
+      - 'Scripts/check_private_bundle.py'
+      - '.github/workflows/eclipse-r19-unsigned-device-ipa.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unsigned-device-candidate:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard against private owner training records
+        run: python3 Scripts/check_private_bundle.py
+      - name: Install project generator
+        run: brew install xcodegen
+      - name: Generate current R19 iOS project
+        run: xcodegen generate --spec project.yml
+      - name: Build actual Release iphoneos application with C++ V2 production path
+        run: |
+          xcodebuild -project Gomoku.xcodeproj -scheme Gomoku -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Check built app privacy before packaging
+        run: |
+          python3 Scripts/check_private_bundle.py \
+            --app DerivedData/Build/Products/Release-iphoneos/Gomoku.app
+      - name: Package and hash explicitly UNSIGNED build
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/Payload
+          ditto DerivedData/Build/Products/Release-iphoneos/Gomoku.app \
+            artifacts/Payload/Gomoku.app
+          (
+            cd artifacts
+            zip -qr ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa Payload
+            shasum -a 256 ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa \
+              > ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.sha256
+          )
+          python3 Scripts/check_private_bundle.py \
+            --ipa artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa
+      - name: Export actual unsigned device IPA (not stock iOS installable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R19-UNSIGNED-DEVICE-PREVIEW
+          path: |
+            artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.ipa
+            artifacts/ECLIPSE-R19-UNSIGNED-ARCHITECTURE-ONLY.sha256
+          retention-days: 7

@@ -1,0 +1,80 @@
+import Foundation
+import XCTest
+@testable import Gomoku
+
+final class GomokuMatchTransferTests: XCTestCase {
+    private func temporaryFolder() throws -> URL {
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("gomoku-transfer-" + UUID().uuidString)
+        try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
+        return path
+    }
+
+    func testRoundTripPreservesMoveSequenceAndRejectsDuplicate() throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = VeilGomokuMatchArchive(directory: folder.appendingPathComponent("source"))
+        let destination = VeilGomokuMatchArchive(directory: folder.appendingPathComponent("target"))
+        let session = UUID().uuidString
+        var moves: [VeilGomokuMatchArchive.Move] = []
+        for index in 0..<9 {
+            let stone: UInt8 = index.isMultiple(of: 2) ? 1 : 2
+            let position = index.isMultiple(of: 2)
+                ? 7 * 15 + index / 2 : index / 2
+            moves.append(.init(index: position, stone: stone))
+        }
+        _ = try source.save(sessionID: session, moves: moves,
+                            difficulty: "balanced", humanStone: 1,
+                            status: .humanWon)
+        let url = try GomokuMatchTransfer(archive: source).exportMostRecent()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let transfer = GomokuMatchTransfer(archive: destination)
+        let imported = try transfer.importMatch(from: url)
+        XCTAssertEqual(imported, session)
+        XCTAssertEqual(try destination.read(sessionID: session)?.moves, moves)
+        XCTAssertThrowsError(try transfer.importMatch(from: url))
+    }
+
+    func testInvalidJSONDoesNotAlterHistory() throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let archive = VeilGomokuMatchArchive(directory: folder.appendingPathComponent("target"))
+        let url = folder.appendingPathComponent("invalid.json")
+        try Data("{invalid".utf8).write(to: url)
+        XCTAssertThrowsError(try GomokuMatchTransfer(archive: archive).importMatch(from: url))
+        XCTAssertEqual(try archive.page().totalFiles, 0)
+    }
+    func testImportPreservesOriginalStartedAndCompletedTimestamps() throws {
+        let folder = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let source = VeilGomokuMatchArchive(directory: folder.appendingPathComponent("source"))
+        let target = VeilGomokuMatchArchive(directory: folder.appendingPathComponent("target"))
+        let id = UUID().uuidString
+        let started = Date(timeIntervalSince1970: 1_700_000_000)
+        let ended = started.addingTimeInterval(1_200)
+        let moves: [VeilGomokuMatchArchive.Move] = (0..<9).map { index in
+            .init(index: index.isMultiple(of: 2) ? 105 + index / 2 : index / 2,
+                  stone: index.isMultiple(of: 2) ? 1 : 2)
+        }
+        _ = try source.save(sessionID: id, moves: Array(moves.prefix(3)),
+                            difficulty: "balanced", humanStone: 1,
+                            status: .playing, now: started)
+        _ = try source.save(sessionID: id, moves: moves,
+                            difficulty: "balanced", humanStone: 1,
+                            status: .humanWon, now: ended)
+        let sourceRecord = try XCTUnwrap(source.read(sessionID: id))
+        let exportURL = try GomokuMatchTransfer(archive: source).exportMostRecent()
+        defer { try? FileManager.default.removeItem(at: exportURL) }
+        _ = try GomokuMatchTransfer(archive: target).importMatch(from: exportURL)
+        let imported = try XCTUnwrap(target.read(sessionID: id))
+        XCTAssertEqual(imported.id, sourceRecord.id)
+        XCTAssertEqual(imported.moves, sourceRecord.moves)
+        XCTAssertEqual(imported.status, sourceRecord.status)
+        XCTAssertEqual(imported.startedAt, started)
+        XCTAssertEqual(imported.updatedAt, ended)
+        XCTAssertEqual(imported.completedAt, ended)
+        XCTAssertEqual(imported.difficulty, sourceRecord.difficulty)
+        XCTAssertEqual(imported.humanStone, sourceRecord.humanStone)
+    }
+
+}

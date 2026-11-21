@@ -13,9 +13,13 @@ The appearance enum is `VeilAppearanceSelection.instrumentAuto` in `VeilLink/Cor
 - Use native scrolling and smallest possible rendering invalidation while search runs. Ensure dynamic type, VoiceOver and safe-area behavior in both orientations supported by original game view.
 - Record source screenshot vs new screenshot comparisons for dark/light, iPhone/iPad and after state transitions. No invented mockup substitutes for 1:1 source parity.
 
-## Existing package limitation
+## Actual migration status (2026-11-21)
 
-`Apps/iOS/Gomoku/InstrumentHomeView.swift` and `BoardInstrumentView.swift` are independently coded **temporary shell** components, visually thematic but NOT exact original UI components. Work must transplant and bind original UI before claiming completed migration.
+`InstrumentHomeView.swift` has been refactored from the original `VeilLink/UI/GameLobbyView.swift` LocalAIGameView hierarchy: compact state/metrics card, ECLIPSE identity/stream, seven-tier + full-depth controls, original board, then a single collapsible training & advanced panel. Independent Gomoku intentionally omits the parent VeilLink tab bar, messenger and unrelated games. `VeilEclipseRuntimeInstruments.swift` was copied unchanged from the original code and moved behind an explicit disclosure to prevent constant redraw and keep the board near the fold. The board retains original wood/grid/star/stone layout and has restored original post-move impact; it retains a stronger standalone accessibility implementation.
+
+The standalone difficulty/full-search quick-controls now use `ViewThatFits` to retain the original single horizontal row at normal iPhone widths and fall back to two rows on narrow windows and large Dynamic Type, without reducing button hit areas. `InstrumentUITests` now scrolls before asserting that lazy off-screen training cards exist, and returns to the foldout button before collapsing it; a missing off-screen `LazyVStack` child is not incorrectly labeled a rendering failure. Both are code-level updates only, not executed device verification.
+
+**This is SOURCE-ALIGNED, not 1:1 visual acceptance.** Xcode simulator screenshot capture and physical dark/light device comparisons have not executed on the current PR. Original `VeilLink` owner screenshots are the visual target, not independent app proof. Existing owner-provided photos were inspected but not stored in a public source directory. See `Docs/Operations/ECLIPSE_FULL_MIGRATION_ACCEPTANCE.md` for unresolved gates.
 
 ## Release UI check
 
@@ -24,3 +28,9 @@ The appearance enum is `VeilAppearanceSelection.instrumentAuto` in `VeilLink/Cor
 - No unnecessary theme options; day/night correct.
 - Back from a game and reopen preserves state and scroll where applicable.
 - No interaction hijacking from decorative effects; no noticeable freezes when AI computes.
+
+## Small-screen board width regression — 2026-11-21
+
+Owner compared side-by-side screenshots of the independent Gomoku V1.0.0 RC1 and the original VeilLink ECLIPSE. The independent version layered a generic `.veilCard()` around `GomokuBoardView` even though the wood board already draws its own bounded material. The outer plate added **16pt padding on each side**, reducing the playable board width by **32pt** on every iPhone while adding an unnecessary gray border.
+
+The standalone game's board section now uses `.frame(maxWidth: .infinity)` directly, without `.veilCard()`, while keeping the enclosing `ScrollView` horizontal 14pt safe gutter. On an unconstrained 390pt phone width, this removes the redundant plate and raises the theoretical board diameter from roughly 330pt to 362pt; this is a **layout calculation** rather than a simulator screenshot claim. The wooden face, 15x15 grid, 5.5% protective intersection inset, star points, touch-distance guard, move highlights, and VoiceOver coordinate representation are intentionally unchanged. Top ECLIPSE telemetry and controls retain their skeuomorphic instrument cards. Source regression checks `unframed board fills narrow screens` and `wood board retains safe edge taps` explicitly prevent reintroducing the plate or compromising edge taps. Simulator screenshot comparison and physical-device tap testing remain release acceptance steps.

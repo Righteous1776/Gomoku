@@ -1,0 +1,40 @@
+{
+  "schema": "gomoku.native-eclipse-research-adaptation.v1",
+  "upstream": "Righteous1776/VeilLink",
+  "source_commit": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "app_target": "Gomoku",
+  "status": "COMPILE_CANDIDATE_EXPERIMENTAL_NOT_PRODUCTION",
+  "notes": "Original search modules copied byte-identically to SwiftUI target; GomokuBot mandatory gates, controller, 7-tier parity, training and original UI not yet linked.",
+  "files": [
+    {
+      "source": "VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift",
+      "git_blob_sha": "94d9173b490159b2b9402656fa0a386ed0a59c1e",
+      "transformation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseTrainedOrdering.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift",
+      "git_blob_sha": "4e73cc1910820324487d9350194cfb5562a8439f",
+      "transformation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift",
+      "git_blob_sha": "0eb6e94e37052a19cc2b96bc1a82463f6fadfc22",
+      "transformation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift",
+      "git_blob_sha": "a8241383c28422ac75542caaa7b5f684c01c39bb",
+      "transformation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/Agent/Games/EclipseDifficultyPolicy.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift",
+      "git_blob_sha": "f1c830c4c3d57c17d2bb974e3ec1e8d12a6b85fa",
+      "transformation": "exact-copy"
+    }
+  ]
+}

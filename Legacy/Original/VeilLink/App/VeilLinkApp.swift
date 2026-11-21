@@ -1,0 +1,406 @@
+import Combine
+import OSLog
+import SwiftUI
+import UIKit
+
+@main
+@MainActor
+struct VeilLinkApp: App {
+    private static let startupSignposter = OSSignposter(
+        subsystem: "studio.zeo.veillink",
+        category: "startup"
+    )
+    @UIApplicationDelegateAdaptor(VeilBackgroundAppDelegate.self) private var backgroundDelegate
+    @StateObject private var bootstrap = AppBootstrap()
+    @StateObject private var lifecycle = VeilAppLifecycleCoordinator()
+    @StateObject private var appearance = VeilAppearanceController.shared
+    @Environment(\.scenePhase) private var scenePhase
+
+    init() {
+        let state = Self.startupSignposter.beginInterval("app.init")
+        defer { Self.startupSignposter.endInterval("app.init", state) }
+        VeilPreConsentBlackBox.shared.record(.appLaunched, stage: .launch)
+        TacticalLocalRenderCache.warmUp()
+        VeilChrome.configure()
+        Task.detached(priority: .utility) {
+            _ = try? VeilImportStagingLeasePolicy.sweepExpired(activeLeaseIDs: [])
+        }
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            Group {
+                if !bootstrap.onboarding.isCompleted {
+                    VeilReleaseActivationView(
+                        controller: bootstrap.onboarding,
+                        legal: bootstrap.legal
+                    ) {
+                        bootstrap.completeFirstActivation()
+                    }
+                } else if !bootstrap.legal.isSatisfied {
+                    LegalConsentGateView(controller: bootstrap.legal) {
+                        bootstrap.activateAfterLegalAcceptance()
+                    }
+                } else if let model = bootstrap.model {
+                    RootContainer(model: model)
+                        .onAppear {
+                            lifecycle.rootAppeared(model: model, scenePhase: scenePhase)
+                        }
+                        .onChange(of: scenePhase) { phase in
+                            lifecycle.sceneChanged(phase, model: model)
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+                            lifecycle.memoryWarning(model: model)
+                        }
+                } else {
+                    StartupFailureView(message: bootstrap.errorMessage)
+                }
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !bootstrap.legal.isSatisfied {
+                    VeilPreConsentBlackBoxButton()
+                }
+            }
+            .preferredColorScheme(appearance.preferredColorScheme)
+            .onAppear {
+                if !bootstrap.legal.isSatisfied {
+                    VeilPreConsentBlackBox.shared.record(.rootPresented, stage: bootstrap.onboarding.isCompleted ? .consent : .onboarding)
+                }
+                appearance.synchronizeSystemAppearance()
+                VeilChrome.configure()
+            }
+            .onChange(of: appearance.colorMode) { _ in
+                if !bootstrap.legal.isSatisfied {
+                    VeilPreConsentBlackBox.shared.record(.appearanceChanged, stage: bootstrap.onboarding.isCompleted ? .consent : .onboarding)
+                }
+                appearance.synchronizeSystemAppearance()
+                VeilChrome.configure()
+            }
+            .onChange(of: appearance.systemIsDark) { _ in
+                if !bootstrap.legal.isSatisfied {
+                    VeilPreConsentBlackBox.shared.record(.systemAppearanceChanged, stage: bootstrap.onboarding.isCompleted ? .consent : .onboarding)
+                }
+            }
+            .onChange(of: appearance.selection) { _ in
+                if !bootstrap.legal.isSatisfied {
+                    VeilPreConsentBlackBox.shared.record(.themeChanged, stage: bootstrap.onboarding.isCompleted ? .consent : .onboarding)
+                }
+                VeilChrome.configure()
+            }
+            .onChange(of: scenePhase) { phase in
+                guard !bootstrap.legal.isSatisfied else { return }
+                let box = VeilPreConsentBlackBox.shared
+                let stage: VeilPreConsentBlackBox.Stage = bootstrap.onboarding.isCompleted ? .consent : .onboarding
+                switch phase {
+                case .active: box.record(.sceneActive, stage: stage)
+                case .inactive: box.record(.sceneInactive, stage: stage)
+                case .background: box.record(.sceneBackground, stage: stage)
+                @unknown default: break
+                }
+            }
+        }
+    }
+}
+
+enum VeilChrome {
+    @MainActor
+    static func configure() {
+        let appearance = VeilAppearanceController.shared
+        let appleSoft = appearance.isAppleSoft
+        let background = UIColor(VeilTheme.background)
+        let elevated = UIColor(VeilTheme.elevated)
+        let navigation = UINavigationBarAppearance()
+        if appleSoft {
+            navigation.configureWithTransparentBackground()
+            navigation.backgroundColor = .clear
+            if #available(iOS 26.0, *) {
+                // Keep system chrome unpainted so current SDKs can supply native Liquid Glass.
+            } else {
+                navigation.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            }
+            navigation.shadowColor = .clear
+            navigation.titleTextAttributes = [.foregroundColor: UIColor.label]
+            navigation.largeTitleTextAttributes = [.foregroundColor: UIColor.label]
+        } else {
+            navigation.configureWithOpaqueBackground()
+            navigation.backgroundColor = UIColor(VeilTheme.background).withAlphaComponent(0.96)
+            navigation.shadowColor = UIColor(VeilTheme.hairline)
+            navigation.titleTextAttributes = [.foregroundColor: UIColor(VeilTheme.text)]
+            navigation.largeTitleTextAttributes = [.foregroundColor: UIColor(VeilTheme.text)]
+        }
+        let navigationBar = UINavigationBar.appearance()
+        navigationBar.standardAppearance = navigation
+        navigationBar.compactAppearance = navigation
+        navigationBar.scrollEdgeAppearance = navigation
+        navigationBar.tintColor = appleSoft ? .systemBlue : UIColor(VeilTheme.gold)
+
+        let tab = UITabBarAppearance()
+        if appleSoft {
+            tab.configureWithTransparentBackground()
+            tab.backgroundColor = .clear
+            if #available(iOS 26.0, *) {
+                // Standard tab chrome can adopt platform Liquid Glass.
+            } else {
+                tab.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            }
+            tab.shadowColor = .clear
+        } else {
+            tab.configureWithOpaqueBackground()
+            tab.backgroundColor = UIColor(VeilTheme.background).withAlphaComponent(0.985)
+            tab.shadowColor = UIColor(VeilTheme.hairline)
+        }
+        let selected = appleSoft ? UIColor.systemBlue : UIColor(VeilTheme.goldBright)
+        let navigationTint = appleSoft ? UIColor.systemBlue : UIColor(VeilTheme.gold)
+        let normal = appleSoft ? UIColor.secondaryLabel : UIColor(VeilTheme.secondaryText)
+        for appearance in [tab.stackedLayoutAppearance, tab.inlineLayoutAppearance, tab.compactInlineLayoutAppearance] {
+            appearance.selected.iconColor = selected
+            appearance.selected.titleTextAttributes = [.foregroundColor: selected]
+            appearance.normal.iconColor = normal
+            appearance.normal.titleTextAttributes = [.foregroundColor: normal]
+        }
+        let tabBar = UITabBar.appearance()
+        tabBar.standardAppearance = tab
+        tabBar.scrollEdgeAppearance = tab
+
+        UITableView.appearance().backgroundColor = background
+        UITableView.appearance().separatorColor = UIColor(VeilTheme.hairline)
+        UITableViewCell.appearance().backgroundColor = .clear
+        UICollectionView.appearance().backgroundColor = background
+        UISearchBar.appearance().barTintColor = elevated
+
+        // UIAppearance only affects controls created after the change. Apply the same palette to
+        // bars already on screen so switching Day/Night does not leave a light tab bar attached
+        // to dark content (or vice versa) until the next launch.
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            for window in scene.windows {
+                refreshVisibleChrome(
+                    in: window.rootViewController,
+                    navigation: navigation,
+                    tab: tab,
+                    navigationTint: navigationTint,
+                    tabTint: selected,
+                    isDark: appearance.isDarkAppearance
+                )
+            }
+        }
+    }
+
+    @MainActor
+    private static func refreshVisibleChrome(
+        in controller: UIViewController?,
+        navigation: UINavigationBarAppearance,
+        tab: UITabBarAppearance,
+        navigationTint: UIColor,
+        tabTint: UIColor,
+        isDark: Bool
+    ) {
+        guard let controller else { return }
+
+        if let navigationController = controller as? UINavigationController {
+            let bar = navigationController.navigationBar
+            bar.standardAppearance = navigation
+            bar.compactAppearance = navigation
+            bar.scrollEdgeAppearance = navigation
+            bar.tintColor = navigationTint
+            bar.barStyle = isDark ? .black : .default
+        }
+
+        if let tabController = controller as? UITabBarController {
+            tabController.tabBar.standardAppearance = tab
+            tabController.tabBar.scrollEdgeAppearance = tab
+            tabController.tabBar.tintColor = tabTint
+            tabController.tabBar.barStyle = isDark ? .black : .default
+        }
+
+        controller.children.forEach {
+            refreshVisibleChrome(
+                in: $0,
+                navigation: navigation,
+                tab: tab,
+                navigationTint: navigationTint,
+                tabTint: tabTint,
+                isDark: isDark
+            )
+        }
+        if let presented = controller.presentedViewController {
+            refreshVisibleChrome(
+                in: presented,
+                navigation: navigation,
+                tab: tab,
+                navigationTint: navigationTint,
+                tabTint: tabTint,
+                isDark: isDark
+            )
+        }
+    }
+}
+
+@MainActor
+private final class AppBootstrap: ObservableObject {
+    private static let startupSignposter = OSSignposter(
+        subsystem: "studio.zeo.veillink",
+        category: "startup"
+    )
+    @Published private(set) var model: AppModel?
+    @Published private(set) var errorMessage = ""
+    let legal: VeilLegalConsentController
+    let onboarding: VeilFirstRunOnboardingController
+
+    private let keychain: KeychainStore
+    private var legalCancellable: AnyCancellable?
+
+    init() {
+        keychain = KeychainStore()
+        legal = VeilLegalConsentController(keychain: keychain)
+        onboarding = VeilFirstRunOnboardingController()
+        legalCancellable = legal.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+        if legal.isSatisfied && onboarding.isCompleted { initializeModel() }
+    }
+
+    func completeFirstActivation() {
+        guard legal.isSatisfied else { return }
+        onboarding.complete()
+        if model == nil {
+            initializeModel()
+        } else {
+            model?.activateAfterLegalAcceptance()
+        }
+    }
+
+    func activateAfterLegalAcceptance() {
+        guard legal.isSatisfied, onboarding.isCompleted else { return }
+        if model == nil {
+            initializeModel()
+        } else {
+            model?.activateAfterLegalAcceptance()
+        }
+    }
+
+    private func initializeModel() {
+        guard legal.isSatisfied, onboarding.isCompleted, model == nil else { return }
+        let startupState = Self.startupSignposter.beginInterval("app.model_init")
+        defer { Self.startupSignposter.endInterval("app.model_init", startupState) }
+        let diagnostics = RuntimeDiagnosticsBridge.shared
+        diagnostics.recordStartupBegin()
+        do {
+            model = try AppModel(keychain: keychain, legalConsent: legal)
+            errorMessage = ""
+            diagnostics.recordStartupSuccess()
+        } catch {
+            model = nil
+            errorMessage = error.localizedDescription
+            // Fixed-event diagnostics remain exportable without AppModel, SQLite or Keychain.
+            VeilPreConsentBlackBox.shared.record(.startupFailed, stage: .startupFailure)
+            // Fixed categories only: never copy an error string, identifier or key.
+            let failureCategory: VeilPreConsentBlackBox.Event
+            if let databaseError = error as? DatabaseError {
+                switch databaseError {
+                case .encryptionKeyMissing:
+                    failureCategory = .startupKeyMissing
+                case .encryptionKeyTemporarilyUnavailable(_):
+                    failureCategory = .startupKeyUnavailable
+                case .encryptionKeyMismatch:
+                    failureCategory = .startupKeyMismatch
+                default:
+                    failureCategory = .startupOtherFailure
+                }
+            } else {
+                failureCategory = .startupOtherFailure
+            }
+            VeilPreConsentBlackBox.shared.record(failureCategory, stage: .startupFailure)
+            diagnostics.recordStartupFailure(error)
+        }
+    }
+}
+
+private struct StartupFailureView: View {
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "externaldrive.badge.exclamationmark")
+                .font(.system(size: 48, weight: .light))
+                .foregroundColor(VeilTheme.goldBright)
+            Text("本地数据未能安全打开")
+                .font(.title3.weight(.semibold))
+            Text("VeilLink 没有自动重建或覆盖数据库，以避免造成不可逆的数据丢失。请重新启动应用；如果问题持续存在，再使用最近的有效备份恢复。")
+                .multilineTextAlignment(.center)
+                .foregroundColor(VeilTheme.secondaryText)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.caption.monospaced())
+                    .foregroundColor(VeilTheme.secondaryText)
+                    .textSelection(.enabled)
+            }
+            VeilPreConsentBlackBoxButton(stage: .startupFailure)
+                .frame(maxWidth: 520)
+        }
+        .padding(28)
+        .frame(maxWidth: 520)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(VeilAmbientBackground())
+    }
+}
+
+private struct RootContainer: View {
+    @ObservedObject var model: AppModel
+    @ObservedObject var identity: IdentityManager
+    @ObservedObject var appLock: AppLockController
+    @ObservedObject var legalConsent: VeilLegalConsentController
+    @ObservedObject var stressTest: DeviceStressTestController
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var motionReduced: Bool { VeilMotionPolicy.usesReducedMotion(reduceMotion) }
+
+    init(model: AppModel) {
+        self.model = model
+        identity = model.identity
+        appLock = model.appLock
+        legalConsent = model.legalConsent
+        stressTest = DeviceStressTestController.shared
+    }
+
+    var body: some View {
+        ZStack {
+            VeilAmbientBackground()
+            if !legalConsent.isSatisfied {
+                LegalConsentGateView(controller: legalConsent) {
+                    model.activateAfterLegalAcceptance()
+                }
+                .transition(.opacity)
+            } else if identity.activeIdentity == nil {
+                OnboardingView(model: model)
+                    .telemetryScreen("onboarding")
+                    .transition(.opacity)
+            } else if appLock.isLocked {
+                LockScreenView(controller: appLock, haptics: model.haptics)
+                    .telemetryScreen("lock")
+                    .transition(motionReduced ? .opacity : .opacity.combined(with: .scale(scale: 0.992)))
+            } else {
+                AdaptiveRootView(model: model)
+                    .transition(motionReduced ? .opacity : .opacity.combined(with: .scale(scale: 1.006)))
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if stressTest.isRunning {
+                DeviceStressTestHUD(controller: stressTest)
+                    .padding(.top, 8)
+                    .padding(.trailing, 8)
+            }
+        }
+        .animation(VeilMotionPolicy.animation(.reveal, reduceMotionRequested: reduceMotion), value: appLock.isLocked)
+        .animation(VeilMotionPolicy.animation(.reveal, reduceMotionRequested: reduceMotion), value: identity.activeIdentity?.id)
+        .alert("VeilLink", isPresented: Binding(
+            get: { model.alertMessage != nil },
+            set: { if !$0 { model.alertMessage = nil } }
+        )) {
+            Button("确定", role: .cancel) {
+                RuntimeDiagnosticsBridge.shared.recordSemanticAction("alert.dismiss")
+                model.alertMessage = nil
+            }
+        } message: {
+            Text(model.alertMessage ?? "")
+        }
+    }
+}

@@ -1,0 +1,32 @@
+name: ECLIPSE R19 unified release architecture gates
+on:
+  pull_request:
+    paths:
+      - 'Apps/iOS/Gomoku/NativeEclipse/**'
+      - 'Engine/**'
+      - 'Scripts/verify_eclipse_release_integration.py'
+      - 'Scripts/tests/test_eclipse_release_integration.py'
+      - 'Docs/Operations/ECLIPSE_R19_UNIFIED_ACCEPTANCE.md'
+      - '.github/workflows/eclipse-unified-cutover.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  architecture-cutover-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify no owner learning record reaches shared release
+        run: python3 Scripts/check_private_bundle.py
+      - name: Prove non-debug iOS C++ V2 wiring, real checkpoint identity and fail-closed fallback
+        run: |
+          python3 -m unittest -v Scripts.tests.test_eclipse_release_integration
+          python3 Scripts/verify_eclipse_release_integration.py \
+            --output build/evidence/eclipse-r19-architecture.json
+      - name: Report exact architecture evidence, not a fake training result
+        if: always() && hashFiles('build/evidence/eclipse-r19-architecture.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R19-Cpp-Production-Architecture-Audit
+          path: build/evidence/eclipse-r19-architecture.json

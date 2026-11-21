@@ -1,0 +1,63 @@
+name: ECLIPSE R15 measured seven-budget Swift/C++ compute parity
+on:
+  pull_request:
+    paths:
+      - 'Arena/compute_parity_probe.py'
+      - 'Engine/**'
+      - 'Apps/iOS/Gomoku/NativeEclipse/**'
+      - '.github/workflows/eclipse-compute-parity.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  actual-compute-parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build C++ engine with actual elapsed_ms/nodes diagnostics
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Compile original full native GomokuBot from app sources
+        run: |
+          swiftc -O -swift-version 5 -o build/swift_original_gomoku_bot \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift
+      - name: Prove both real engines accept open-ended and 120-second trainer budgets
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          history='0,15,1,16,2,17,3,18'
+          for ms in (0,120000):
+              for executable in ('build/swift_original_gomoku_bot','build/Engine/gomoku_cli'):
+                  result=json.loads(subprocess.check_output(
+                      [executable,'--best',history,'--ms',str(ms)],
+                      text=True,timeout=15))
+                  assert result['move']==4,(executable,ms,result)
+                  assert result.get('budget_ms',ms)==ms,(executable,ms,result)
+          print('Swift/C++ accepted no deadline and 120000ms request')
+          PY
+      - name: Measure both real engines at all 7 original Swift budgets
+        run: |
+          python3 Arena/compute_parity_probe.py \
+            --swift build/swift_original_gomoku_bot \
+            --cpp build/Engine/gomoku_cli \
+            --out Arena/evidence/seven-budget-compute-parity.json
+      - name: Upload synthetic-only compute telemetry
+        if: always() && hashFiles('Arena/evidence/seven-budget-compute-parity.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R15-seven-budget-compute-telemetry
+          path: Arena/evidence/seven-budget-compute-parity.json

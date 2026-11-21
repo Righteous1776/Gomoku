@@ -1,0 +1,50 @@
+{
+  "schema": "gomoku.training-archive-port.v1",
+  "source_pin": "0e4b51e990ee1ab2c13c8b1b16bdb94ee8ee5f32",
+  "source_files": [
+    {
+      "source": "VeilLink/Agent/Games/NativeGomokuSelfPlay.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/NativeGomokuSelfPlay.swift",
+      "source_blob": "6b4f7465b9deba28e0005f59e6dd8dacb58ae5a6",
+      "adaptation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/Agent/Games/GomokuBundledNativeSeed.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/GomokuBundledNativeSeed.swift",
+      "source_blob": "74415da0c9a44fc0beb5f970ea24405411eb7ff9",
+      "adaptation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTracePolicy.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilEclipseTracePolicy.swift",
+      "source_blob": "7b7534983911eecd106a7be45f8a3fc67c501dd2",
+      "adaptation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseSearchTraceStore.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilEclipseSearchTraceStore.swift",
+      "source_blob": "24f03a41d55cf2340576739efda7fb7d3b1e9836",
+      "adaptation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/UI/VeilEclipseTraceSessionGate.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilEclipseTraceSessionGate.swift",
+      "source_blob": "cca151f3805ec60afe6929cb51994b2e2db910d4",
+      "adaptation": "exact-copy"
+    },
+    {
+      "source": "VeilLink/UI/VeilGomokuMatchArchive.swift",
+      "destination": "Apps/iOS/Gomoku/NativeEclipse/VeilGomokuMatchArchive.swift",
+      "source_blob": "509ccf339b9805f568f3a0f2d314575186364ce1",
+      "adaptation": "isolated-app-support-path"
+    },
+    {
+      "source": "VeilLink/Resources/GomokuNativeTrainingSeed.json",
+      "destination": "Apps/iOS/Gomoku/Resources/GomokuNativeTrainingSeed.json",
+      "source_blob": "b9f017ee9b40c877c3f6124a6911eef15a8cd19c",
+      "adaptation": "exact-copy"
+    }
+  ],
+  "stage": "COMPILATION_CANDIDATE_NOT_RELEASED",
+  "notes": "Original native selfplay and seed verification now in app target. Archive is copied except app support folder switched from VeilLink to Gomoku. No private user data imported. Actual game training/store and original learning retention require integration."
+}

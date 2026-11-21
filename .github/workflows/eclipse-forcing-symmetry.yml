@@ -1,0 +1,55 @@
+name: ECLIPSE R13 actual Swift versus C++ synthetic forcing D4
+on:
+  pull_request:
+    paths:
+      - 'Arena/forcing_symmetry_gate.py'
+      - 'Arena/tests/test_forcing_symmetry_gate.py'
+      - 'Arena/private_forcing_forks.py'
+      - 'Engine/**'
+      - 'Apps/iOS/Gomoku/NativeEclipse/**'
+      - '.github/workflows/eclipse-forcing-symmetry.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  forcing-symmetry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm compiler and build current experimental C++20
+        run: |
+          swiftc --version
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2
+      - name: Compile original full native GomokuBot from app sources
+        run: |
+          swiftc -O -swift-version 5 -o build/swift_original_gomoku_bot \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuFormationLearning.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuCounterForkR4.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuBot.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedBridge.swift \
+            Apps/iOS/Gomoku/NativeEclipse/VeilGomokuUnifiedSearch.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseTrainedOrdering.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseHorizonQuiescenceR12.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseIncrementalThreatIndexR13.swift \
+            Apps/iOS/Gomoku/NativeEclipse/EclipseDifficultyPolicy.swift
+      - name: Validate synthetic D4 pattern fixtures with no owner data
+        run: python3 -m unittest discover -v -s Arena/tests -p 'test_forcing_symmetry_gate.py'
+      - name: Run actual Swift/C++ D4 32 pattern transformations at two budgets
+        run: |
+          python3 Arena/forcing_symmetry_gate.py \
+            --swift build/swift_original_gomoku_bot \
+            --cpp build/Engine/gomoku_cli \
+            --budgets 75 260 \
+            --out Arena/evidence/synthetic-forcing-symmetry.json
+      - name: Upload only aggregate public synthetic results
+        if: always() && hashFiles('Arena/evidence/synthetic-forcing-symmetry.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R13-public-synthetic-forcing-results
+          path: Arena/evidence/synthetic-forcing-symmetry.json
