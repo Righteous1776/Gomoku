@@ -358,7 +358,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                              const ComputePolicy *compute,
                              const std::atomic<bool> *cancel,
                              const ProgressSink &progress,
-                             const RankedRootsSink &ranked_roots) {
+                             const RankedRootsSink &ranked_roots,
+                             const CompletedPVSink &completed_pv) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -541,6 +542,39 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             completed = depth;
             last_completed_depth_ = completed;
             last_best_move_ = incumbent;
+            // Stage C3: only trace an ACTUALLY SEARCHED exact-TT continuation
+            // after a fully finished root iteration. No additional scoring,
+            // ordering, search or policy changes. Missing entries truncate
+            // the line instead of fabricating hypothetical opponent replies.
+            if (completed_pv) {
+                std::vector<int> continuation{incumbent};
+                std::vector<std::pair<int, int>> speculative;
+                place(incumbent, side);
+                speculative.emplace_back(incumbent, side);
+                int reply_side = other(side);
+                while (continuation.size() < 16 &&
+                       static_cast<int>(continuation.size()) < completed &&
+                       free_ > 0 &&
+                       !five_at(speculative.back().first, other(reply_side))) {
+                    const int required = completed -
+                        static_cast<int>(continuation.size());
+                    const auto entry = table_.find(hash_ ^ side_hash()[reply_side]);
+                    if (entry == table_.end() ||
+                        entry->second.flag != 0 ||
+                        entry->second.depth < required) break;
+                    const int move = entry->second.best;
+                    if (move < 0 || move >= kCells || cells_[move] != 0) break;
+                    place(move, reply_side);
+                    speculative.emplace_back(move, reply_side);
+                    continuation.push_back(move);
+                    reply_side = other(reply_side);
+                }
+                for (auto it = speculative.rbegin();
+                     it != speculative.rend(); ++it) {
+                    unplace(it->first, it->second);
+                }
+                completed_pv(completed, continuation);
+            }
             if (progress_) progress_(nodes_, completed, incumbent);
             if (round_score >= kMate / 2) break;
         }
