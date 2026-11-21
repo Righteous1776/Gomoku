@@ -79,8 +79,26 @@ final class NativeGomokuAppController: ObservableObject {
     private let trainingJournal: GomokuNativeTrainingJournal
     private let verifiedTrainerExecution: EclipseVerifiedTrainerExecution?
 
+    /// The new 2.x model library is not selectable just because its research
+    /// weights exist in GitHub. We must see its real checkpoint loaded by the
+    /// live C++ scorer, identical to the training Agent's approved identity.
+    var verifiedSelectableModel: EclipseModelID? {
+        guard let trainer = verifiedTrainerExecution,
+              trainer.model.requiresVerifiedCheckpoint,
+              EclipseCppProductionAdapter.loadedCheckpointSHA256()
+                  == trainer.checkpointSHA256
+        else { return nil }
+        return trainer.model
+    }
+
+    var availableModels: [EclipseModelID] {
+        EclipseModelID.featuredIncludingVerified(verifiedSelectableModel)
+    }
+
     var trainerControlsCompute: Bool {
         verifiedTrainerExecution?.model == selectedModel
+            && (!selectedModel.requiresVerifiedCheckpoint
+                || verifiedSelectableModel == selectedModel)
     }
     private let localMatchEvidence: GomokuLocalMatchEvidence
     private var sessionHasLocalProvenance = true
@@ -127,8 +145,13 @@ final class NativeGomokuAppController: ObservableObject {
             if let stored = UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ), let saved = EclipseModelSelection.fromArchiveValue(stored) {
-                selectedModel = saved.model
-                computeTier = saved.compute
+                if !saved.model.requiresVerifiedCheckpoint
+                    || verifiedSelectableModel == saved.model {
+                    selectedModel = saved.model
+                    computeTier = saved.compute
+                } else {
+                    fallbackWarning = "此前选择的 \(saved.model.name) 尚未在 C++ 中完成加载核验；当前暂用原版 Swift。"
+                }
             }
             if let explicitlySelectedCompute = EclipseComputeTier(
                 rawValue: UserDefaults.standard.string(
@@ -167,6 +190,10 @@ final class NativeGomokuAppController: ObservableObject {
     /// match and avoids misattributing its result to the wrong model.
     func selectModel(_ model: EclipseModelID) {
         guard model != selectedModel else { return }
+        if model.requiresVerifiedCheckpoint && verifiedSelectableModel != model {
+            fallbackWarning = "\(model.name) 尚无通过核验的实际 C++ 训练检查点，不能冒充已上线模型。"
+            return
+        }
         selectedModel = model
         computeTier = model.defaultComputeTier
         UserDefaults.standard.set(model.rawValue, forKey: EclipseModelID.selectionKey)

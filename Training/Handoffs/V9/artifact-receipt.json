@@ -1,0 +1,72 @@
+{
+  "schema": "eclipse.v9.artifact-receipt.v1",
+  "repository": "Righteous1776/Gomoku",
+  "package_name": "ECLIPSE-V9-Astra-Sol-Handoff-20261121.zip",
+  "package_size_bytes": 944903,
+  "package_sha256": "1e277033bab96fc8a86f5385b47a27773151553a65282064069a55432f8034df",
+  "package_file_count": 30,
+  "package_actual_bytes_uploaded_to_github": false,
+  "weights_uploaded_to_github": true,
+  "under_review": true,
+  "benchmarks": {
+    "games": 24,
+    "engine": "local-C++-research-not-R19",
+    "per_move_budget_ms": 120,
+    "astra_v9_vs_v8": [
+      5,
+      3
+    ],
+    "sol_v9_vs_v8": [
+      5,
+      3
+    ],
+    "astra_vs_sol": [
+      4,
+      4
+    ],
+    "trained_swift_zenith_6x_games": 0
+  },
+  "model_checkpoints": [
+    {
+      "family": "astra",
+      "internal_version": "V9",
+      "trees": 314,
+      "bytes": 691578,
+      "sha256": "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d",
+      "status": "BLOCKED_UNIQUE_DEFENSE_RANKING_REGRESSION"
+    },
+    {
+      "family": "sol",
+      "internal_version": "V9",
+      "trees": 160,
+      "bytes": 261150,
+      "sha256": "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd",
+      "status": "RESEARCH_REVIEW_ONLY"
+    },
+    {
+      "family": "astra",
+      "internal_version": "V8",
+      "trees": 254,
+      "bytes": 595365,
+      "sha256": "44c1efcc2e35cd0dd264bda654e58b188ee0fe7a8de8f30fe45aaff9d7903685",
+      "status": "RESEARCH_SAFE_RANKING_BASELINE"
+    },
+    {
+      "family": "sol",
+      "internal_version": "V8",
+      "trees": 120,
+      "bytes": 203166,
+      "sha256": "3f31c7eca7b2b8b61997844a53eccb495daa3403e60356a5f581a9491d79d27d",
+      "status": "RESEARCH_HISTORICAL"
+    }
+  ],
+  "owner_requires_node_c_separate_authorization": true,
+  "source_files_uploaded_to_github": true,
+  "source_files_count": 30,
+  "source_files_total_bytes": 2897781,
+  "source_files_git_path": "Training/Handoffs/V9/source/",
+  "source_file_git_sha_verified": true,
+  "source_file_production_integrated": false,
+  "source_upload_commit_sha": "5c8c9f328228d4f3dcfbda2ed4dc4514f9ed92f4",
+  "public_repository_warning": "Research weights and synthetic arena records now visible in public repository on feature branch; no original private .vltrain or SQLite included."
+}

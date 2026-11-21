@@ -1,0 +1,20 @@
+{
+  "candidate": "sol-v9",
+  "canonical_compute_policy_sha256": "15ca5d87a2541c895f8b9d3a1ec853fb253c47cd0de536d782cd997a872acb43",
+  "compute_policy": {
+    "candidate_radius": 2,
+    "continuation_width": 6,
+    "forced_line_depth": 6,
+    "max_depth": 9,
+    "max_nodes": 400000,
+    "max_wall_time_ms": 8000,
+    "mode": "budgeted",
+    "reply_width": 10,
+    "root_width": 16
+  },
+  "family": "sol",
+  "schema": "eclipse.v9.research-compute-policy-proposal.v1",
+  "semantics": "Maximum safety ceilings only; cannot imply minimum required thought; early-stop logic requires independent proof and search instrumentation",
+  "source": "R19 EclipseTrainerComputePolicy.swift canonical JSON SHA-256 contract",
+  "status": "UNTESTED_RESEARCH_PROPOSAL_NOT_R19_PRODUCTION_BINDING"
+}

@@ -1,0 +1,20 @@
+{
+  "candidate": "astra-v9",
+  "canonical_compute_policy_sha256": "ea6eebe73e69d66caefc3091e4670d44e0405f659d327edeafd452a73edba8d6",
+  "compute_policy": {
+    "candidate_radius": 3,
+    "continuation_width": 8,
+    "forced_line_depth": 8,
+    "max_depth": 12,
+    "max_nodes": 1200000,
+    "max_wall_time_ms": 30000,
+    "mode": "budgeted",
+    "reply_width": 16,
+    "root_width": 24
+  },
+  "family": "astra",
+  "schema": "eclipse.v9.research-compute-policy-proposal.v1",
+  "semantics": "Maximum safety ceilings only; cannot imply minimum required thought; early-stop logic requires independent proof and search instrumentation",
+  "source": "R19 EclipseTrainerComputePolicy.swift canonical JSON SHA-256 contract",
+  "status": "UNTESTED_RESEARCH_PROPOSAL_NOT_R19_PRODUCTION_BINDING"
+}

@@ -1,0 +1,147 @@
+{
+  "schema": "eclipse.local-research-arena.v1",
+  "scope": "LOCALLY CONSTRUCTED search core; NOT Original Swift, NOT official R15 C++",
+  "rules": "freestyle-15",
+  "groups": {
+    "astra_v9_vs_v8": {
+      "models": {
+        "A": "astra_new_314",
+        "B": "astra_old_254"
+      },
+      "budget_cap_ms_per_move": 120,
+      "engine": "LOCAL research C++ shared search; actual 26D LightGBM weights",
+      "paired_openings": 4,
+      "games": 8,
+      "A_wins": 5,
+      "B_wins": 3,
+      "draws": 0,
+      "A_match_points": 5.0,
+      "A_score_fraction": 0.625,
+      "wilson_95_interval_on_A_win_fraction_excluding_draws": [
+        0.3057,
+        0.8632
+      ],
+      "moves_sum": 251,
+      "actual_search_ms_A_total": 8136,
+      "actual_search_ms_B_total": 7729,
+      "nodes_A_total": 87971,
+      "nodes_B_total": 101621,
+      "timeouts_A_total": 38,
+      "timeouts_B_total": 18,
+      "all_games_legal_and_terminal_verified": true,
+      "pair_results": {
+        "0": [
+          "A",
+          "B"
+        ],
+        "1": [
+          "A",
+          "B"
+        ],
+        "2": [
+          "A",
+          "A"
+        ],
+        "3": [
+          "A",
+          "B"
+        ]
+      },
+      "raw_jsonl_sha256": "14c6c328ddf96dac2486e091825a7fea3c74d7b5513b3226e9cf259dcf53b692"
+    },
+    "sol_v9_vs_v8": {
+      "models": {
+        "A": "sol_new_160",
+        "B": "sol_old_120"
+      },
+      "budget_cap_ms_per_move": 120,
+      "engine": "LOCAL research C++ shared search; actual 26D LightGBM weights",
+      "paired_openings": 4,
+      "games": 8,
+      "A_wins": 5,
+      "B_wins": 3,
+      "draws": 0,
+      "A_match_points": 5.0,
+      "A_score_fraction": 0.625,
+      "wilson_95_interval_on_A_win_fraction_excluding_draws": [
+        0.3057,
+        0.8632
+      ],
+      "moves_sum": 213,
+      "actual_search_ms_A_total": 3369,
+      "actual_search_ms_B_total": 2584,
+      "nodes_A_total": 99415,
+      "nodes_B_total": 97740,
+      "timeouts_A_total": 0,
+      "timeouts_B_total": 0,
+      "all_games_legal_and_terminal_verified": true,
+      "pair_results": {
+        "0": [
+          "A",
+          "B"
+        ],
+        "1": [
+          "A",
+          "A"
+        ],
+        "2": [
+          "A",
+          "B"
+        ],
+        "3": [
+          "A",
+          "B"
+        ]
+      },
+      "raw_jsonl_sha256": "1c37e716c510210e0f77d466e68e0dd0e1b2a41591c995a4093513913fdac5f7"
+    },
+    "astra_v9_vs_sol_v9": {
+      "models": {
+        "A": "astra_new_314",
+        "B": "sol_new_160"
+      },
+      "budget_cap_ms_per_move": 120,
+      "engine": "LOCAL research C++ shared search; actual 26D LightGBM weights",
+      "paired_openings": 4,
+      "games": 8,
+      "A_wins": 4,
+      "B_wins": 4,
+      "draws": 0,
+      "A_match_points": 4.0,
+      "A_score_fraction": 0.5,
+      "wilson_95_interval_on_A_win_fraction_excluding_draws": [
+        0.2152,
+        0.7848
+      ],
+      "moves_sum": 206,
+      "actual_search_ms_A_total": 6447,
+      "actual_search_ms_B_total": 3315,
+      "nodes_A_total": 79121,
+      "nodes_B_total": 96534,
+      "timeouts_A_total": 26,
+      "timeouts_B_total": 0,
+      "all_games_legal_and_terminal_verified": true,
+      "pair_results": {
+        "0": [
+          "B",
+          "B"
+        ],
+        "1": [
+          "A",
+          "A"
+        ],
+        "2": [
+          "A",
+          "B"
+        ],
+        "3": [
+          "A",
+          "B"
+        ]
+      },
+      "raw_jsonl_sha256": "8442d5b6970459552b8a6c7fcfb266cc5fa5e8adffde5c851cee2b8d05af9fc2"
+    }
+  },
+  "production_strength_parity_verified": false,
+  "real_swift_zenith_6x_matches": 0
+}

@@ -1,0 +1,50 @@
+{
+  "schema": "eclipse.product-generation-identity.v1",
+  "product_generation": "2.0",
+  "model_lineage": "V9",
+  "owner_naming_approval": "ECLIPSE 2.0 Astra and ECLIPSE 2.0 Sol share product generation 2.0; Sol is a separately distilled checkpoint. Preserve all historical 1.x version IDs.",
+  "product_state": "NAMED_RESEARCH_CANDIDATES_NOT_RELEASED",
+  "generation_requires_new_trained_weights": true,
+  "compute_policy_is_version_number": false,
+  "package_reference": "ECLIPSE-V9-Astra-Sol-Handoff-20261121.zip",
+  "models": [
+    {
+      "product_id": "eclipse-2.0-astra",
+      "display_name": "2.0 Astra",
+      "full_name": "ECLIPSE 2.0 Astra",
+      "internal_training_revision": "V9",
+      "role": "flagship",
+      "n_features": 26,
+      "trees": 314,
+      "weights_path": "source/models/astra-v9.lightgbm.txt",
+      "weights_sha256": "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d",
+      "weights_bytes": 691578,
+      "release_gate": "BLOCKED_UNIQUE_MANDATORY_DEFENSE_RANKING_REGRESSION",
+      "production_loaded": false
+    },
+    {
+      "product_id": "eclipse-2.0-sol",
+      "display_name": "2.0 Sol",
+      "full_name": "ECLIPSE 2.0 Sol",
+      "internal_training_revision": "V9",
+      "role": "distilled_lightweight",
+      "trained_from_family": "Astra",
+      "distinct_weights": true,
+      "n_features": 26,
+      "trees": 160,
+      "weights_path": "source/models/sol-v9.lightgbm.txt",
+      "weights_sha256": "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd",
+      "weights_bytes": 261150,
+      "release_gate": "RESEARCH_REVIEW_ONLY",
+      "production_loaded": false
+    }
+  ],
+  "caveats": [
+    "All existing 1.x identities, archived match labels and signed histories remain unchanged; 2.0 is not an alias for an old Swift budget.",
+    "Astra and Sol share one product generation, but are distinct trained checkpoints",
+    "Model names do not imply that C++ V2 has loaded them",
+    "Old Swift R10 defaults stay until real checkpoint identity and owner promotion gate pass",
+    "No raw private match histories or personal SQLite included"
+  ],
+  "previous_generation": "1.x (historical Swift model catalog, preserved for old matches)"
+}
