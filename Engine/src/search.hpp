@@ -47,6 +47,7 @@ private:
     std::uint64_t nodes_ = 0;
     std::uint64_t node_cap_ = 80'000;
     bool timed_out_ = false;
+    std::array<bool, kCells> allowed_proof_root_{};
     Clock::time_point deadline_{};
     Clock::time_point proof_deadline_{};
     std::unordered_map<std::uint64_t, Entry> table_;
@@ -69,7 +70,7 @@ private:
                              int limit, int previous_best = -1) const;
     int static_value(int side) const;
     bool limit_reached();
-    bool prove_four(int side, int remaining, int root_required,
+    bool prove_four(int side, int remaining, bool restrict_root,
                     std::vector<int> &variation);
     int tactical_leaf(int side, int ply, int remaining_forced);
     int negamax(int side, int depth, int alpha, int beta, int last, int ply);
