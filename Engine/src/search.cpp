@@ -357,7 +357,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                              const RootPolicy *policy,
                              const ComputePolicy *compute,
                              const std::atomic<bool> *cancel,
-                             const ProgressSink &progress) {
+                             const ProgressSink &progress,
+                             const RankedRootsSink &ranked_roots) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
@@ -515,6 +516,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return finish(incumbent, SearchStopReason::time_limit, 0);
     const auto ranked = root_ordered(eligible,
                                      std::min(root_width_, static_cast<int>(eligible.size())));
+    // Report exactly the shortlist this search actually uses, once per
+    // search. This is rank order, NOT probability or a shared score scale.
+    if (ranked_roots) ranked_roots(ranked);
     for (int depth = 1; depth <= max_depth_; ++depth) {
         int round_best = -1, round_score = -kInf;
         for (int move : ranked) {
