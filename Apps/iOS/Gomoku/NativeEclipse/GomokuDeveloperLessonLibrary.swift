@@ -39,10 +39,14 @@ final class GomokuDeveloperLessonLibrary {
     }
 
     private let fileURL: URL
+    // In production this is always nil; DEBUG-only test instances use a
+    // per-test isolated key instead of an unavailable unsigned-simulator Keychain.
+    private let testSigningKey: Data?
     private(set) var lessons: [Lesson] = []
     private(set) var requiresRecovery = false
 
     init(fileURL: URL? = nil) {
+        self.testSigningKey = nil
         if let fileURL { self.fileURL = fileURL }
         else {
             let root = FileManager.default.urls(
@@ -52,6 +56,17 @@ final class GomokuDeveloperLessonLibrary {
         }
         load()
     }
+
+    #if DEBUG
+    // TEST ONLY: no fallback to a known key for production-created stores.
+    // The entire initializer is absent from Release builds.
+    init(testFileURL: URL, testSigningKey: Data) {
+        precondition(testSigningKey.count == 32)
+        self.fileURL = testFileURL
+        self.testSigningKey = testSigningKey
+        load()
+    }
+    #endif
 
     private func valid(_ candidate: Lesson) -> Bool {
         guard (2...64).contains(candidate.name.count),
@@ -127,7 +142,7 @@ final class GomokuDeveloperLessonLibrary {
 
     private func save() throws {
         guard !requiresRecovery else { throw LibraryError.damagedStore }
-        let key = try Self.macKey(createIfMissing: true)
+        let key = try signingKey(createIfMissing: true)
         let code = Data(HMAC<SHA256>.authenticationCode(
             for: try Self.canonical(lessons), using: SymmetricKey(data: key)
         ))
@@ -153,7 +168,7 @@ final class GomokuDeveloperLessonLibrary {
                 requiresRecovery = true
                 return
             }
-            let key = try Self.macKey(createIfMissing: false)
+            let key = try signingKey(createIfMissing: false)
             let calculated = Data(HMAC<SHA256>.authenticationCode(
                 for: try Self.canonical(envelope.lessons),
                 using: SymmetricKey(data: key)
@@ -172,6 +187,13 @@ final class GomokuDeveloperLessonLibrary {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(lessons)
+    }
+
+    private func signingKey(createIfMissing: Bool) throws -> Data {
+        #if DEBUG
+        if let testSigningKey { return testSigningKey }
+        #endif
+        return try Self.macKey(createIfMissing: createIfMissing)
     }
 
     private static let service = "studio.zeo.gomoku.developer-formations"
