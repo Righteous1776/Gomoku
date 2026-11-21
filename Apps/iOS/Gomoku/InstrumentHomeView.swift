@@ -241,7 +241,11 @@ struct InstrumentHomeView: View {
             eclipseMatchPlaying: engine.status == 0,
             onMove: { engine.play($0) }
         )
-        .veilCard()
+        // The wood board already owns its material and 5.5% edge-safe grid
+        // inset. Adding a second 16pt-padded instrument plate wasted 32pt of
+        // usable width on small phones, shrinking stones and tap targets.
+        // Keep the ScrollView's outer 14pt gutter, without a nested frame.
+        .frame(maxWidth: .infinity)
         .accessibilityIdentifier("gomoku.instrument.board")
     }
 

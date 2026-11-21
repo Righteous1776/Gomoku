@@ -50,7 +50,22 @@ def evaluate_sources(sources):
     pulse = pulse_section[1].split("VeilBoardTapSurface(enabled:", 1)[0] \
         if len(pulse_section) == 2 else ""
 
+    board_view_section = home.split("    private var board: some View {", 1)
+    board_view = board_view_section[1].split(
+        "    private var resultCard: some View {", 1
+    )[0] if len(board_view_section) == 2 else ""
+
     return {
+        "unframed board fills narrow screens":
+            "GomokuBoardView(" in board_view
+            and ".veilCard()" not in board_view
+            and ".frame(maxWidth: .infinity)" in board_view
+            and 'accessibilityIdentifier("gomoku.instrument.board")' in board_view,
+        "wood board retains safe edge taps":
+            "let margin = side * 0.055" in board
+            and "let step = (side - margin * 2)" in board
+            and "VeilBoardTapSurface(enabled: enabled)" in board
+            and "hypot(dx, dy) <= step * 0.52" in board,
         "one upper ECLIPSE identity": home.count("VeilEclipseIdentityCard(") == 1,
         "original runtime instrument stays folded":
             home.count("VeilEclipseRuntimeInstruments(") == 1
