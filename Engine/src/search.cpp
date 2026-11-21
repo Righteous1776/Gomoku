@@ -419,7 +419,10 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     // V2 convention remains unchanged: zero is open-ended. Opt-in V3
     // replaces ONLY that unbounded deadline with the trainer-selected
     // finite complex-position ceiling; simple positions finish earlier.
-    const std::int64_t max_ms = adaptive ? adaptive->complex_budget_ms
+    const std::int64_t max_ms = adaptive
+        ? (compute && compute->max_wall_time_ms > 0
+            ? std::min(compute->max_wall_time_ms, adaptive->complex_budget_ms)
+            : adaptive->complex_budget_ms)
         : compute ? compute->max_wall_time_ms
         : static_cast<std::int64_t>(std::max(0, milliseconds));
     const bool open_ended = max_ms == 0;
@@ -498,18 +501,30 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
         return result;
     };
 
-    // Exact two-different-five-completions: an unanswerable one-move fork
-    // when the opponent has no immediate win after our hypothetical move.
+    // R24 necessary-condition audit for this *specific* forcing-four solver.
+    // A complete audit with no first forcing-four starter proves the solver's
+    // initial recursive branch cannot succeed, not that no VCT exists.
+    // Only V3 uses the skip; classic V2 search behavior remains unchanged.
+    bool has_forcing_four_starter = false;
+    bool finished_forcing_starter_audit = true;
     for (const int move : roots) {
-        if (limit_reached()) break;
+        if (limit_reached()) {
+            finished_forcing_starter_audit = false;
+            break;
+        }
         place(move, side);
         const auto next = neighbors(candidate_radius_);
         const auto finishers = immediate_wins(side, next);
         const auto enemy = immediate_wins(other(side), next);
         unplace(move, side);
+        if (enemy.empty() && !finishers.empty())
+            has_forcing_four_starter = true;
         if (finishers.size() >= 2 && enemy.empty())
             return finish(move, SearchStopReason::forced_win, 0);
-        if (limit_reached()) break;
+        if (limit_reached()) {
+            finished_forcing_starter_audit = false;
+            break;
+        }
     }
 
     // Rule-certified opponent fork filter, before trained/heuristic ordering.
@@ -544,7 +559,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     if (cancelled_) return finish(incumbent, SearchStopReason::cancelled, 0);
     if (Clock::now() >= deadline_)
         return finish(incumbent, SearchStopReason::time_limit, 0);
-    const bool tactical_risk =
+    // Incomplete root audits must NOT be treated as evidence of a quiet board.
+    const bool tactical_risk = !finished_forcing_starter_audit ||
+        !finished_fork_audit || has_forcing_four_starter ||
         fork_count(side) > 0 || fork_count(other(side)) > 0 ||
         std::any_of(risks.begin(), risks.end(),
             [](const auto &r) { return r.second > 0; });
@@ -560,7 +577,9 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             started + std::chrono::milliseconds(proof_ms));
     }
     for (const int i : eligible) allowed_proof_root_[i] = true;
-    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)) {
+    if (forced_line_depth_ > 0 && (open_ended || max_ms >= 40)
+        && (!adaptive || !finished_forcing_starter_audit ||
+            has_forcing_four_starter)) {
         std::vector<int> pv;
         if (prove_four(side, forced_line_depth_, true, pv) && !pv.empty())
             // The historical V2 reports proof-line length here. In V3,
@@ -580,6 +599,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
     int stable_completed = 0;
     int previous_move = -1;
     int previous_score = 0;
+    std::array<int, 2> previous_parity_score{};
+    std::array<bool, 2> have_parity_score{};
     std::uint64_t previous_iteration_nodes = 0;
     // Report exactly the shortlist this search actually uses, once per
     // search. This is rank order, NOT probability or a shared score scale.
@@ -631,7 +652,18 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                 stable_completed = same_move ? stable_completed + 1 : 1;
                 // Oscillating search scores reveal a possible horizon effect;
                 // their scale is native engine units, not a win probability.
-                const bool quiet_score = same_move &&
+                const int parity = depth & 1;
+                // R24 horizon-safety refinement: compare equivalent depth
+                // parity as well as adjacent complete iterations.
+                const auto parity_margin = std::max<long long>(
+                    900, std::llabs(static_cast<long long>(round_score)) / 3);
+                const bool parity_stable = !have_parity_score[parity] ||
+                    std::llabs(static_cast<long long>(round_score) -
+                               static_cast<long long>(previous_parity_score[parity]))
+                        <= parity_margin;
+                have_parity_score[parity] = true;
+                previous_parity_score[parity] = round_score;
+                const bool quiet_score = same_move && parity_stable &&
                     std::llabs(static_cast<long long>(round_score) -
                                static_cast<long long>(previous_score))
                         <= static_cast<long long>(adaptive->min_score_gap) * 2;
