@@ -63,9 +63,17 @@ try {
         return 0;
     }
     if(best){for(int m:parse_moves(position))if(!eg_play(engine.get(),m))throw std::runtime_error("illegal history");
-        const int move=eg_best_move(engine.get(),ms);
-        std::cout<<"{\"move\":"<<move<<",\"status\":"<<eg_status(engine.get())<<"}\n";
-        return move<0?1:0;
+        EGSearchDiagnosticsV1 diagnostics{};
+        diagnostics.size_bytes=sizeof(EGSearchDiagnosticsV1);
+        if(!eg_best_move_diagnostics_v1(engine.get(),ms,&diagnostics))
+            throw std::runtime_error("diagnostic search failed");
+        std::cout<<"{\"move\":"<<diagnostics.move<<",\"status\":"<<eg_status(engine.get())
+                 <<",\"elapsed_ms\":"<<diagnostics.elapsed_ms
+                 <<",\"nodes\":"<<diagnostics.nodes
+                 <<",\"completed_depth\":"<<diagnostics.completed_depth
+                 <<",\"budget_ms\":"<<ms
+                 <<",\"engine_revision\":\""<<eg_engine_revision()<<"\"}\n";
+        return diagnostics.move<0?1:0;
     }
     std::ofstream output;
     if(!out.empty()){output.open(out,std::ios::app);if(!output)throw std::runtime_error("cannot open output");}
