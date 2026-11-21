@@ -22,19 +22,34 @@ class V9AstraSolProductIdentityTests(unittest.TestCase):
         ).read_text()
 
         self.assertEqual(product["schema"], "eclipse.product-generation-identity.v1")
-        self.assertEqual(product["product_generation"], "1.0")
+        self.assertEqual(product["product_generation"], "2.0")
         self.assertEqual(product["model_lineage"], "V9")
         self.assertEqual(product["product_state"], "NAMED_RESEARCH_CANDIDATES_NOT_RELEASED")
         self.assertFalse(product["compute_policy_is_version_number"])
         models = product["models"]
         self.assertEqual({x["full_name"] for x in models},
-                         {"ECLIPSE 1.0 Astra", "ECLIPSE 1.0 Sol"})
+                         {"ECLIPSE 2.0 Astra", "ECLIPSE 2.0 Sol"})
         self.assertEqual({x["product_id"] for x in models},
-                         {"eclipse-1.0-astra", "eclipse-1.0-sol"})
+                         {"eclipse-2.0-astra", "eclipse-2.0-sol"})
         self.assertEqual({x["internal_training_revision"] for x in models}, {"V9"})
         self.assertEqual({x["n_features"] for x in models}, {26})
         self.assertEqual({x["trees"] for x in models}, {160, 314})
         self.assertEqual(len({x["weights_sha256"] for x in models}), 2)
+        self.assertEqual(
+            {x["weights_sha256"] for x in models},
+            {
+                "d50190d02bf6ebd6f447d84a2920184964ac9cff1dcc0712b0076cec326a177d",
+                "074140fa99d52143ce3b887a553f1f11586973096baaada6476f97004e4b4fdd",
+            }
+        )
+        # Version 1.x remains a distinct archived release, NEVER rewritten.
+        for historical in ("eclipse-1.0-astra", "eclipse-1.0-sol",
+                           "eclipse-1.0-terra", "eclipse-1.0-luna"):
+            self.assertIn(f' = "{historical}"', swift_catalog)
+        self.assertIn('case "eclipse-1.2-astra"', swift_catalog)
+        self.assertIn('case "eclipse-1.1-sol"', swift_catalog)
+        self.assertIn("featuredIncludingVerified", swift_catalog)
+        self.assertIn("requiresVerifiedCheckpoint", swift_catalog)
         self.assertTrue(any(x["role"] == "distilled_lightweight" and
                             x["trained_from_family"] == "Astra" and
                             x["distinct_weights"] for x in models))
