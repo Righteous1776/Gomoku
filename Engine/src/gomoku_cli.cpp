@@ -21,7 +21,7 @@ std::vector<int> parse_moves(std::string data){
     }
     return result;
 }
-void usage(){std::cout<<"gomoku_cli --best <comma-separated-move-indices> [--ms 100]\n"
+void usage(){std::cout<<"gomoku_cli --best <comma-separated-move-indices> [--ms 100] (0 = no time ceiling)\n"
                        "gomoku_cli --state <comma-separated-move-indices> (rules-only replay)\n"
                        "gomoku_cli --selfplay --games N [--ms 10] [--out file.jsonl] [--seed N]\n";}
 }
@@ -42,7 +42,9 @@ try {
         else throw std::runtime_error("unknown argument: "+a);
     }
     if(static_cast<int>(best)+static_cast<int>(selfplay)+static_cast<int>(state_mode)!=1){usage();return 2;}
-    if(ms<1||ms>20000||games<1||games>1000000)throw std::runtime_error("invalid limits");
+    // 0 is the explicit trainer-adaptive, no-wall-clock-ceiling search mode.
+    // The CLI does not silently cap training-agent selected budgets at 20s.
+    if(ms<0||games<1||games>1000000)throw std::runtime_error("invalid limits");
     Engine engine{eg_create(),eg_destroy};if(!engine)throw std::runtime_error("out of memory");
     if(state_mode){
         const auto parsed=parse_moves(position);
