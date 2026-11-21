@@ -86,6 +86,7 @@ def evaluate_sources(sources):
             and "nodesPerSecond" in console,
         "optional quiet board trace stays disabled by default":
             '?? false' in controller
+            and 'gomoku.eclipse.live-trace.v2' in controller
             and 'by: 0.5' in thought
             and 'searchTrace.snapshot(' in thought
             and "ProcessInfo.processInfo.systemUptime" not in thought,
