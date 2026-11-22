@@ -79,8 +79,10 @@ struct InstrumentHomeView: View {
                         EclipseThinkingHUDView(engine: engine)
                     }
                     .veilCard()
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("gomoku.eclipse.runtime-source-card")
                     boardQuickControls
+                    thinkingIntensityControls
                     board
                     if engine.status != 0 { resultCard }
                     advancedPanel
@@ -301,6 +303,7 @@ struct InstrumentHomeView: View {
         .padding(.vertical, 10)
         .background(VeilTheme.elevated.opacity(0.82),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
@@ -502,6 +505,46 @@ struct InstrumentHomeView: View {
         .accessibilityIdentifier("gomoku.eclipse.compute.selector")
     }
 
+    // The original screenshot has an independent 1..10 THINKING STRENGTH
+    // control. This augments the four coarse tiers; both alter native search
+    // budgets, while model identity and compulsory tactical safety remain fixed.
+    private var thinkingIntensityControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(VeilTheme.goldBright)
+                Text("思考强度")
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(VeilTheme.goldBright)
+                Spacer()
+                Text("\(engine.thinkingIntensity) / 10")
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .foregroundColor(VeilTheme.secondaryText)
+            }
+            Slider(value: Binding(
+                get: { Double(engine.thinkingIntensity) },
+                set: { engine.thinkingIntensity = min(10, max(1, Int($0.rounded()))) }
+            ), in: 1...10, step: 1)
+            .tint(VeilTheme.goldBright)
+            .accessibilityIdentifier("gomoku.eclipse.thinking-intensity.slider")
+            Toggle(isOn: $engine.noSingleMoveTimeCutoff) {
+                Text("取消单步搜索时间截止")
+                    .font(.subheadline.weight(.medium))
+            }
+            .tint(VeilTheme.goldBright)
+            .accessibilityIdentifier("gomoku.eclipse.thinking-intensity.no-time-cutoff")
+            Text("滑块真实调整搜索深度、宽度与节点预算，下一手生效。取消时间截止后仍受搜索深度、节点上限和取消控制约束。")
+                .font(.caption)
+                .foregroundColor(VeilTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(VeilTheme.elevated.opacity(0.84),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("gomoku.eclipse.thinking-intensity")
+    }
+
     private var deepSearchToggle: some View {
         Toggle(isOn: Binding(
             get: { engine.searchMode == .full },
@@ -526,6 +569,7 @@ struct InstrumentHomeView: View {
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
+            eclipseNativeTracePump: { engine.ingestNativeVeilLinkBranches() },
             eclipseTeachingReviewAvailable:
                 engine.thinkingHUDSnapshot().hasTeachingReview,
             eclipseTeachingCandidate: {

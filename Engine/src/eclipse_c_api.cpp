@@ -30,6 +30,10 @@ struct EGEngine {
     std::atomic<std::uint32_t> live_pv_count{0};
     std::atomic<std::int32_t> live_pv_depth{0};
     std::array<std::atomic<std::int32_t>, EG_LIVE_PV_PREFIX_MAX> live_pv_moves{};
+    std::atomic<std::uint64_t> live_explored_total{0};
+    std::array<std::atomic<std::int32_t>, EG_LIVE_EXPLORED_MAX> live_explored_count{};
+    std::array<std::array<std::atomic<std::int32_t>,3>, EG_LIVE_EXPLORED_MAX> live_explored_moves{};
+    std::array<std::atomic<std::uint64_t>, EG_LIVE_EXPLORED_MAX> live_explored_nodes{};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
@@ -69,6 +73,7 @@ void clear_live(EGEngine *e) {
     e->live_pv_count.store(0);
     e->live_pv_depth.store(0);
     for (auto &index : e->live_pv_moves) index.store(-1);
+    e->live_explored_total.store(0);
     e->live_sequence.fetch_add(1);
 }
 void publish_ranked(EGEngine *e, const std::vector<int> &ranked) {
@@ -87,6 +92,20 @@ void publish_pv(EGEngine *e, int depth, const std::vector<int> &pv) {
         e->live_pv_moves[i].store(i < count ? pv[i] : -1);
     e->live_pv_depth.store(depth);
     e->live_pv_count.store(static_cast<std::uint32_t>(count));
+    e->live_sequence.fetch_add(1);
+}
+void publish_explored(EGEngine *e, const std::array<int,3> &path,
+                     int count, std::uint64_t nodes) {
+    if (count < 1 || count > 3 || nodes == 0) return;
+    e->live_sequence.fetch_add(1);
+    const auto total = e->live_explored_total.load();
+    const std::size_t slot = static_cast<std::size_t>(
+        total % EG_LIVE_EXPLORED_MAX);
+    e->live_explored_count[slot].store(count);
+    for (int i=0; i<3; ++i)
+        e->live_explored_moves[slot][i].store(i<count ? path[i] : -1);
+    e->live_explored_nodes[slot].store(nodes);
+    e->live_explored_total.store(total+1);
     e->live_sequence.fetch_add(1);
 }
 } // namespace
@@ -321,6 +340,37 @@ int eg_read_ranked_roots_v1(const EGEngine *e, EGRankedRootsSnapshotV1 *out) {
     return 0;
 }
 
+int eg_read_explored_lines_v1(const EGEngine *e,
+                               EGExploredLinesSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGExploredLinesSnapshotV1))
+        return 0;
+    for (int attempt=0; attempt<32; ++attempt) {
+        const auto before=e->live_sequence.load();
+        if (before&1) continue;
+        EGExploredLinesSnapshotV1 read{};
+        read.size_bytes=sizeof(read);
+        read.search_serial=e->live_serial.load();
+        const auto total=e->live_explored_total.load();
+        read.count=static_cast<std::uint32_t>(
+            std::min<std::uint64_t>(total, EG_LIVE_EXPLORED_MAX));
+        for (std::uint32_t i=0;i<read.count;++i) {
+            const auto slot=static_cast<std::size_t>(
+                (total-read.count+i)%EG_LIVE_EXPLORED_MAX);
+            auto &line=read.lines[i];
+            line.count=e->live_explored_count[slot].load();
+            line.visited_nodes=e->live_explored_nodes[slot].load();
+            for(int j=0;j<3;++j)
+                line.moves[j]=e->live_explored_moves[slot][j].load();
+        }
+        const auto after=e->live_sequence.load();
+        if(before==after && !(after&1)) {
+            *out=read;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int analyze_compute_impl(
     EGEngine *e, const EGComputePolicyV2 *policy,
     const uint8_t *allowed, int32_t allowed_capacity,
@@ -416,6 +466,7 @@ static int analyze_compute_impl(
         e->live_pv_count.store(0);
         e->live_pv_depth.store(0);
         for (auto &index : e->live_pv_moves) index.store(-1);
+        e->live_explored_total.store(0);
         e->live_state.store(EG_LIVE_SEARCH_RUNNING);
         e->live_sequence.fetch_add(1);
         const auto observer = [e](std::uint64_t nodes, int depth, int move) {
@@ -427,13 +478,17 @@ static int analyze_compute_impl(
         const auto pv_observer = [e](int depth, const std::vector<int> &pv) {
             publish_pv(e, depth, pv);
         };
+        const auto explored_observer = [e](const std::array<int,3> &path,
+                                          int count, std::uint64_t nodes) {
+            publish_explored(e, path, count, nodes);
+        };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker),
             e->r07_forest.get()}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
             observer, root_observer, pv_observer,
-            stop ? &adaptive : nullptr);
+            stop ? &adaptive : nullptr, explored_observer);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0)) {
             publish_live(e, found.reason == eclipse::SearchStopReason::cancelled

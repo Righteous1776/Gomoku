@@ -59,7 +59,11 @@ def verify():
     assert "EclipseCppProductionAdapter.make(" in controller
     assert "let usingCpp = cppRuntime != nil && verifiedTrainer != nil" in controller
     assert "checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil" in controller
-    assert "effectivePolicy?.sha256" in controller
+    assert "effectivePolicy?.runtimeSignature(noWallTimeCutoff: unlimitedTime)" in controller
+    assert "thinkingIntensity: intensity" in controller
+    assert "nativeExploredLines" not in controller or "ingestNativeVeilLinkBranches()" in controller
+    assert "ingestNativeVeilLinkBranches()" in controller
+    assert 'accessibilityIdentifier("gomoku.eclipse.thinking-intensity.slider")' in home
     assert "policy.sha256 == approvedComputePolicySHA256" in adapter
     assert "userTier: manualTier" in controller
     assert "GomokuLearningRepertoire.build(" in controller
