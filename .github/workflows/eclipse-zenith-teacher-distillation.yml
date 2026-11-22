@@ -67,7 +67,7 @@ jobs:
         run: |
           python3 Arena/zenith_teacher_dataset.py \
             --swift build/swift_zenith6x_teacher \
-            --samples ${{ github.event_name == 'workflow_dispatch' && inputs.samples || '48' }} \
+            --samples ${{ github.event_name == 'workflow_dispatch' && inputs.samples || '192' }} \
             --source-root . \
             --seed 20261122 \
             --budget-ms 5700 \
@@ -79,7 +79,7 @@ jobs:
             --dataset Arena/evidence/zenith6x-teacher-public-synthetic.jsonl \
             --out-dir Training/research/r07/outputs/zenith_candidate \
             --rounds 24 \
-            --min-train 18 --min-val 5
+            --min-train 60 --min-val 10
 
       - name: Audit candidate metadata before artifact upload
         run: |
