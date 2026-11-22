@@ -244,6 +244,26 @@ typedef struct EGPVPrefixSnapshotV1 {
 } EGPVPrefixSnapshotV1;
 int eg_read_pv_prefix_v1(const EGEngine *engine, EGPVPrefixSnapshotV1 *out);
 
+/* Bounded, real root/reply exploration paths from the native search.
+ * Only display while this EXACT search is running, opted in by the user.
+ * Positions are actual placed search moves, never AI probabilities.
+ * The previous and subsequent game serials must not share paths.
+ */
+#define EG_LIVE_EXPLORED_MAX 12
+#define EG_LIVE_EXPLORED_PATH_MAX 3
+typedef struct EGExploredLineV1 {
+    int32_t count;     /* 1..3 */
+    int32_t moves[EG_LIVE_EXPLORED_PATH_MAX];
+    uint64_t visited_nodes;
+} EGExploredLineV1;
+typedef struct EGExploredLinesSnapshotV1 {
+    uint32_t size_bytes;
+    uint32_t count;
+    uint64_t search_serial;
+    EGExploredLineV1 lines[EG_LIVE_EXPLORED_MAX];
+} EGExploredLinesSnapshotV1;
+int eg_read_explored_lines_v1(const EGEngine *engine, EGExploredLinesSnapshotV1 *out);
+
 /* R21: opt-in staging harness for ACTUAL V9 static 314/160 tree scorers.
  * 0=legacy R10, 1=V9 Astra (314 trees), 2=V9 Sol (160 trees).
  * Mutators are forbidden while any search runs. eg_reset restores 0.

@@ -89,6 +89,8 @@ public:
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
     using RankedRootsSink = std::function<void(const std::vector<int> &)>;
     using PVSink = std::function<void(int, const std::vector<int> &)>;
+    // Genuine, bounded explored branches, not decorative generated paths.
+    using ExploredSink = std::function<void(const std::array<int,3> &, int, std::uint64_t)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
@@ -96,7 +98,8 @@ public:
                          const ProgressSink &progress = {},
                          const RankedRootsSink &ranked_roots = {},
                          const PVSink &pv = {},
-                         const AdaptiveStopPolicy *adaptive = nullptr);
+                         const AdaptiveStopPolicy *adaptive = nullptr,
+                         const ExploredSink &explored = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
@@ -121,6 +124,10 @@ private:
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
     ProgressSink progress_{};
+    ExploredSink explored_{};
+    std::array<int,3> explored_path_{{-1,-1,-1}};
+    Clock::time_point last_explored_emit_{};
+    void emit_explored(int length);
     int last_completed_depth_ = 0;
     int last_best_move_ = -1;
     std::uint64_t last_progress_nodes_ = 0;

@@ -153,6 +153,28 @@ int main() {
     for (unsigned i=ranks.count; i<EG_LIVE_RANKED_ROOTS_MAX; ++i)
         CHECK(ranks.moves[i] == -1);
 
+    // Source-only visual branch evidence: a trace comes from ACTUAL native
+    // search traversals, and cannot contain a previously occupied square.
+    EGExploredLinesSnapshotV1 branches{};
+    branches.size_bytes = sizeof(branches);
+    CHECK(eg_read_explored_lines_v1(e.get(), &branches) == 1);
+    CHECK(branches.search_serial == ranks.search_serial);
+    CHECK(branches.count > 0 && branches.count <= EG_LIVE_EXPLORED_MAX);
+    std::uint64_t last_nodes = 0;
+    for (unsigned i=0;i<branches.count;++i) {
+        const auto &line = branches.lines[i];
+        CHECK(line.count >= 1 && line.count <= 3);
+        CHECK(line.visited_nodes >= last_nodes);
+        last_nodes = line.visited_nodes;
+        bool used[225]{}; used[112]=true; used[97]=true;
+        for (int j=0;j<line.count;++j) {
+            CHECK(line.moves[j] >= 0 && line.moves[j] < 225);
+            CHECK(!used[line.moves[j]]);
+            used[line.moves[j]]=true;
+        }
+        for(int j=line.count;j<3;++j)CHECK(line.moves[j]==-1);
+    }
+
     EGPVPrefixSnapshotV1 pv{};
     pv.size_bytes = sizeof(pv);
     CHECK(eg_read_pv_prefix_v1(e.get(), &pv) == 1);
@@ -178,6 +200,9 @@ int main() {
     pv.size_bytes = sizeof(pv);
     CHECK(eg_read_pv_prefix_v1(e.get(), &pv) == 1);
     CHECK(pv.count == 0 && pv.completed_depth == 0);
+    branches.size_bytes = sizeof(branches);
+    CHECK(eg_read_explored_lines_v1(e.get(), &branches) == 1);
+    CHECK(branches.count == 0);
     std::cout << "ECLIPSE Stage B/C2/C3 live ABI: atomic polling, rank legality, serial, invalidation, "
                  "native proof and cancellation PASS\n";
 }
