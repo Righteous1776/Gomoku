@@ -18,6 +18,77 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         )
     }
 
+    func testFourManualTiersChangeActualNativeSearchBudgetAndKeepSafety() throws {
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        )
+        let configurations = EclipseComputeTier.allCases.map { base.withManualTier($0) }
+        XCTAssertEqual(configurations.map(\.maxWallTimeMilliseconds), [7500, 15000, 22500, 30000])
+        XCTAssertEqual(configurations.map(\.maxNodes), [300_000, 600_000, 900_000, 1_200_000])
+        XCTAssertEqual(configurations.map(\.maxDepth), [3, 6, 9, 12])
+        XCTAssertEqual(configurations.map(\.rootWidth), [6, 12, 18, 24])
+        XCTAssertEqual(configurations.map(\.replyWidth), [4, 8, 12, 16])
+        XCTAssertTrue(configurations.allSatisfy { $0.isValid })
+        XCTAssertTrue(configurations.allSatisfy { $0.forcedLineDepth == 8 && $0.candidateRadius == 3 })
+        XCTAssertEqual(Set(configurations.compactMap(\.sha256)).count, 4)
+        XCTAssertEqual(base.sha256, configurations.last?.sha256)
+        XCTAssertNil(adaptive().withManualTier(.light).maxWallTimeMilliseconds)
+        XCTAssertNil(adaptive().withManualTier(.standard).maxNodes)
+    }
+
+    func testTenThinkingStrengthPositionsBoundedByManualTier() throws {
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        ).withManualTier(.extreme)
+        let low = base.withThinkingIntensity(1)
+        let high = base.withThinkingIntensity(10)
+        XCTAssertEqual(high, base)
+        XCTAssertEqual(low.maxWallTimeMilliseconds, 3000)
+        XCTAssertEqual(low.maxNodes, 120_000)
+        XCTAssertTrue(low.maxDepth < high.maxDepth)
+        XCTAssertEqual(low.forcedLineDepth, 8)
+        XCTAssertEqual(low.candidateRadius, 3)
+        XCTAssertNotEqual(low.runtimeSignature(noWallTimeCutoff: true),
+                          low.runtimeSignature(noWallTimeCutoff: false))
+        XCTAssertTrue((1...10).allSatisfy {
+            base.withThinkingIntensity($0).isValid
+        })
+    }
+
+    func testTwoGiBRAMOnlyCapsMemoryNotCheckpointTacticsOrFourTierIdentity() {
+        XCTAssertTrue(EclipseMemoryGovernor.isConstrained(physicalMemory: 2_000_000_000))
+        XCTAssertFalse(EclipseMemoryGovernor.isConstrained(physicalMemory: 3_000_000_000))
+        XCTAssertFalse(EclipseMemoryGovernor.isConstrained(physicalMemory: 0))
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        )
+        let maxed = base.withManualTier(.extreme).withThinkingIntensity(10)
+        XCTAssertEqual(maxed.boundedForLowMemory(false), maxed)
+        let constrained = maxed.boundedForLowMemory(true)
+        XCTAssertEqual(constrained.maxWallTimeMilliseconds, 12_000)
+        XCTAssertEqual(constrained.maxNodes, 100_000)
+        XCTAssertEqual(constrained.maxDepth, 10)
+        XCTAssertEqual(constrained.rootWidth, 20)
+        XCTAssertEqual(constrained.replyWidth, 12)
+        XCTAssertEqual(constrained.forcedLineDepth, maxed.forcedLineDepth)
+        XCTAssertEqual(constrained.candidateRadius, maxed.candidateRadius)
+        XCTAssertTrue(constrained.isValid)
+        XCTAssertNotEqual(constrained.sha256, maxed.sha256)
+        let noTimeBudget = base.withThinkingIntensity(10)
+            .boundedForLowMemory(true)
+        XCTAssertEqual(noTimeBudget.maxNodes, 100_000)
+        XCTAssertTrue(noTimeBudget.isValid)
+    }
+
     func testTrainerAdaptiveHasNoArtificialTimeOrNodeCeiling() throws {
         let policy = adaptive()
         XCTAssertTrue(policy.isValid)

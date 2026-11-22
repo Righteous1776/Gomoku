@@ -42,6 +42,7 @@ jobs:
           set -euo pipefail
           python3 Scripts/check_private_bundle.py
           python3 -m unittest discover -s Training/tests -p 'test_r07_public_evidence.py' -v
+          python3 -m unittest discover -s Training/tests -p 'test_eclipse_generation3_identity.py' -v
           python3 Engine/tools/verify_v9_compiled_provenance.py
       - name: Compile C++20 production core and run the complete CTest suite
         run: |

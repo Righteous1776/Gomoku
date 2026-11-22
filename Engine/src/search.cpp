@@ -1,6 +1,7 @@
 #include "search.hpp"
 #include "eclipse_trained_ordering.hpp"
 #include "eclipse_v9_research_ranker.hpp"
+#include "eclipse_r07_ranker.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -174,6 +175,8 @@ int Search::move_rank(int index, int side) const {
         return research_v9::score(cells_, index, side, 1);
     case ResearchRanker::v9_sol:
         return research_v9::score(cells_, index, side, 2);
+    case ResearchRanker::r07_astra:
+        return r07_ ? research_r07::score(*r07_,cells_,index,side) : 0;
     case ResearchRanker::legacy:
     default:
         return trained_model::score(cells_, index, side);
@@ -306,6 +309,15 @@ int Search::tactical_leaf(int side, int ply, int remaining_forced) {
     return static_value(side);
 }
 
+void Search::emit_explored(int length) {
+    if (!explored_ || length < 1 || length > 3 || !nodes_) return;
+    const auto now = Clock::now();
+    if (last_explored_emit_ != Clock::time_point{} &&
+        now - last_explored_emit_ < std::chrono::milliseconds(48)) return;
+    explored_(explored_path_, length, nodes_);
+    last_explored_emit_ = now;
+}
+
 int Search::negamax(int side, int depth, int alpha, int beta,
                     int last, int ply) {
     ++nodes_;
@@ -336,6 +348,10 @@ int Search::negamax(int side, int depth, int alpha, int beta,
     bool first = true;
     for (const int move : moves) {
         place(move, side);
+        if (ply < 3) {
+            explored_path_[static_cast<std::size_t>(ply)] = move;
+            emit_explored(ply + 1);
+        }
         int score = 0;
         if (first) {
             score = -negamax(other(side), depth - 1, -beta, -lower, move, ply + 1);
@@ -352,7 +368,7 @@ int Search::negamax(int side, int depth, int alpha, int beta,
         first = false;
     }
     if (best_move >= 0 && std::abs(best) < kMate / 2) {
-        if (table_.size() > 50'000) table_.clear();
+        if (table_.size() >= tt_cap_) table_.clear();
         const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
         table_[key] = Entry{depth, best, best_move, flag};
     }
@@ -396,13 +412,17 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
                              const ProgressSink &progress,
                              const RankedRootsSink &ranked_roots,
                              const PVSink &pv,
-                             const AdaptiveStopPolicy *adaptive) {
+                             const AdaptiveStopPolicy *adaptive,
+                             const ExploredSink &explored) {
     const auto started = Clock::now();
     nodes_ = 0;
     timed_out_ = false;
     cancelled_ = false;
     cancel_signal_ = cancel;
     progress_ = progress;
+    explored_ = explored;
+    explored_path_.fill(-1);
+    last_explored_emit_ = Clock::time_point{};
     last_progress_nodes_ = 0;
     last_completed_depth_ = 0;
     last_best_move_ = -1;
@@ -613,6 +633,8 @@ SearchResult Search::analyze(const Board &root, int milliseconds,
             ++nodes_;
             if (limit_reached()) break;
             place(move, side);
+            explored_path_[0] = move;
+            emit_explored(1);
             int score = -negamax(other(side), depth - 1, -kInf, kInf, move, 1);
             unplace(move, side);
             if (timed_out_) break;

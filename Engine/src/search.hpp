@@ -1,6 +1,7 @@
 #pragma once
 #include "board.hpp"
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -9,6 +10,7 @@
 #include <vector>
 
 namespace eclipse {
+namespace research_r07 { struct Forest; }
 // Experimental search telemetry. NOT native Swift ECLIPSE strength parity.
 // The enum's integer values are frozen by EG_SEARCH_DIAGNOSTICS_ABI_VERSION 1.
 enum class SearchStopReason : int {
@@ -76,17 +78,22 @@ struct AdaptiveStopPolicy {
 
 // An explicit research-only selection; legacy remains the default for all
 // previously supported callers and original Swift/C++ parity benchmarks.
-enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2 };
+enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2, r07_astra = 3 };
 
 class Search {
 public:
-    explicit Search(ResearchRanker ranker = ResearchRanker::legacy)
-        : ranker_(ranker) {}
+    explicit Search(ResearchRanker ranker = ResearchRanker::legacy,
+                    const research_r07::Forest *r07 = nullptr,
+                    std::size_t ttCap = 50000)
+        : ranker_(ranker), r07_(r07),
+          tt_cap_(std::clamp<std::size_t>(ttCap, 1024, 50000)) {}
     // Optional per-search, read-only diagnostics sink. It must never choose a
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
     using RankedRootsSink = std::function<void(const std::vector<int> &)>;
     using PVSink = std::function<void(int, const std::vector<int> &)>;
+    // Genuine, bounded explored branches, not decorative generated paths.
+    using ExploredSink = std::function<void(const std::array<int,3> &, int, std::uint64_t)>;
     SearchResult analyze(const Board &root, int milliseconds,
                          const RootPolicy *policy = nullptr,
                          const ComputePolicy *compute = nullptr,
@@ -94,11 +101,14 @@ public:
                          const ProgressSink &progress = {},
                          const RankedRootsSink &ranked_roots = {},
                          const PVSink &pv = {},
-                         const AdaptiveStopPolicy *adaptive = nullptr);
+                         const AdaptiveStopPolicy *adaptive = nullptr,
+                         const ExploredSink &explored = {});
     int best_move(const Board &root, int milliseconds);
 
 private:
     ResearchRanker ranker_ = ResearchRanker::legacy;
+    std::size_t tt_cap_ = 50000;
+    const research_r07::Forest *r07_ = nullptr;
     int move_rank(int index, int side) const;
     using Clock = std::chrono::steady_clock;
     static constexpr int kMate = 10'000'000;
@@ -118,6 +128,10 @@ private:
     bool cancelled_ = false;
     const std::atomic<bool> *cancel_signal_ = nullptr;
     ProgressSink progress_{};
+    ExploredSink explored_{};
+    std::array<int,3> explored_path_{{-1,-1,-1}};
+    Clock::time_point last_explored_emit_{};
+    void emit_explored(int length);
     int last_completed_depth_ = 0;
     int last_best_move_ = -1;
     std::uint64_t last_progress_nodes_ = 0;

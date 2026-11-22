@@ -26,6 +26,8 @@ final class NativeGomokuAppController: ObservableObject {
     @Published private(set) var lastThinkingStopReason: String?
     @Published private(set) var lastAdaptiveSearchEvidence: EclipseAdaptiveStopEvidence?
     private var searchStartedUptime: TimeInterval?
+    private var activeNativeTraceToken: UUID?
+    private var lastNativeTraceNodes: Int = 0
     // Ephemeral measured latencies only: isolated by executed SHA/policy,
     // bounded to 16 signatures x 128 samples, no private game records.
     private var nativeLatencyBySignature: [String: [Int]] = [:]
@@ -46,6 +48,18 @@ final class NativeGomokuAppController: ObservableObject {
         }
     }
     @Published var searchMode: BoardSearchMode = .full
+    @Published var thinkingIntensity: Int =
+        min(10, max(1, UserDefaults.standard.object(forKey: "gomoku.eclipse.thinking-intensity.v1") as? Int ?? 10)) {
+        didSet {
+            UserDefaults.standard.set(thinkingIntensity, forKey: "gomoku.eclipse.thinking-intensity.v1")
+        }
+    }
+    @Published var noSingleMoveTimeCutoff: Bool =
+        UserDefaults.standard.bool(forKey: "gomoku.eclipse.no-wall-time-cutoff.v1") {
+        didSet {
+            UserDefaults.standard.set(noSingleMoveTimeCutoff, forKey: "gomoku.eclipse.no-wall-time-cutoff.v1")
+        }
+    }
     @Published private(set) var archivedGames = 0
     @Published private(set) var recoveryAvailable = false
     @Published private(set) var developerTeachingMode = false
@@ -71,7 +85,7 @@ final class NativeGomokuAppController: ObservableObject {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
 
-    @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
+    @Published var eclipseVisualizationEnabled = UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
             if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }
@@ -100,7 +114,7 @@ final class NativeGomokuAppController: ObservableObject {
         // loadAllFromBundle has ALREADY verified each exact C++ forest during
         // app initialization. Do not create extra native engines on each
         // SwiftUI redraw; C++ make()/decide() re-attest active bytes per turn.
-        [.astra20, .sol20].filter {
+        [.astra30, .astra20, .sol20].filter {
             verifiedTrainerExecutions[$0] != nil
         }
     }
@@ -163,7 +177,7 @@ final class NativeGomokuAppController: ObservableObject {
             if UserDefaults.standard.string(
                 forKey: EclipseModelID.selectionKey
             ) == nil,
-                let first = [EclipseModelID.astra20, .sol20].first(
+                let first = [EclipseModelID.astra30, .astra20, .sol20].first(
                     where: { self.verifiedSelectableModels.contains($0) }
                 ) {
                 selectedModel = first
@@ -259,6 +273,41 @@ final class NativeGomokuAppController: ObservableObject {
             )
         }
         return nil
+    }
+
+    /// Connect the actual C++ explored-branch source to the untouched
+    /// VeilLink native board-thought renderer. A session-scoped store is the
+    /// only sink; the original renderer still checks game/turn/thinking.
+    func ingestNativeVeilLinkBranches() {
+        guard eclipseVisualizationEnabled, isThinking, status == 0,
+              let token = activeNativeTraceToken,
+              activeThinkingRun?.backend.hasPrefix("C++20 V") == true,
+              let runtime = activeCppSearch,
+              let search = runtime.liveSearchSnapshot(), search.running,
+              let traces = runtime.liveExploredLines(),
+              traces.serial == search.searchSerial
+        else { return }
+        for entry in traces.lines where entry.nodes > lastNativeTraceNodes {
+            _ = eclipseTraceStore.record(entry.indices, nodes: entry.nodes, token: token)
+            lastNativeTraceNodes = entry.nodes
+        }
+    }
+
+    /// Public visualization of native SEARCHED root locations. These are
+    /// ordinal candidates actually published by this engine's live ABI,
+    /// never invented probabilities or proven win hints.
+    func liveVisualizationRootRanks() -> [Int] {
+        guard eclipseVisualizationEnabled, isThinking, status == 0,
+              activeThinkingRun?.backend.hasPrefix("C++20 V") == true,
+              let runtime = activeCppSearch,
+              let live = runtime.liveSearchSnapshot(),
+              live.running,
+              let ranks = runtime.liveRankedRootMoves(),
+              ranks.serial == live.searchSerial
+        else { return [] }
+        return Array(ranks.moves.filter {
+            (0..<225).contains($0) && state.value(at: $0) == 0
+        }.prefix(16))
     }
 
     /// No invented positions, likelihoods, PV, or progress percentage.
@@ -644,6 +693,10 @@ final class NativeGomokuAppController: ObservableObject {
         let boardAtStart = state
         let token = generation
         let model = selectedModel
+        let manualTier = computeTier
+        let intensity = thinkingIntensity
+        let unlimitedTime = noSingleMoveTimeCutoff
+        let constrained = EclipseMemoryGovernor.lowMemoryDevice
         // Release previously reviewed engine before beginning a fresh run.
         activeCppSearch = runtime
         lastThinkingRun = nil
@@ -659,11 +712,16 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
-            backend: trainer.computePolicy.maxDepth >= 5
+            backend: trainer.computePolicy.withManualTier(manualTier)
+                .withThinkingIntensity(intensity)
+                .boundedForLowMemory(constrained).maxDepth >= 5
                 ? "C++20 V3 adaptive" : "C++20 V2",
             modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
-            computePolicySHA256: trainer.computePolicy.sha256
+            computePolicySHA256: trainer.computePolicy.withManualTier(manualTier)
+                .withThinkingIntensity(intensity)
+                .boundedForLowMemory(constrained)
+                .runtimeSignature(noWallTimeCutoff: unlimitedTime)
         )
         developerMessage = nil
 
@@ -691,7 +749,8 @@ final class NativeGomokuAppController: ObservableObject {
                 archiveDirectory: archiveDirectory,
                 currentMoves: moves,
                 humanStone: otherStone,
-                includeNativeSelfPlay: useNativeTraining
+                includeNativeSelfPlay: useNativeTraining,
+                focusOnCurrentPosition: constrained
             ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
             let rooted = EclipseCppRootLearningPolicy.build(
@@ -701,7 +760,11 @@ final class NativeGomokuAppController: ObservableObject {
                 formation: formation
             )
             let result = runtime.decide(
-                policy: trainer.computePolicy, rootPolicy: rooted
+                policy: trainer.computePolicy, rootPolicy: rooted,
+                userTier: manualTier,
+                thinkingIntensity: intensity,
+                noWallTimeCutoff: unlimitedTime,
+                lowMemoryMode: constrained
             )
             guard !Task.isCancelled else { return }
             await self?.finishTeachingAnalysis(
@@ -769,6 +832,10 @@ final class NativeGomokuAppController: ObservableObject {
         let boardAtStart = state
         let model = selectedModel
         let selectedTier = currentModelSelection.legacyDifficulty
+        let manualTier = computeTier
+        let intensity = thinkingIntensity
+        let unlimitedTime = noSingleMoveTimeCutoff
+        let constrained = EclipseMemoryGovernor.lowMemoryDevice
         let selectedMode = searchMode
         let verifiedTrainer = verifiedTrainerExecution?.model == model
             ? verifiedTrainerExecution : nil
@@ -795,18 +862,21 @@ final class NativeGomokuAppController: ObservableObject {
         // The native runtime has been freshly created and attested at this
         // exact position. If that failed, do NOT claim selected Astra/Sol.
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
+        let effectivePolicy = verifiedTrainer?.computePolicy.withManualTier(manualTier)
+            .withThinkingIntensity(intensity)
+            .boundedForLowMemory(constrained)
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
             backend: usingCpp
-                ? ((verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 5
+                ? ((effectivePolicy?.maxDepth ?? 0) >= 5
                     ? "C++20 V3 adaptive" : "C++20 V2") :
                 (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
             modelName: usingCpp || !model.requiresVerifiedCheckpoint
                 ? model.name : nil,
             checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil,
             computePolicySHA256: usingCpp
-                ? verifiedTrainer?.computePolicy.sha256 : nil
+                ? effectivePolicy?.runtimeSignature(noWallTimeCutoff: unlimitedTime) : nil
         )
         if verifiedTrainer == nil || cppRuntime != nil {
             fallbackWarning = nil
@@ -820,8 +890,14 @@ final class NativeGomokuAppController: ObservableObject {
             _ = metricSink.record(trace, token: metricToken)
         }
         let observer: (@Sendable ([Int], Int) -> Void)?
-        if eclipseVisualizationEnabled && developerTeachingMode,
+        activeNativeTraceToken = nil
+        lastNativeTraceNodes = 0
+        // VeilLink's original live examined-branch visualization is a
+        // user-facing choice in ordinary games too, not developer-only.
+        // record() still validates actual replayable paths per exact turn.
+        if eclipseVisualizationEnabled,
            let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
+            activeNativeTraceToken = traceToken
             observer = { indices, nodes in
                 _ = traceStore.record(indices, nodes: nodes, token: traceToken)
             }
@@ -855,7 +931,8 @@ final class NativeGomokuAppController: ObservableObject {
                 archiveDirectory: archiveDirectory,
                 currentMoves: existingMoves,
                 humanStone: humanStone,
-                includeNativeSelfPlay: useNativeTraining
+                includeNativeSelfPlay: useNativeTraining,
+                focusOnCurrentPosition: constrained
             ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
             // The official architecture first dispatches a verified trained
@@ -870,7 +947,11 @@ final class NativeGomokuAppController: ObservableObject {
                 )
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
-                    rootPolicy: rooted
+                    rootPolicy: rooted,
+                    userTier: manualTier,
+                    thinkingIntensity: intensity,
+                    noWallTimeCutoff: unlimitedTime,
+                    lowMemoryMode: constrained
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {
@@ -893,6 +974,7 @@ final class NativeGomokuAppController: ObservableObject {
             let budget = GomokuBotBudget.forDifficulty(
                     selectedTier, profileLabel: selectedMode.budgetProfileLabel
                 ).reinforced(by: learning.trainingLevel)
+                 .boundedForLowMemory(constrained)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,
                 for: boardAtStart.currentPlayer,

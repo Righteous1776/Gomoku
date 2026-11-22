@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Production-capable C++ V2 execution adapter.
 ///
@@ -30,6 +31,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         switch model {
         case .astra20: return Int32(EG_RESEARCH_RANKER_V9_ASTRA)
         case .sol20: return Int32(EG_RESEARCH_RANKER_V9_SOL)
+        case .astra30: return Int32(EG_RESEARCH_RANKER_R07_ASTRA)
         default: return nil
         }
     }
@@ -40,11 +42,10 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     ) {
         guard let selected = Self.nativeRanker(model),
               let created = eg_create() else { return nil }
-        let bound = checkpointSHA256.withCString {
-            eg_select_compiled_v9_model_v4(created, selected, $0)
-        }
-        guard bound == 1,
-              Self.activeCheckpointSHA256(of: created) == checkpointSHA256
+        let bound = Self.bindCheckpoint(created, model: model,
+                                        checksum: checkpointSHA256)
+        guard bound,
+              Self.activeCheckpointSHA256(of: created, model: model) == checkpointSHA256
         else {
             eg_destroy(created)
             return nil
@@ -68,6 +69,38 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
 
     deinit { eg_destroy(engine) }
 
+    /// R07 is a REAL model resource, independently SHA-confirmed by CryptoKit
+    /// and by the native loader. Its R04 base 26D parity remains experimental.
+    private static func bindCheckpoint(
+        _ handle: OpaquePointer, model: EclipseModelID, checksum: String
+    ) -> Bool {
+        if model == .astra30 {
+            guard checksum == "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234",
+                  let url = Bundle.main.url(
+                    forResource: "eclipse_r07_34d_249_trees", withExtension: "txt"
+                  ),
+                  let data = try? Data(contentsOf: url),
+                  data.count == 585541,
+                  SHA256.hash(data: data)
+                    .map({ String(format: "%02x", $0) }).joined() == checksum
+            else { return false }
+            let result = data.withUnsafeBytes { bytes in
+                checksum.withCString { cSHA in
+                    eg_load_astra_r07_v5(
+                        handle, bytes.baseAddress?.assumingMemoryBound(to: CChar.self),
+                        Int32(bytes.count), cSHA
+                    )
+                }
+            }
+            return result == 1
+        }
+        return checksum.withCString {
+            eg_select_compiled_v9_model_v4(
+                handle, Self.nativeRanker(model) ?? -1, $0
+            ) == 1
+        }
+    }
+
     /// This digest must come from the *actually loaded C++ scorer*, not the
     /// manifest or the application's model picker. Zero means not loaded.
     static func loadedCheckpointSHA256() -> String? {
@@ -90,11 +123,16 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     /// Read identity of the ACTIVE forest of this engine instance, never a
     /// model-picker label or the old global R10 research checkpoint stub.
     private static func activeCheckpointSHA256(
-        of engine: OpaquePointer
+        of engine: OpaquePointer, model: EclipseModelID
     ) -> String? {
         var bytes = [CChar](repeating: 0, count: 65)
         let read = bytes.withUnsafeMutableBufferPointer { buffer in
-            eg_active_compiled_v9_sha256_v4(
+            if model == .astra30 {
+                return eg_active_astra_r07_sha256_v5(
+                    engine, buffer.baseAddress, Int32(buffer.count)
+                )
+            }
+            return eg_active_compiled_v9_sha256_v4(
                 engine, buffer.baseAddress, Int32(buffer.count)
             )
         }
@@ -117,11 +155,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
               expectedSHA256.count == 64,
               let handle = eg_create() else { return nil }
         defer { eg_destroy(handle) }
-        let ok = expectedSHA256.withCString {
-            eg_select_compiled_v9_model_v4(handle, selected, $0)
-        }
-        guard ok == 1 else { return nil }
-        return activeCheckpointSHA256(of: handle)
+        guard bindCheckpoint(handle, model: model,
+                             checksum: expectedSHA256) else { return nil }
+        return activeCheckpointSHA256(of: handle, model: model)
     }
 
     /// Runtime dispatch authority: real C++ loaded model and trainer handoff
@@ -130,11 +166,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         history: [Int],
         trainer: EclipseVerifiedTrainerExecution
     ) -> EclipseCppProductionAdapter? {
+        // The initializer loads and attests ACTUAL bytes; no second R07 parse.
         guard eg_compute_policy_abi_version() == 2,
-              let policyDigest = trainer.computePolicy.sha256,
-              loadedCheckpointSHA256(
-                for: trainer.model, expectedSHA256: trainer.checkpointSHA256
-              ) == trainer.checkpointSHA256
+              let policyDigest = trainer.computePolicy.sha256
         else { return nil }
         return EclipseCppProductionAdapter(
             history: history, model: trainer.model,
@@ -193,6 +227,35 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         return (serial: reading.search_serial, moves: moves)
     }
 
+    /// Actual 1..3-ply C++ search branches, published by the native search,
+    /// not synthesized from ranked-root positions. Identical serial required.
+    func liveExploredLines() -> (serial: UInt64, lines: [(indices: [Int], nodes: Int)])? {
+        var reading = EGExploredLinesSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGExploredLinesSnapshotV1>.size)
+        guard eg_read_explored_lines_v1(engine, &reading) == 1,
+              reading.count > 0, reading.count <= UInt32(EG_LIVE_EXPLORED_MAX)
+        else { return nil }
+        let records: [EGExploredLineV1] = withUnsafeBytes(of: reading.lines) {
+            Array($0.bindMemory(to: EGExploredLineV1.self)
+                    .prefix(Int(reading.count)))
+        }
+        var result: [(indices: [Int], nodes: Int)] = []
+        for line in records {
+            guard (1...3).contains(Int(line.count)),
+                  line.visited_nodes > 0,
+                  line.visited_nodes <= UInt64(Int.max) else { return nil }
+            let moves: [Int] = withUnsafeBytes(of: line.moves) {
+                $0.bindMemory(to: Int32.self)
+                  .prefix(Int(line.count)).map { Int($0) }
+            }
+            guard moves.count == Int(line.count),
+                  moves.allSatisfy({ (0..<225).contains($0) }),
+                  Set(moves).count == moves.count else { return nil }
+            result.append((moves, Int(line.visited_nodes)))
+        }
+        return (reading.search_serial, result)
+    }
+
     /// A short, actual principal variation PREFIX rooted in a finished
     /// iteration and followed exclusively through exact native TT entries.
     /// Position replay/alternating-stone legality is checked by the controller.
@@ -218,32 +281,43 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
                 moves: moves)
     }
 
-    /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
-    /// no separate model budget overriding the Training Agent's policy.
-    /// The search always executes off the MainActor.
+    /// Runs the exact independently attested forest, with the user-visible
+    /// one-of-four compute budget bounded by the trainer's approved maximum.
+    /// This changes real native depth, width, nodes and wall time, not a UI tag.
     func decide(
         policy: EclipseTrainerComputePolicy,
-        rootPolicy: EclipseCppRootLearningPolicy? = nil
+        rootPolicy: EclipseCppRootLearningPolicy? = nil,
+        userTier: EclipseComputeTier = .extreme,
+        thinkingIntensity: Int = 10,
+        noWallTimeCutoff: Bool = false,
+        lowMemoryMode: Bool = false
     ) -> GomokuBotMove? {
+        let effectivePolicy = policy.withManualTier(userTier)
+            .withThinkingIntensity(thinkingIntensity)
+            .boundedForLowMemory(lowMemoryMode)
         guard rootPolicy?.isValid != false,
-              policy.isValid,
+              policy.isValid, effectivePolicy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
-              Self.activeCheckpointSHA256(of: engine) == checkpointSHA256
+              Self.activeCheckpointSHA256(of: engine, model: model) == checkpointSHA256
+        else { return nil }
+        guard !lowMemoryMode || eg_set_search_tt_cap_v1(engine, 8192) == 1
         else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
-        config.mode = policy.mode == .adaptive
+        config.mode = noWallTimeCutoff || effectivePolicy.mode == .adaptive
             ? UInt32(EG_COMPUTE_MODE_ADAPTIVE)
             : UInt32(EG_COMPUTE_MODE_BUDGETED)
-        config.max_wall_time_ms = Int64(policy.maxWallTimeMilliseconds ?? 0)
-        config.max_nodes = UInt64(policy.maxNodes ?? 0)
-        config.max_depth = Int32(policy.maxDepth)
-        config.root_width = Int32(policy.rootWidth)
-        config.reply_width = Int32(policy.replyWidth)
-        config.continuation_width = Int32(policy.continuationWidth)
-        config.forced_line_depth = Int32(policy.forcedLineDepth)
-        config.candidate_radius = Int32(policy.candidateRadius)
+        // No time cutoff still obeys depth, node ceiling, cancel and rules.
+        config.max_wall_time_ms = noWallTimeCutoff ? 0 :
+            Int64(effectivePolicy.maxWallTimeMilliseconds ?? 0)
+        config.max_nodes = UInt64(effectivePolicy.maxNodes ?? 0)
+        config.max_depth = Int32(effectivePolicy.maxDepth)
+        config.root_width = Int32(effectivePolicy.rootWidth)
+        config.reply_width = Int32(effectivePolicy.replyWidth)
+        config.continuation_width = Int32(effectivePolicy.continuationWidth)
+        config.forced_line_depth = Int32(effectivePolicy.forcedLineDepth)
+        config.candidate_radius = Int32(effectivePolicy.candidateRadius)
 
         // Owner-authorized V3 stopping governs ONLY adaptive timing.
         // Trainer-selected depth, candidate widths and verified model SHA
@@ -251,18 +325,18 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         // Both verified trainer modes can use the owner-approved adaptive
         // stopping algorithm. Budgeted mode RETAINS its approved hard cap.
         // Depth below 5 keeps its historical short-depth V2 behavior.
-        let useAdaptiveV3 = policy.maxDepth >= 5
+        let useAdaptiveV3 = !noWallTimeCutoff && effectivePolicy.maxDepth >= 5
         guard !useAdaptiveV3 || eg_adaptive_stop_abi_version() == 3 else {
             return nil // Never silently fall back to unbounded thinking.
         }
         var stopping = EGAdaptiveStopConfigV3()
         stopping.size_bytes = UInt32(MemoryLayout<EGAdaptiveStopConfigV3>.size)
-        stopping.minimum_depth = Int32(min(5, policy.maxDepth))
-        stopping.stable_rounds = Int32(min(4, policy.maxDepth))
+        stopping.minimum_depth = Int32(min(5, effectivePolicy.maxDepth))
+        stopping.stable_rounds = Int32(min(4, effectivePolicy.maxDepth))
         stopping.minimum_score_gap = 1800
         // Owner policy defines the absolute ceiling. No hidden extra 45s.
         // Calm boards may still finish well before even the clear ceiling.
-        let trainerHardCap = Int64(policy.maxWallTimeMilliseconds ?? 45000)
+        let trainerHardCap = Int64(effectivePolicy.maxWallTimeMilliseconds ?? 45000)
         stopping.clear_budget_ms = min(1200, trainerHardCap)
         stopping.uncertain_budget_ms = min(6000, trainerHardCap)
         stopping.complex_budget_ms = min(45000, trainerHardCap)
@@ -336,7 +410,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
             score: 0, // C ABI V2 does not expose normalized evaluation score.
             nodes: Int(clamping: run.search.nodes),
             elapsedMilliseconds: Int(max(0, run.search.elapsed_ms)),
-            engineLabel: "ECLIPSE 2.0 \(model.family) · " +
+            engineLabel: (model == .astra30
+                ? "ECLIPSE 3.0 Astra · R07 真权重实验 · "
+                : "ECLIPSE 2.0 \(model.family) · ") +
                 (useAdaptiveV3 ? "C++20 V3 自适应收敛" : "C++20 V2"),
             completedDepth: Int(run.search.completed_depth),
             nativeStopReason: run.search.reason,

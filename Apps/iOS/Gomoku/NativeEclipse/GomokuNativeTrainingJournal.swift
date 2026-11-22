@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// Only real, fully replay-validated native self-play games are stored.
 struct GomokuNativeTrainingRecord: Codable, Sendable {
@@ -41,6 +42,15 @@ enum GomokuNativeTrainingJournalError: LocalizedError {
 /// Retains the source game evidence; learning feedback into the AI is a separate
 /// parity/release gate, NOT falsely implied by writing a training file.
 final class GomokuNativeTrainingJournal {
+    // Duplicate detection previously retained EVERY full 5..225-ply array
+    // in RAM, once in inspect and again in BatchWriter. A fixed 32-byte
+    // SHA256 fingerprint preserves the duplicate contract at a tiny fraction
+    // of its former footprint. Hashes are ephemeral and never written.
+    private static func fingerprint(_ moves: [Int]) -> Data {
+        let bytes = moves.withUnsafeBufferPointer { Data(buffer: $0) }
+        return Data(SHA256.hash(data: bytes))
+    }
+
     let directory: URL
     init(directory: URL? = nil) {
         if let directory { self.directory = directory }
@@ -73,7 +83,7 @@ final class GomokuNativeTrainingJournal {
             return VerificationReport(accepted: 0, invalid: 0, duplicates: 0)
         }
         var accepted = 0, invalid = 0, duplicates = 0
-        var sequences = Set<[Int]>()
+        var sequences = Set<Data>()
         for case let file as URL in files {
             guard file.deletingLastPathComponent().standardizedFileURL == directory.standardizedFileURL,
                   file.pathExtension == "json",
@@ -88,7 +98,7 @@ final class GomokuNativeTrainingJournal {
                 invalid += 1
                 continue
             }
-            guard sequences.insert(record.moves).inserted else {
+            guard sequences.insert(Self.fingerprint(record.moves)).inserted else {
                 duplicates += 1
                 continue
             }
@@ -188,15 +198,15 @@ final class GomokuNativeTrainingJournal {
     /// changed or damaged archive requires a new audit before another batch.
     final class BatchWriter {
         private let journal: GomokuNativeTrainingJournal
-        private var seen: Set<[Int]> = []
+        private var seen: Set<Data> = []
         private(set) var accepted: Int = 0
         let initialValidCount: Int
 
         init(journal: GomokuNativeTrainingJournal) throws {
             self.journal = journal
-            var inspectedSequences = Set<[Int]>()
+            var inspectedSequences = Set<Data>()
             let report = journal.inspect { record in
-                inspectedSequences.insert(record.moves)
+                inspectedSequences.insert(GomokuNativeTrainingJournal.fingerprint(record.moves))
             }
             guard report.invalid == 0, report.duplicates == 0 else {
                 throw GomokuNativeTrainingJournalError.corrupted
@@ -209,13 +219,14 @@ final class GomokuNativeTrainingJournal {
         func append(_ game: NativeGomokuSelfPlayGame, seed: Int,
                     humanStone: UInt8? = nil) throws -> URL {
             let moves = try GomokuNativeTrainingJournal.verifiedMoves(game)
-            guard !seen.contains(moves) else {
+            let digest = GomokuNativeTrainingJournal.fingerprint(moves)
+            guard !seen.contains(digest) else {
                 throw GomokuNativeTrainingJournalError.duplicate
             }
             let path = try journal.writeVerified(
                 moves: moves, result: game.result, seed: seed, humanStone: humanStone
             )
-            seen.insert(moves)
+            seen.insert(digest)
             accepted += 1
             return path
         }

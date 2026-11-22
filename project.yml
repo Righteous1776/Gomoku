@@ -2,12 +2,12 @@ name: Gomoku
 options:
   bundleIdPrefix: studio.zeo
   deploymentTarget:
-    iOS: '17.0'
+    iOS: '15.0'
   createIntermediateGroups: true
 settings:
   base:
     SWIFT_VERSION: '5.9'
-    IPHONEOS_DEPLOYMENT_TARGET: '17.0'
+    IPHONEOS_DEPLOYMENT_TARGET: '15.0'
     TARGETED_DEVICE_FAMILY: '1,2'
     CLANG_CXX_LANGUAGE_STANDARD: 'c++20'
     CLANG_CXX_LIBRARY: libc++
@@ -26,6 +26,8 @@ targets:
           - Vendor/**
       - path: Apps/iOS/Gomoku/Vendor/GomokuEngineV2
         type: folder
+        buildPhase: resources
+      - path: Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt
         buildPhase: resources
       - path: Engine/src/board.cpp
       - path: Engine/src/search.cpp

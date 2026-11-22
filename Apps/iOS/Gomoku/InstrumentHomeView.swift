@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// Standalone adaptation of VeilLink/UI/GameLobbyView.swift's LocalAIGameView.
 /// Keep the original instrument hierarchy: status, ECLIPSE identity, quick controls,
@@ -11,6 +12,7 @@ struct InstrumentHomeView: View {
     @State private var showingDeveloperLab = false
     @State private var showingCoach = false
     @State private var showsAdvanced = false
+    @AppStorage("gomoku.eclipse.measured-instruments.expanded.v1") private var showsMeasuredInstruments = true
     @State private var showsEclipseTrace = false
     @State private var showsModelSelection = false
     @State private var pendingModel: EclipseModelID?
@@ -29,7 +31,7 @@ struct InstrumentHomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 // Faithful to VeilLink/UI/GameLobbyView.swift LocalAIGameView:
                 // status → ECLIPSE identity → live runtime → controls → board.
@@ -42,18 +44,46 @@ struct InstrumentHomeView: View {
                     // inside the existing original material and layout,
                     // not as a second invented instrument or board overlay.
                     VStack(alignment: .leading, spacing: 8) {
-                        VeilEclipseRuntimeInstruments(
-                            running: showingSearch,
-                            start: showingSearch ? engine.searchStartedAt : nil,
-                            lastNodes: engine.lastDecisionNodes,
-                            lastMilliseconds: engine.lastDecisionMilliseconds,
-                            trainedGames: engine.trainedGames
-                        )
+                        // Preserve VeilLink's ORIGINAL widget byte-for-byte;
+                        // only its host instrument disclosure is new.
+                        Button {
+                            showsMeasuredInstruments.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Label("实测仪表", systemImage: "cpu.fill")
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .foregroundColor(VeilTheme.goldBright)
+                                Spacer(minLength: 3)
+                                Text(showsMeasuredInstruments ? "收起" : "展开")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                                Image(systemName: showsMeasuredInstruments
+                                      ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.goldBright)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("gomoku.eclipse.measured-instruments.toggle")
+                        .accessibilityValue(showsMeasuredInstruments ? "已展开" : "已折叠")
+                        if showsMeasuredInstruments {
+                            VeilEclipseRuntimeInstruments(
+                                running: showingSearch,
+                                start: showingSearch ? engine.searchStartedAt : nil,
+                                lastNodes: engine.lastDecisionNodes,
+                                lastMilliseconds: engine.lastDecisionMilliseconds,
+                                trainedGames: engine.trainedGames
+                            )
+                        }
+                        // THINKING HUD remains visible even with the instruments folded.
                         EclipseThinkingHUDView(engine: engine)
                     }
                     .veilCard()
+                    .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("gomoku.eclipse.runtime-source-card")
                     boardQuickControls
+                    thinkingIntensityControls
                     board
                     if engine.status != 0 { resultCard }
                     advancedPanel
@@ -72,7 +102,7 @@ struct InstrumentHomeView: View {
                     }
                     .accessibilityIdentifier("gomoku.eclipse.model.open")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("重开") { engine.reset() }
                         .foregroundColor(VeilTheme.goldBright)
                         .accessibilityIdentifier("gomoku.match.restart")
@@ -234,26 +264,58 @@ struct InstrumentHomeView: View {
     /// content sizes and narrow split-screen layouts fall back to two rows
     /// instead of clipping the 6× tier or intercepting the board below.
     private var boardQuickControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                modelSelector
-                Spacer(minLength: 3)
-                computeSelector
-                deepSearchToggle
-            }
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
+            if #available(iOS 16.0, *) {
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
                     modelSelector
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 3)
                     computeSelector
+                    deepSearchToggle
                 }
-                deepSearchToggle
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        modelSelector
+                        Spacer(minLength: 4)
+                        computeSelector
+                    }
+                    deepSearchToggle
+                }
+            }
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        modelSelector
+                        Spacer(minLength: 4)
+                        computeSelector
+                    }
+                    deepSearchToggle
+                }
+            }
+            HStack(spacing: 10) {
+                Toggle(isOn: $engine.eclipseVisualizationEnabled) {
+                    Label("AI 思考可视化", systemImage: "waveform.path.ecg")
+                        .font(.caption.weight(.semibold))
+                }
+                .tint(VeilTheme.gold)
+                .accessibilityIdentifier("gomoku.eclipse.visualization.quick-toggle")
+                Spacer(minLength: 0)
+                Button {
+                    showsEclipseTrace = true
+                } label: {
+                    Label("完整分析", systemImage: "arrow.up.right.square")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(VeilTheme.goldBright)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("gomoku.eclipse.visualization.open-analysis")
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(VeilTheme.elevated.opacity(0.82),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("gomoku.instrument.quick-controls")
     }
 
@@ -277,7 +339,7 @@ struct InstrumentHomeView: View {
     }
 
     private var modelSelectionSheet: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 10) {
@@ -294,6 +356,38 @@ struct InstrumentHomeView: View {
                     }
                     .padding(.bottom, 6)
 
+                    if !engine.verifiedSelectableModels.contains(.astra30),
+                       let generation3 = EclipseGeneration3ResearchCatalog.bundled,
+                       let candidate = generation3.preferredResearchCandidate {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 8) {
+                                Text(generation3.flagshipAliasName)
+                                    .font(.headline)
+                                    .foregroundColor(VeilTheme.text)
+                                Spacer(minLength: 6)
+                                Label("研究版 · 暂不可对弈", systemImage: "lock.fill")
+                                    .font(.caption2.monospaced())
+                                    .foregroundColor(VeilTheme.secondaryText)
+                            }
+                            Text("ECLIPSE 3.0 / \(candidate.researchRevision) · \(candidate.trees) 树 · \(candidate.features)D")
+                                .font(.caption.monospaced())
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("SHA-256: \(String(candidate.sha256.prefix(16)))…")
+                                .font(.caption.monospaced())
+                                .foregroundColor(VeilTheme.goldBright)
+                            Text("R07-249 研究检查点未完成原生加载核验；需要核验成功后才能选择，不能冒充 Astra/Sol 2.0。")
+                                .font(.caption)
+                                .foregroundColor(VeilTheme.secondaryText)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            VeilTheme.subtleFill,
+                            in: RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        )
+                        .accessibilityIdentifier("gomoku.eclipse.model.astra30.research-unavailable")
+                    }
                     ForEach(engine.availableModels) { model in
                         Button {
                             requestModelSelection(model)
@@ -335,7 +429,8 @@ struct InstrumentHomeView: View {
                         .buttonStyle(.plain)
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
-                    Text("模型版本代表训练/算法世代，不代表思考时间。当前原版 Swift 使用历史预算仅为兼容与评测；训练 Agent 的新检查点可指定自适应搜索，没有固定的时间或节点上限。")
+
+                    Text("模型代际与应用版本、四档算力彼此独立。每个档位以原模型核准预算为上限，实际原生搜索深度、节点、宽度与时间均随档位变化。3.0 Astra 为 R07-249 实验可玩版，前 26D 特征仍待独立研究一致性验证。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
@@ -346,14 +441,13 @@ struct InstrumentHomeView: View {
             .navigationTitle("ECLIPSE 模型")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { showsModelSelection = false }
                         .foregroundColor(VeilTheme.goldBright)
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(EclipseLegacySheetDetents())
         .confirmationDialog(
             "切换模型将结束当前对局并重开",
             isPresented: Binding(
@@ -411,18 +505,55 @@ struct InstrumentHomeView: View {
         } label: {
             HStack(spacing: 5) {
                 Text("算力")
-                Text(engine.trainerControlsCompute ? "训练 Agent" : engine.computeTier.title)
+                Text(engine.computeTier.title)
                     .foregroundColor(VeilTheme.goldBright)
                 Image(systemName: "chevron.up.chevron.down")
             }
             .font(.caption.weight(.medium))
             .foregroundColor(VeilTheme.text)
         }
-        .disabled(engine.trainerControlsCompute)
-        .accessibilityHint(engine.trainerControlsCompute
-            ? "该训练检查点的搜索策略由训练 Agent 裁决，用户算力偏好不施加固定时限"
-            : "当前为原版 Swift 历史兼容策略；新的训练检查点不会被旧档位时间限制")
+        .accessibilityHint("四档算力真实调整当前模型的搜索深度、分支宽度、时间与节点预算；切换将重新开始对局")
         .accessibilityIdentifier("gomoku.eclipse.compute.selector")
+    }
+
+    // The original screenshot has an independent 1..10 THINKING STRENGTH
+    // control. This augments the four coarse tiers; both alter native search
+    // budgets, while model identity and compulsory tactical safety remain fixed.
+    private var thinkingIntensityControls: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "brain.head.profile")
+                    .foregroundColor(VeilTheme.goldBright)
+                Text("思考强度")
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(VeilTheme.goldBright)
+                Spacer()
+                Text("\(engine.thinkingIntensity) / 10")
+                    .font(.subheadline.monospacedDigit().weight(.semibold))
+                    .foregroundColor(VeilTheme.secondaryText)
+            }
+            Slider(value: Binding(
+                get: { Double(engine.thinkingIntensity) },
+                set: { engine.thinkingIntensity = min(10, max(1, Int($0.rounded()))) }
+            ), in: 1...10, step: 1)
+            .tint(VeilTheme.goldBright)
+            .accessibilityIdentifier("gomoku.eclipse.thinking-intensity.slider")
+            Toggle(isOn: $engine.noSingleMoveTimeCutoff) {
+                Text("取消单步搜索时间截止")
+                    .font(.subheadline.weight(.medium))
+            }
+            .tint(VeilTheme.goldBright)
+            .accessibilityIdentifier("gomoku.eclipse.thinking-intensity.no-time-cutoff")
+            Text("滑块真实调整搜索深度、宽度与节点预算，下一手生效。取消时间截止后仍受搜索深度、节点上限和取消控制约束。")
+                .font(.caption)
+                .foregroundColor(VeilTheme.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .background(VeilTheme.elevated.opacity(0.84),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("gomoku.eclipse.thinking-intensity")
     }
 
     private var deepSearchToggle: some View {
@@ -444,13 +575,12 @@ struct InstrumentHomeView: View {
             enabled: canPlaceStone,
             eclipseThinking: showingSearch,
             actualSearchStartedAt: engine.searchStartedAt,
-            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled
-                && engine.developerTeachingMode
-                && engine.developerAuthorization.isAuthorized,
+            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
             eclipseTraceStore: engine.eclipseTraceStore,
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
+            eclipseNativeTracePump: { engine.ingestNativeVeilLinkBranches() },
             eclipseTeachingReviewAvailable:
                 engine.thinkingHUDSnapshot().hasTeachingReview,
             eclipseTeachingCandidate: {
@@ -460,10 +590,13 @@ struct InstrumentHomeView: View {
                 return engine.thinkingHUDSnapshot().visibleTeachingCandidate
             },
             eclipseTeachingRootRanks: {
-                guard engine.developerTeachingMode,
-                      engine.developerAuthorization.isAuthorized,
-                      engine.eclipseVisualizationEnabled else { return [] }
-                return engine.thinkingHUDSnapshot().visibleTeachingRanks
+                guard engine.eclipseVisualizationEnabled else { return [] }
+                if engine.developerTeachingMode
+                    && engine.developerAuthorization.isAuthorized {
+                    return engine.thinkingHUDSnapshot().visibleTeachingRanks
+                }
+                // Real C++ ranked roots: no fabricated heatmap or probability.
+                return engine.liveVisualizationRootRanks()
             },
             eclipseTeachingPVPrefix: {
                 guard engine.developerTeachingMode,
@@ -557,13 +690,12 @@ struct InstrumentHomeView: View {
             Toggle(isOn: $engine.eclipseVisualizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                    Text("仅授权教学可展示真实分支；正式对局不会公开候选。")
+                    Text("沿用 VeilLink 原版搜索轨迹；原生树仅显示真实候选排序。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                 }
             }
             .tint(VeilTheme.gold)
-            .disabled(!engine.developerTeachingMode)
             .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
 
             HStack(spacing: 8) {
@@ -694,11 +826,17 @@ struct InstrumentHomeView: View {
                       || engine.isInitialTrainingAuditRunning || engine.trainedGames == 0)
             .accessibilityIdentifier("gomoku.training.export.verified")
             if let exported = engine.nativeTrainingExportURL {
-                ShareLink(item: exported) {
-                    Label("分享已验证的自对弈 JSON", systemImage: "square.and.arrow.up")
-                        .font(.caption.weight(.semibold))
+                if #available(iOS 16.0, *) {
+                    ShareLink(item: exported) {
+                        Label("分享已验证的自对弈 JSON", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityIdentifier("gomoku.training.share.verified")
+                } else {
+                    EclipseLegacyShareButton(url: exported,
+                        title: "分享已验证的自对弈 JSON")
+                        .accessibilityIdentifier("gomoku.training.share.verified")
                 }
-                .accessibilityIdentifier("gomoku.training.share.verified")
             }
             if let warning = engine.trainingWarning {
                 Text(warning)
@@ -761,11 +899,16 @@ struct InstrumentHomeView: View {
             .font(.caption.weight(.semibold))
             .buttonStyle(VeilPhysicalButtonStyle())
             if let matchExportURL {
-                ShareLink(item: matchExportURL) {
-                    Label("分享最新棋谱", systemImage: "square.and.arrow.up")
-                        .font(.caption.weight(.semibold))
+                if #available(iOS 16.0, *) {
+                    ShareLink(item: matchExportURL) {
+                        Label("分享最新棋谱", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityIdentifier("gomoku.match.share")
+                } else {
+                    EclipseLegacyShareButton(url: matchExportURL, title: "分享最新棋谱")
+                        .accessibilityIdentifier("gomoku.match.share")
                 }
-                .accessibilityIdentifier("gomoku.match.share")
             }
         }
         .veilCard()
@@ -806,6 +949,18 @@ struct InstrumentHomeView: View {
     }
 }
 
+private struct EclipseLegacySheetDetents: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content.presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        } else {
+            content
+        }
+    }
+}
+
 private struct EclipseAnalysisPresentation: View {
     @ObservedObject var engine: NativeGomokuAppController
     @Environment(\.scenePhase) private var scenePhase
@@ -826,4 +981,30 @@ private struct EclipseAnalysisPresentation: View {
             )
         }
     }
+}
+
+struct EclipseLegacyShareButton: View {
+    let url: URL
+    let title: String
+    @State private var sharing = false
+
+    var body: some View {
+        Button {
+            sharing = true
+        } label: {
+            Label(title, systemImage: "square.and.arrow.up")
+                .font(.caption.weight(.semibold))
+        }
+        .sheet(isPresented: $sharing) {
+            EclipseLegacyActivityShare(url: url)
+        }
+    }
+}
+
+private struct EclipseLegacyActivityShare: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }

@@ -94,7 +94,9 @@ final class EclipseV9DualBindingTests: XCTestCase {
         let models = EclipseTrainerProductionRegistry.loadAllFromBundle(
             appBundle
         )
-        XCTAssertEqual(models.count, 2)
+        XCTAssertEqual(models.count, 3)
+        XCTAssertEqual(models[.astra30]?.checkpointSHA256,
+                       "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234")
         XCTAssertEqual(models[.astra20]?.checkpointSHA256, astraSHA)
         XCTAssertEqual(models[.sol20]?.checkpointSHA256, solSHA)
     }

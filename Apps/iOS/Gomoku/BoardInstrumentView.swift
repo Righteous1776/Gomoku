@@ -66,6 +66,7 @@ struct GomokuBoardView: View {
     /// developer-authorized teaching path supplies a non-nil value.
     /// Keep native rank/PV review visible after the read-only teaching
     /// analysis completes, until the board or authorization changes.
+    var eclipseNativeTracePump: (() -> Void)? = nil
     var eclipseTeachingReviewAvailable = false
     var eclipseTeachingCandidate: (() -> Int?)? = nil
     var eclipseTeachingRootRanks: (() -> [Int])? = nil
@@ -109,6 +110,16 @@ struct GomokuBoardView: View {
                         )
                         .frame(width: side, height: side)
                         .allowsHitTesting(false)
+                    }
+
+                    // THE ORIGINAL VeilLink branch renderer is unchanged.
+                    // This tiny bridge only pumps the actual C++ root/reply
+                    // paths into its pre-existing session-checked trace store.
+                    if eclipseThinking && eclipseVisualizationEnabled,
+                       let pump = eclipseNativeTracePump {
+                        EclipseNativeVeilLinkTracePump(onTick: pump)
+                            .frame(width: 1, height: 1)
+                            .allowsHitTesting(false)
                     }
 
                     // Real native root shortlist in rank order, cap 16.

@@ -71,8 +71,86 @@ struct EclipseTrainerComputePolicy: Codable, Sendable, Equatable {
         }
     }
 
-    /// Use the agent's concrete search geometry exactly, not an old
-    /// difficulty-based multiplier, 5.7-second ceiling or reinforcement clip.
+    /// Four explicit, user-selected compute tiers for each independently
+    /// attested checkpoint. The TRAINER policy remains the immutable maximum
+    /// and model provenance anchor, but the ACTUAL native search geometry is
+    /// recalculated per game and separately identified by its own SHA256.
+    /// Mandatory native win/only-block proof and candidate radius stay intact.
+    func withManualTier(_ tier: EclipseComputeTier) -> Self {
+        let numerator: Int
+        switch tier {
+        case .light: numerator = 1
+        case .standard: numerator = 2
+        case .high: numerator = 3
+        case .extreme: numerator = 4
+        }
+        func scaled(_ value: Int, atLeast lower: Int = 1) -> Int {
+            max(lower, (value / 4) * numerator
+                + ((value % 4) * numerator) / 4)
+        }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { scaled($0) },
+            maxNodes: maxNodes.map { scaled($0) },
+            maxDepth: scaled(maxDepth),
+            rootWidth: scaled(rootWidth),
+            replyWidth: scaled(replyWidth),
+            continuationWidth: scaled(continuationWidth, atLeast: 0),
+            forcedLineDepth: forcedLineDepth,
+            candidateRadius: candidateRadius
+        )
+    }
+
+    /// Screenshot-style thinking intensity is additional to the four effort
+    /// ceilings. It NEVER exceeds the chosen tier; the native tactical proof
+    /// depth/radius remain unchanged and no rating is inferred.
+    func withThinkingIntensity(_ choice: Int) -> Self {
+        let strength = min(10, max(1, choice))
+        func scale(_ value: Int, minimum: Int = 1) -> Int {
+            max(minimum, (value / 10) * strength +
+                (value % 10) * strength / 10)
+        }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { scale($0) },
+            maxNodes: maxNodes.map { scale($0) },
+            maxDepth: scale(maxDepth),
+            rootWidth: scale(rootWidth),
+            replyWidth: scale(replyWidth),
+            continuationWidth: scale(continuationWidth, minimum: 0),
+            forcedLineDepth: forcedLineDepth,
+            candidateRadius: candidateRadius
+        )
+    }
+
+    /// Run signature distinguishes the optional no-wall-time mode even
+    /// when it uses the same verified model/checkpoint/geometry.
+    func runtimeSignature(noWallTimeCutoff: Bool) -> String? {
+        guard let sha256 else { return nil }
+        if !noWallTimeCutoff { return sha256 }
+        let input = Data((sha256 + ":user-no-time-cutoff-v1").utf8)
+        return SHA256.hash(data: input)
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 2 GB RAM safety: actual native search memory bounded without changing
+    /// checkpoint identity, forced tactical safety or candidate radius.
+    /// Unlimited wall time still has explicit node/depth/cancel ceilings.
+    func boundedForLowMemory(_ enabled: Bool) -> Self {
+        guard enabled else { return self }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { min($0, 12_000) },
+            maxNodes: min(maxNodes ?? 100_000, 100_000),
+            maxDepth: min(maxDepth, 10),
+            rootWidth: min(rootWidth, 20),
+            replyWidth: min(replyWidth, 12),
+            continuationWidth: min(continuationWidth, 8),
+            forcedLineDepth: forcedLineDepth, candidateRadius: candidateRadius
+        )
+    }
+
+    /// The original seven-tier Swift budget remains separately supported.
     func budget() -> GomokuBotBudget {
         GomokuBotBudget(
             candidateRadius: candidateRadius,

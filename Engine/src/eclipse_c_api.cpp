@@ -1,6 +1,7 @@
 #include "eclipse_c_api.h"
 #include "board.hpp"
 #include "search.hpp"
+#include "eclipse_r07_ranker.hpp"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -8,6 +9,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <memory>
 
 struct EGEngine {
     eclipse::Board board;
@@ -28,9 +30,15 @@ struct EGEngine {
     std::atomic<std::uint32_t> live_pv_count{0};
     std::atomic<std::int32_t> live_pv_depth{0};
     std::array<std::atomic<std::int32_t>, EG_LIVE_PV_PREFIX_MAX> live_pv_moves{};
+    std::atomic<std::uint64_t> live_explored_total{0};
+    std::array<std::atomic<std::int32_t>, EG_LIVE_EXPLORED_MAX> live_explored_count{};
+    std::array<std::array<std::atomic<std::int32_t>,3>, EG_LIVE_EXPLORED_MAX> live_explored_moves{};
+    std::array<std::atomic<std::uint64_t>, EG_LIVE_EXPLORED_MAX> live_explored_nodes{};
     // Explicit research-only V2 ranking selection (default R10).
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
+    std::shared_ptr<const eclipse::research_r07::Forest> r07_forest;
+    std::uint32_t search_tt_cap = 50000;
 };
 
 namespace {
@@ -66,6 +74,7 @@ void clear_live(EGEngine *e) {
     e->live_pv_count.store(0);
     e->live_pv_depth.store(0);
     for (auto &index : e->live_pv_moves) index.store(-1);
+    e->live_explored_total.store(0);
     e->live_sequence.fetch_add(1);
 }
 void publish_ranked(EGEngine *e, const std::vector<int> &ranked) {
@@ -84,6 +93,20 @@ void publish_pv(EGEngine *e, int depth, const std::vector<int> &pv) {
         e->live_pv_moves[i].store(i < count ? pv[i] : -1);
     e->live_pv_depth.store(depth);
     e->live_pv_count.store(static_cast<std::uint32_t>(count));
+    e->live_sequence.fetch_add(1);
+}
+void publish_explored(EGEngine *e, const std::array<int,3> &path,
+                     int count, std::uint64_t nodes) {
+    if (count < 1 || count > 3 || nodes == 0) return;
+    e->live_sequence.fetch_add(1);
+    const auto total = e->live_explored_total.load();
+    const std::size_t slot = static_cast<std::size_t>(
+        total % EG_LIVE_EXPLORED_MAX);
+    e->live_explored_count[slot].store(count);
+    for (int i=0; i<3; ++i)
+        e->live_explored_moves[slot][i].store(i<count ? path[i] : -1);
+    e->live_explored_nodes[slot].store(nodes);
+    e->live_explored_total.store(total+1);
     e->live_sequence.fetch_add(1);
 }
 } // namespace
@@ -115,7 +138,7 @@ EGEngine *eg_create(void){
     return e;
 }
 void eg_destroy(EGEngine *e){delete e;}
-void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; clear_live(e);}}
+void eg_reset(EGEngine *e){if(e){e->board.reset(); e->research_ranker = EG_RESEARCH_RANKER_LEGACY; e->verified_v9_model=0; e->r07_forest.reset(); clear_live(e);}}
 int eg_play(EGEngine *e,int index){if(!e||!e->board.play(index))return 0;clear_live(e);return 1;}
 int eg_undo(EGEngine *e){if(!e||!e->board.undo())return 0;clear_live(e);return 1;}
 int eg_best_move(const EGEngine *e,int ms){if(!e)return -1;return eclipse::Search{}.best_move(e->board,ms);}
@@ -174,6 +197,7 @@ int eg_select_research_ranker_v3(EGEngine *e, int32_t ranker) {
         ranker > EG_RESEARCH_RANKER_V9_SOL) return 0;
     e->research_ranker = ranker;
     e->verified_v9_model = 0; // Research selection never inherits production attestation.
+    e->r07_forest.reset();
     clear_live(e);
     return 1;
 }
@@ -198,6 +222,7 @@ int eg_select_compiled_v9_model_v4(EGEngine *e, int32_t model,
         std::strncmp(actual, expected_sha256, 65) != 0) return 0;
     e->research_ranker = model;
     e->verified_v9_model = model;
+    e->r07_forest.reset();
     clear_live(e);
     return 1;
 }
@@ -210,7 +235,39 @@ int eg_active_compiled_v9_sha256_v4(const EGEngine *e,
     std::memcpy(out, actual, 65);
     return 64;
 }
+int eg_load_astra_r07_v5(EGEngine *e,const char *bytes,int32_t count,
+                            const char *expected_sha256) {
+    if(!e||!bytes||count<=0||count>2000000||!expected_sha256||
+       std::strncmp(expected_sha256,eclipse::research_r07::kR07SHA,65)!=0||
+       e->live_state.load()==EG_LIVE_SEARCH_RUNNING)return 0;
+    auto forest=std::make_shared<eclipse::research_r07::Forest>();
+    if(!forest->load(std::string_view(bytes,static_cast<std::size_t>(count))))
+        return 0;
+    e->r07_forest=std::move(forest);
+    e->research_ranker=EG_RESEARCH_RANKER_R07_ASTRA;
+    e->verified_v9_model=0;
+    clear_live(e);
+    return 1;
+}
+int eg_active_astra_r07_sha256_v5(const EGEngine *e,char *out,int32_t capacity) {
+    if(!e||!out||capacity<65||!e->r07_forest||
+       e->research_ranker!=EG_RESEARCH_RANKER_R07_ASTRA)return 0;
+    std::memcpy(out,eclipse::research_r07::kR07SHA,65);
+    return 64;
+}
+int eg_astra_r07_score_v5(const EGEngine *e,int32_t move) {
+    if(!e||!e->r07_forest||e->research_ranker!=EG_RESEARCH_RANKER_R07_ASTRA)
+        return 0;
+    return eclipse::research_r07::score(*e->r07_forest,
+        e->board.cells,move,e->board.turn);
+}
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
+int eg_set_search_tt_cap_v1(EGEngine *e, uint32_t max_entries) {
+    if (!e || max_entries < 1024 || max_entries > 50000 ||
+        e->live_state.load() == EG_LIVE_SEARCH_RUNNING) return 0;
+    e->search_tt_cap = max_entries;
+    return 1;
+}
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
 }
@@ -284,6 +341,37 @@ int eg_read_ranked_roots_v1(const EGEngine *e, EGRankedRootsSnapshotV1 *out) {
         const auto after = e->live_sequence.load();
         if (before == after && !(after & 1)) {
             *out = reading;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int eg_read_explored_lines_v1(const EGEngine *e,
+                               EGExploredLinesSnapshotV1 *out) {
+    if (!e || !out || out->size_bytes != sizeof(EGExploredLinesSnapshotV1))
+        return 0;
+    for (int attempt=0; attempt<32; ++attempt) {
+        const auto before=e->live_sequence.load();
+        if (before&1) continue;
+        EGExploredLinesSnapshotV1 read{};
+        read.size_bytes=sizeof(read);
+        read.search_serial=e->live_serial.load();
+        const auto total=e->live_explored_total.load();
+        read.count=static_cast<std::uint32_t>(
+            std::min<std::uint64_t>(total, EG_LIVE_EXPLORED_MAX));
+        for (std::uint32_t i=0;i<read.count;++i) {
+            const auto slot=static_cast<std::size_t>(
+                (total-read.count+i)%EG_LIVE_EXPLORED_MAX);
+            auto &line=read.lines[i];
+            line.count=e->live_explored_count[slot].load();
+            line.visited_nodes=e->live_explored_nodes[slot].load();
+            for(int j=0;j<3;++j)
+                line.moves[j]=e->live_explored_moves[slot][j].load();
+        }
+        const auto after=e->live_sequence.load();
+        if(before==after && !(after&1)) {
+            *out=read;
             return 1;
         }
     }
@@ -385,6 +473,7 @@ static int analyze_compute_impl(
         e->live_pv_count.store(0);
         e->live_pv_depth.store(0);
         for (auto &index : e->live_pv_moves) index.store(-1);
+        e->live_explored_total.store(0);
         e->live_state.store(EG_LIVE_SEARCH_RUNNING);
         e->live_sequence.fetch_add(1);
         const auto observer = [e](std::uint64_t nodes, int depth, int move) {
@@ -396,12 +485,17 @@ static int analyze_compute_impl(
         const auto pv_observer = [e](int depth, const std::vector<int> &pv) {
             publish_pv(e, depth, pv);
         };
+        const auto explored_observer = [e](const std::array<int,3> &path,
+                                          int count, std::uint64_t nodes) {
+            publish_explored(e, path, count, nodes);
+        };
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
-            static_cast<eclipse::ResearchRanker>(e->research_ranker)}.analyze(
+            static_cast<eclipse::ResearchRanker>(e->research_ranker),
+            e->r07_forest.get(), e->search_tt_cap}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
             observer, root_observer, pv_observer,
-            stop ? &adaptive : nullptr);
+            stop ? &adaptive : nullptr, explored_observer);
         if (found.reason == eclipse::SearchStopReason::cancelled ||
             (found.move < 0 && e->board.outcome == 0)) {
             publish_live(e, found.reason == eclipse::SearchStopReason::cancelled
