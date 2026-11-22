@@ -130,6 +130,17 @@ def validate_pv(board: list[int], side: int, pv: list[int]) -> None:
             raise ValueError("teacher PV continues after a win")
 
 
+def classify_teacher_trace(traces: list[dict]) -> tuple[int, int]:
+    """Do not confuse a VCF proof's PV length with completed PVS depth."""
+    iterative = max((t["completed_depth"] for t in traces
+                     if t.get("phase") == "deepening"), default=0)
+    proof = max((t["completed_depth"] for t in traces
+                 if t.get("rule") == "verified-forcing-four"), default=0)
+    if iterative and proof:
+        raise ValueError("mixed VCF proof and completed PVS depth in same teacher event")
+    return iterative, proof
+
+
 def collect(swift: Path, count: int, out: Path, seed: int,
             budget_ms: int, source_root: Path) -> dict:
     if count < 1 or count > 4096:
@@ -184,6 +195,10 @@ def collect(swift: Path, count: int, out: Path, seed: int,
             validate_pv(board, side, pv)
         if response.get("completed_depth") != last_depth:
             raise ValueError("teacher depth mismatch")
+        iterative_depth, forcing_proof_plies = classify_teacher_trace(traces)
+        decision_kind = ("verified_forcing_four" if forcing_proof_plies
+                         else "iterative_search" if iterative_depth
+                         else "mandatory_rule_or_unsearched")
         candidate_roots = nearby(board, 2)
         if move not in candidate_roots:
             candidate_roots.append(move)
@@ -198,7 +213,9 @@ def collect(swift: Path, count: int, out: Path, seed: int,
             "to_move": side,
             "candidate_roots": candidate_roots,
             "teacher_move": move,
-            "teacher_depth": last_depth,
+            "teacher_depth": iterative_depth,
+            "teacher_proof_plies": forcing_proof_plies,
+            "teacher_decision_kind": decision_kind,
             "teacher_nodes": response["nodes"],
             "teacher_elapsed_ms": response["elapsed_ms"],
             "teacher_trace": traces,
