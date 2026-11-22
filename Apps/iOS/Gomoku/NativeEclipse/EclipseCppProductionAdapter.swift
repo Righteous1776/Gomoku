@@ -229,6 +229,35 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         return (serial: reading.search_serial, moves: moves)
     }
 
+    /// Actual 1..3-ply C++ search branches, published by the native search,
+    /// not synthesized from ranked-root positions. Identical serial required.
+    func liveExploredLines() -> (serial: UInt64, lines: [(indices: [Int], nodes: Int)])? {
+        var reading = EGExploredLinesSnapshotV1()
+        reading.size_bytes = UInt32(MemoryLayout<EGExploredLinesSnapshotV1>.size)
+        guard eg_read_explored_lines_v1(engine, &reading) == 1,
+              reading.count > 0, reading.count <= UInt32(EG_LIVE_EXPLORED_MAX)
+        else { return nil }
+        let records: [EGExploredLineV1] = withUnsafeBytes(of: reading.lines) {
+            Array($0.bindMemory(to: EGExploredLineV1.self)
+                    .prefix(Int(reading.count)))
+        }
+        var result: [(indices: [Int], nodes: Int)] = []
+        for line in records {
+            guard (1...3).contains(Int(line.count)),
+                  line.visited_nodes > 0,
+                  line.visited_nodes <= UInt64(Int.max) else { return nil }
+            let moves: [Int] = withUnsafeBytes(of: line.moves) {
+                $0.bindMemory(to: Int32.self)
+                  .prefix(Int(line.count)).map { Int($0) }
+            }
+            guard moves.count == Int(line.count),
+                  moves.allSatisfy({ (0..<225).contains($0) }),
+                  Set(moves).count == moves.count else { return nil }
+            result.append((moves, Int(line.visited_nodes)))
+        }
+        return (reading.search_serial, result)
+    }
+
     /// A short, actual principal variation PREFIX rooted in a finished
     /// iteration and followed exclusively through exact native TT entries.
     /// Position replay/alternating-stone legality is checked by the controller.
@@ -260,9 +289,12 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
     func decide(
         policy: EclipseTrainerComputePolicy,
         rootPolicy: EclipseCppRootLearningPolicy? = nil,
-        userTier: EclipseComputeTier = .extreme
+        userTier: EclipseComputeTier = .extreme,
+        thinkingIntensity: Int = 10,
+        noWallTimeCutoff: Bool = false
     ) -> GomokuBotMove? {
         let effectivePolicy = policy.withManualTier(userTier)
+            .withThinkingIntensity(thinkingIntensity)
         guard rootPolicy?.isValid != false,
               policy.isValid, effectivePolicy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
@@ -274,7 +306,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         config.mode = effectivePolicy.mode == .adaptive
             ? UInt32(EG_COMPUTE_MODE_ADAPTIVE)
             : UInt32(EG_COMPUTE_MODE_BUDGETED)
-        config.max_wall_time_ms = Int64(effectivePolicy.maxWallTimeMilliseconds ?? 0)
+        // No time cutoff still obeys depth, node ceiling, cancel and rules.
+        config.max_wall_time_ms = noWallTimeCutoff ? 0 :
+            Int64(effectivePolicy.maxWallTimeMilliseconds ?? 0)
         config.max_nodes = UInt64(effectivePolicy.maxNodes ?? 0)
         config.max_depth = Int32(effectivePolicy.maxDepth)
         config.root_width = Int32(effectivePolicy.rootWidth)
@@ -289,7 +323,7 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         // Both verified trainer modes can use the owner-approved adaptive
         // stopping algorithm. Budgeted mode RETAINS its approved hard cap.
         // Depth below 5 keeps its historical short-depth V2 behavior.
-        let useAdaptiveV3 = effectivePolicy.maxDepth >= 5
+        let useAdaptiveV3 = !noWallTimeCutoff && effectivePolicy.maxDepth >= 5
         guard !useAdaptiveV3 || eg_adaptive_stop_abi_version() == 3 else {
             return nil // Never silently fall back to unbounded thinking.
         }

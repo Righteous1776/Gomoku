@@ -101,6 +101,38 @@ struct EclipseTrainerComputePolicy: Codable, Sendable, Equatable {
         )
     }
 
+    /// Screenshot-style thinking intensity is additional to the four effort
+    /// ceilings. It NEVER exceeds the chosen tier; the native tactical proof
+    /// depth/radius remain unchanged and no rating is inferred.
+    func withThinkingIntensity(_ choice: Int) -> Self {
+        let strength = min(10, max(1, choice))
+        func scale(_ value: Int, minimum: Int = 1) -> Int {
+            max(minimum, (value / 10) * strength +
+                (value % 10) * strength / 10)
+        }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { scale($0) },
+            maxNodes: maxNodes.map { scale($0) },
+            maxDepth: scale(maxDepth),
+            rootWidth: scale(rootWidth),
+            replyWidth: scale(replyWidth),
+            continuationWidth: scale(continuationWidth, minimum: 0),
+            forcedLineDepth: forcedLineDepth,
+            candidateRadius: candidateRadius
+        )
+    }
+
+    /// Run signature distinguishes the optional no-wall-time mode even
+    /// when it uses the same verified model/checkpoint/geometry.
+    func runtimeSignature(noWallTimeCutoff: Bool) -> String? {
+        guard let sha256 else { return nil }
+        if !noWallTimeCutoff { return sha256 }
+        let input = Data((sha256 + ":user-no-time-cutoff-v1").utf8)
+        return SHA256.hash(data: input)
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
     /// The original seven-tier Swift budget remains separately supported.
     func budget() -> GomokuBotBudget {
         GomokuBotBudget(
