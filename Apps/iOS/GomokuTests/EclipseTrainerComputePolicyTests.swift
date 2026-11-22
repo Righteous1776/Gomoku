@@ -18,6 +18,27 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         )
     }
 
+    func testFourManualTiersChangeActualNativeSearchBudgetAndKeepSafety() throws {
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        )
+        let configurations = EclipseComputeTier.allCases.map { base.withManualTier($0) }
+        XCTAssertEqual(configurations.map(\.maxWallTimeMilliseconds), [7500, 15000, 22500, 30000])
+        XCTAssertEqual(configurations.map(\.maxNodes), [300_000, 600_000, 900_000, 1_200_000])
+        XCTAssertEqual(configurations.map(\.maxDepth), [3, 6, 9, 12])
+        XCTAssertEqual(configurations.map(\.rootWidth), [6, 12, 18, 24])
+        XCTAssertEqual(configurations.map(\.replyWidth), [4, 8, 12, 16])
+        XCTAssertTrue(configurations.allSatisfy { $0.isValid })
+        XCTAssertTrue(configurations.allSatisfy { $0.forcedLineDepth == 8 && $0.candidateRadius == 3 })
+        XCTAssertEqual(Set(configurations.compactMap(\.sha256)).count, 4)
+        XCTAssertEqual(base.sha256, configurations.last?.sha256)
+        XCTAssertNil(adaptive().withManualTier(.light).maxWallTimeMilliseconds)
+        XCTAssertNil(adaptive().withManualTier(.standard).maxNodes)
+    }
+
     func testTrainerAdaptiveHasNoArtificialTimeOrNodeCeiling() throws {
         let policy = adaptive()
         XCTAssertTrue(policy.isValid)

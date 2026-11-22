@@ -31,9 +31,16 @@ def verify():
     assert "completedDepth.map" in hud and "visitedNodes.map" in hud
     assert "未提供" in hud
     assert "正式对局：落子前禁止显示" in hud
-    assert "&& engine.developerTeachingMode" in home
-    assert ".disabled(!engine.developerTeachingMode)" in home
-    assert "if eclipseVisualizationEnabled && developerTeachingMode," in controller
+    # VeilLink's original opt-in visual stream must be usable in ordinary
+    # games. Developer authorization still gates BEST MOVE and PV disclosure.
+    assert 'accessibilityIdentifier("gomoku.eclipse.visualization.quick-toggle")' in home
+    assert 'eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,' in home
+    assert ".disabled(!engine.developerTeachingMode)" not in home
+    assert "guard engine.developerTeachingMode" in home
+    assert "engine.developerAuthorization.isAuthorized" in home
+    assert "if eclipseVisualizationEnabled," in controller
+    assert "liveVisualizationRootRanks()" in home
+    assert "ranks.serial == live.searchSerial" in controller
     assert "候选评分、热力图、PV" in hud
     assert "withAnimation" not in hud
     assert "Canvas(" not in hud
@@ -52,7 +59,9 @@ def verify():
     assert "EclipseCppProductionAdapter.make(" in controller
     assert "let usingCpp = cppRuntime != nil && verifiedTrainer != nil" in controller
     assert "checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil" in controller
-    assert "verifiedTrainer?.computePolicy.sha256" in controller
+    assert "effectivePolicy?.sha256" in controller
+    assert "policy.sha256 == approvedComputePolicySHA256" in adapter
+    assert "userTier: manualTier" in controller
     assert "GomokuLearningRepertoire.build(" in controller
     assert "run.search.reason" in adapter
     assert "nativeStopReason: Int32? = nil" in bot
