@@ -27,6 +27,10 @@ jobs:
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A pull_request checkout defaults to a synthetic merge commit.
+          # Publish only the branch HEAD's descendant, never the merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Toolchain and original-source hashes
         run: |
           swiftc --version
