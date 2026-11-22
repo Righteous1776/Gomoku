@@ -1,5 +1,6 @@
 #pragma once
-// Experimental ECLIPSE 3.0 Astra / R07-249 LightGBM scorer.
+// Research LightGBM forest scorer shared by R07-249 and SHA-pinned R25-273.
+// This is an ordering prior inside the real native search, not a replacement for VCF/PVS.
 // The 8 new features are ported from Training/research/r07/source/features34.py.
 // The 26D legacy extractor comes from the local frozen C++ port; its exact
 // parity to the missing original R04 data_pipeline.py is NOT yet certified.
@@ -20,6 +21,8 @@
 namespace eclipse::research_r07 {
 inline constexpr char kR07SHA[] =
     "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234";
+inline constexpr char kR25SHA[] =
+    "bc9b1aabb6ae00de22e77943f5bd8c35ecff1b490e2ea74d5b10609b876f428d";
 // Minimal dependency-free SHA256. Verify ACTUAL text bytes before parsing.
 inline std::string sha256(std::string_view data) {
     static constexpr std::uint32_t k[64] = {
@@ -104,8 +107,13 @@ struct Forest {
         }
         return input.eof() && !out.empty();
     }
-    bool load(std::string_view source) {
-        if(source.size()<100000||source.size()>2000000||sha256(source)!=kR07SHA)
+    bool load(std::string_view source, std::string_view expected_sha = kR07SHA,
+              std::size_t expected_trees = 249) {
+        if ((expected_sha != kR07SHA && expected_sha != kR25SHA) ||
+            (expected_sha == kR07SHA && expected_trees != 249) ||
+            (expected_sha == kR25SHA && expected_trees != 273) ||
+            source.size() < 100000 || source.size() > 2000000 ||
+            sha256(source) != expected_sha)
             return false;
         std::istringstream input{std::string(source)};
         std::string line;
@@ -116,7 +124,7 @@ struct Forest {
             if(line.rfind("Tree=",0)==0) {
                 int idx=-1;
                 try{idx=std::stoi(line.substr(5));}catch(...){return false;}
-                if(idx!=static_cast<int>(trees.size())||idx>=249)return false;
+                if(idx!=static_cast<int>(trees.size())||idx>=static_cast<int>(expected_trees))return false;
                 trees.emplace_back();
             }
             if(trees.empty())continue;
@@ -137,7 +145,7 @@ struct Forest {
                 if(!parse_numbers(line,"leaf_value=",t.leaves))return false;
             }
         }
-        if(!header34||trees.size()!=249)return false;
+        if(!header34||trees.size()!=expected_trees)return false;
         for(const Tree&t:trees) {
             auto n=t.features.size();
             if(n==0||n>256||t.expected_leaves!=static_cast<int>(n+1)||
@@ -156,7 +164,8 @@ struct Forest {
         return true;
     }
     double raw(const std::array<double,34> &f) const {
-        if(trees.size()!=249)return std::numeric_limits<double>::quiet_NaN();
+        if(trees.size()!=249&&trees.size()!=273)
+            return std::numeric_limits<double>::quiet_NaN();
         double total=0;
         for(const Tree&t:trees) {
             int node=0;

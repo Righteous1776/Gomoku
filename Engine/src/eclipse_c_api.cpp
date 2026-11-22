@@ -241,6 +241,35 @@ int eg_astra_r07_score_v5(const EGEngine *e,int32_t move) {
     return eclipse::research_r07::score(*e->r07_forest,
         e->board.cells,move,e->board.turn);
 }
+// R26: the experimental R25 student is a different model identity. Loading
+// it does not select the production Astra R07-249 checkpoint or touch ABI v5.
+int eg_load_zenith_r25_student_v6(EGEngine *e, const char *bytes, int32_t count,
+                                  const char *expected_sha256) {
+    if (!e || !bytes || count <= 0 || count > 2000000 ||
+        !expected_sha256 ||
+        std::strncmp(expected_sha256, eclipse::research_r07::kR25SHA, 65) != 0 ||
+        e->live_state.load() == EG_LIVE_SEARCH_RUNNING) return 0;
+    auto forest = std::make_shared<eclipse::research_r07::Forest>();
+    if (!forest->load(std::string_view(bytes, static_cast<std::size_t>(count)),
+                      eclipse::research_r07::kR25SHA, 273)) return 0;
+    e->r07_forest = std::move(forest);
+    e->research_ranker = EG_RESEARCH_RANKER_R25_ZENITH_STUDENT;
+    e->verified_v9_model = 0;
+    clear_live(e);
+    return 1;
+}
+int eg_active_zenith_r25_sha256_v6(const EGEngine *e, char *out, int32_t capacity) {
+    if (!e || !out || capacity < 65 || !e->r07_forest ||
+        e->research_ranker != EG_RESEARCH_RANKER_R25_ZENITH_STUDENT) return 0;
+    std::memcpy(out, eclipse::research_r07::kR25SHA, 65);
+    return 64;
+}
+int eg_zenith_r25_score_v6(const EGEngine *e, int32_t move) {
+    if (!e || !e->r07_forest ||
+        e->research_ranker != EG_RESEARCH_RANKER_R25_ZENITH_STUDENT) return 0;
+    return eclipse::research_r07::score(*e->r07_forest,
+                                        e->board.cells, move, e->board.turn);
+}
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);

@@ -4,6 +4,7 @@
 #include <limits>
 #include <charconv>
 #include <fstream>
+#include <iterator>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -59,7 +60,7 @@ std::vector<int> parse_moves(std::string data){
     return result;
 }
 void usage(){std::cout<<"gomoku_cli --best <comma-separated-move-indices> [--ms 100] (0 = no time ceiling)\n"
-                       "gomoku_cli --best <moves> --policy-v2 <mode,ms,nodes,depth,root,reply,continuation,forcing,radius> [--research-ranker v9-astra|v9-sol]\n"
+                       "gomoku_cli --best <moves> --policy-v2 <mode,ms,nodes,depth,root,reply,continuation,forcing,radius> [--research-ranker v9-astra|v9-sol | --r25-weights <exact-research-checkpoint.txt>]\n"
                        "gomoku_cli --state <comma-separated-move-indices> (rules-only replay)\n"
                        "gomoku_cli --selfplay --games N [--ms 10] [--out file.jsonl] [--seed N]\n";}
 }
@@ -70,6 +71,7 @@ try {
     int games=1,ms=10,seed=42;std::string position,out;
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     bool explicit_research_ranker = false;
+    std::string r25_weights_path;
     EGComputePolicyV2 trainer_policy{};
     for(int i=1;i<argc;++i){const std::string a=argv[i];
         auto val=[&](){if(i+1>=argc)throw std::runtime_error("missing value: "+a);return std::string(argv[++i]);};
@@ -87,6 +89,10 @@ try {
             else if(name=="v9-sol")research_ranker=EG_RESEARCH_RANKER_V9_SOL;
             else throw std::runtime_error("unsupported research ranker: "+name);
         }
+        else if(a=="--r25-weights"){
+            if(!r25_weights_path.empty())throw std::runtime_error("duplicate R25 weight path");
+            r25_weights_path=val();
+        }
         else if(a=="--seed")seed=number(val());
         else if(a=="--out")out=val();
         else if(a=="--help"){usage();return 0;}
@@ -100,6 +106,8 @@ try {
         throw std::runtime_error("--policy-v2 only works with --best and without --ms");
     if(explicit_research_ranker && (!has_policy || !best))
         throw std::runtime_error("--research-ranker requires --best and --policy-v2");
+    if(!r25_weights_path.empty() && (!has_policy || !best || explicit_research_ranker))
+        throw std::runtime_error("--r25-weights requires --best + --policy-v2 without a second ranker");
     Engine engine{eg_create(),eg_destroy};if(!engine)throw std::runtime_error("out of memory");
     if(state_mode){
         const auto parsed=parse_moves(position);
@@ -121,6 +129,18 @@ try {
     }
     if(best){for(int m:parse_moves(position))if(!eg_play(engine.get(),m))throw std::runtime_error("illegal history");
         if(has_policy) {
+            char loaded_r25_sha[65]{};
+            if(!r25_weights_path.empty()) {
+                std::ifstream weight_stream(r25_weights_path,std::ios::binary);
+                if(!weight_stream)throw std::runtime_error("cannot read R25 weights");
+                std::string bytes((std::istreambuf_iterator<char>(weight_stream)),
+                                   std::istreambuf_iterator<char>());
+                if(!eg_load_zenith_r25_student_v6(
+                    engine.get(),bytes.data(),static_cast<int32_t>(bytes.size()),
+                    "bc9b1aabb6ae00de22e77943f5bd8c35ecff1b490e2ea74d5b10609b876f428d") ||
+                    eg_active_zenith_r25_sha256_v6(engine.get(),loaded_r25_sha,65)!=64)
+                    throw std::runtime_error("R25 weights are not exact SHA-pinned 273-tree checkpoint");
+            }
             if(explicit_research_ranker &&
                !eg_select_research_ranker_v3(engine.get(),research_ranker))
                 throw std::runtime_error("research scorer selection failed");
@@ -146,6 +166,10 @@ try {
                      <<"}" << (explicit_research_ranker
                          ? (research_ranker==EG_RESEARCH_RANKER_V9_ASTRA
                              ? ",\"research_ranker\":\"v9-astra\"" : ",\"research_ranker\":\"v9-sol\"") : "")
+                     << (!r25_weights_path.empty()
+                          ? std::string(",\"research_ranker\":\"r25-zenith-student\",\"model_sha256\":\"")
+                              + loaded_r25_sha + "\""
+                          : std::string(""))
                      << ",\"engine_revision\":\""<<eg_engine_revision()
                      <<"\"}\n";
             return d.move<0?1:0;

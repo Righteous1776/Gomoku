@@ -176,6 +176,7 @@ int Search::move_rank(int index, int side) const {
     case ResearchRanker::v9_sol:
         return research_v9::score(cells_, index, side, 2);
     case ResearchRanker::r07_astra:
+    case ResearchRanker::r25_zenith_student:
         return r07_ ? research_r07::score(*r07_,cells_,index,side) : 0;
     case ResearchRanker::legacy:
     default:

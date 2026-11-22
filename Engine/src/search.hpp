@@ -77,7 +77,10 @@ struct AdaptiveStopPolicy {
 
 // An explicit research-only selection; legacy remains the default for all
 // previously supported callers and original Swift/C++ parity benchmarks.
-enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2, r07_astra = 3 };
+enum class ResearchRanker : int {
+    legacy = 0, v9_astra = 1, v9_sol = 2,
+    r07_astra = 3, r25_zenith_student = 4
+};
 
 class Search {
 public:

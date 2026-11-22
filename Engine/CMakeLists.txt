@@ -69,6 +69,21 @@ if(BUILD_TESTING)
     COMMAND eclipse_r07_native_playable_tests
       ${CMAKE_SOURCE_DIR}/Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt)
   set_tests_properties(eclipse_r07_native_playable PROPERTIES TIMEOUT 30)
+  # R26: SHA-verified R25 teacher-distilled 273-tree forest inside the same
+  # actual native PVS + forced-line search (research only).
+  add_executable(eclipse_r25_zenith_search_tests tests/test_r25_zenith_search.cpp)
+  target_include_directories(eclipse_r25_zenith_search_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(eclipse_r25_zenith_search_tests PRIVATE eclipse_core)
+  add_test(NAME eclipse_r25_zenith_search
+    COMMAND eclipse_r25_zenith_search_tests
+      ${CMAKE_SOURCE_DIR}/Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt
+      ${CMAKE_SOURCE_DIR}/Training/research/r07/candidates/zenith_r25/eclipse_r07_zenith_teacher_273_trees.txt)
+  set_tests_properties(eclipse_r25_zenith_search PROPERTIES TIMEOUT 35)
+  add_executable(eclipse_r25_vs_r07_arena tests/arena_r25_vs_r07.cpp)
+  target_include_directories(eclipse_r25_vs_r07_arena PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+  target_link_libraries(eclipse_r25_vs_r07_arena PRIVATE eclipse_core)
+  # Do not put long full-game matches into the fast CTest: a dedicated Actions
+  # workflow replays all moves and checks W/L/D independently.
   add_executable(eclipse_v9_compiled_binding_tests
     tests/test_v9_compiled_binding.cpp)
   target_link_libraries(eclipse_v9_compiled_binding_tests PRIVATE eclipse_core)
