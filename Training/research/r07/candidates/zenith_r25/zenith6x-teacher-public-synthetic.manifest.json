@@ -8,7 +8,7 @@
     "Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift": "f89f234fcf2db59c52db70f1d2352576e727fd3c070fbb055ae59e10c391abfe",
     "Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift": "2decd204532a671b19013a00e35848cb15a09410d63222b147ba5dd7a1d76991"
   },
-  "dataset_sha256": "493384857577b3b27a9e1df2bf4e9c3a4b6a2b97bdb522c9f5d3b8c9cfd02e9a",
+  "dataset_sha256": "51e842c69f624e1ad9b2f7dcdd5f6af790e613905d8964574c0496a37a9d6f56",
   "public_synthetic_only": true,
   "no_private_learning": true,
   "teacher_zenith_budget_ms": 5700,
