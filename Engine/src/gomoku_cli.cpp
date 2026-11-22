@@ -167,8 +167,8 @@ try {
                          ? (research_ranker==EG_RESEARCH_RANKER_V9_ASTRA
                              ? ",\"research_ranker\":\"v9-astra\"" : ",\"research_ranker\":\"v9-sol\"") : "")
                      << (!r25_weights_path.empty()
-                          ? std::string(",\\\"research_ranker\\\":\\\"r25-zenith-student\\\",\\\"model_sha256\\\":\\\"")
-                              + loaded_r25_sha + "\\\""
+                          ? std::string(",\"research_ranker\":\"r25-zenith-student\",\"model_sha256\":\"")
+                              + loaded_r25_sha + "\""
                           : std::string(""))
                      << ",\"engine_revision\":\""<<eg_engine_revision()
                      <<"\"}\n";
