@@ -61,7 +61,7 @@ struct GomokuRetainedLegacyEvidenceView: View {
                 verificationError = error.localizedDescription
             }
         }
-        .onChange(of: authorization.isAuthorized) { _, valid in
+        .onChange(of: authorization.isAuthorized) { valid in
             if !valid { sources = [] }
         }
     }
