@@ -57,22 +57,24 @@ The initial small 48-position probe compiled the authentic Swift teacher, genera
 
 **Interpretation:** the teacher was genuinely executed and a new forest was genuinely trained, but there was **no measured independent holdout improvement**. Training-set gain is not proof of stronger Gomoku play, and the student may merely fit the synthetic positions. This candidate is research-only and not a replacement for R07-249 or Tianyuan 6×.
 
-## 2b. Extended 384-position research run — **holdout regression**
+## 2b. Extended 384-position research run — VCF proof reclassification
 
-A second actual original-teacher run used **384** legal, public-synthetic positions, with **379 distinct D4 opening families**. Of these, **149** depth-zero tactical/early responses were excluded from search-imitation training, leaving **189 train** and **46 heldout** groups.
+The original second run sampled **384** actual teacher positions. A deeper trace audit found **10** instances in which the original Swift search returned `rule=verified-forcing-four` with a 2–10-ply forced-line PV but **no completed PVS iterative deepening**. The initial dataset wrongly counted the entire proof-line length as ordinary completed-depth search labels, yielding 189 training and 46 holdout groups and one lost holdout Top-1. The raw artifact is preserved as **superseded experimental evidence**, not hidden or promoted.
 
-| Teacher Top-1 agreement | R07-249 before | R25-273 after |
+A local reanalysis using the exact original archived R04/R07 feature functions **separated forcing-line proof length from actual completed search depth** and retrained on the same source histories, with 10 VCF-proof decisions preserved for independent tactical auditing instead of supervised static search imitation.
+
+| Proof-filtered teacher Top-1 agreement | R07-249 before | Research student R25-273 |
 |---|---:|---:|
-| Training (189) | 105/189 = 55.56% | 127/189 = 67.20% |
-| Heldout (46) | **24/46 = 52.17%** | **23/46 = 50.00%** |
-| Heldout Top-3 (46) | 38/46 | 38/46 |
+| Training (183 independent positions) | 102/183 = 55.74% | 127/183 = 69.40% |
+| Heldout (42 independent positions) | **21/42 = 50.00%** | **21/42 = 50.00%** |
+| Heldout Top-3 (42) | 34/42 | 34/42 |
 
-- Independently reloaded candidate: **273 trees, 34 features, 617,393 bytes**.
-- Exact student SHA-256: `a0c1108abb05e632fc3fc43e60d7a196d32346648552f39d8d4903dda9a3c884`.
-- [Exact 384-position GitHub Actions artifact](https://github.com/Righteous1776/Gomoku/actions/runs/44979976040/artifacts/14737840313), includes the synthetic teacher records, manifest, checkpoint and report.
-- **FAIL**: heldout Top-1 regresses by **one position**; **PASS**: source compiler, feature/legality tests, sampling, actual LightGBM training and checkpoint SHA verification. The student is **not eligible for promotion**.
+- All 384 samples remain; **149** ordinary rule/no-search decisions and **10** forced-four proof decisions are not misrepresented as iterative search labels.
+- The proof-filtered local research model is a real **273-tree/34D LightGBM** (617,317 bytes), SHA-256 `c000685c0d6fd0aef3d958e203f293fc02f5e24f43e789360dfc9757bbc6f0d5`.
+- **The corrected automated CI replay is required to verify the same checkpoint/source under the PR branch.** Only the result of that exact-head replay can be treated as Github-accepted proof-filtered research checkpoint. No model is promoted.
+- The first [384-position raw artifact](https://github.com/Righteous1776/Gomoku/actions/runs/44979976040/artifacts/14737840313) remains accessible for forensic comparison; it is not the corrected checkpoint.
 
-These are exploratory teacher-imitation results, **not** full game skill, Elo, verified VCF solution rate or a learned think-time controller. Fixed synthetic sampling reused source families across the 192/384 explorations, so future promotion needs a genuinely untouched blind evaluation and paired games.
+**Conclusion**: Teacher imitation improved on training positions, but still **did not improve heldout Top-1**. No reliable strength gain against Tianyuan 6× is established, and the ranker cannot absorb VCF/PVS/cancellation algorithms without the real search engine.
 
 ## 3. Four explicit quality boundaries
 
