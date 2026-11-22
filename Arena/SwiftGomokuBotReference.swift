@@ -28,12 +28,14 @@ struct OriginalGomokuBotReference {
 
     static func run() throws {
         let args = Array(CommandLine.arguments.dropFirst())
-        guard (args.count == 4 || args.count == 6),
+        guard (args.count == 4 || args.count == 6 || args.count == 7),
               args[0] == "--best", args[2] == "--ms",
               let ms = Int(args[3]), ms >= 0
         else { throw ErrorCode.arguments }
+        let traceRequested = args.count == 7 && args[6] == "--trace"
+        guard args.count != 7 || traceRequested else { throw ErrorCode.arguments }
         let tier: BoardBotDifficulty?
-        if args.count == 6 {
+        if args.count >= 6 {
             guard args[4] == "--tier",
                   let parsed = BoardBotDifficulty(rawValue: args[5])
             else { throw ErrorCode.arguments }
@@ -76,21 +78,47 @@ struct OriginalGomokuBotReference {
             )
         }
         let started = Date.timeIntervalSinceReferenceDate
+        var traceRows = [[String: Any]]()
         guard let decision = GomokuBot.chooseMove(
             in: state, for: state.currentPlayer, budget: budget,
             learning: .empty, formationPreference: .disabled,
-            difficultyRawValue: tier?.rawValue
+            difficultyRawValue: tier?.rawValue,
+            onSearchTrace: { trace in
+                guard traceRequested,
+                      trace.phase == .deepening || trace.phase == .complete
+                else { return }
+                traceRows.append([
+                    "phase": String(describing: trace.phase),
+                    "completed_depth": trace.completedDepth,
+                    "nodes": trace.nodes,
+                    "root_candidates": trace.rootCandidates,
+                    "move": trace.selectedIndex ?? -1,
+                    "score": trace.score as Any? ?? NSNull(),
+                    "pv": trace.variation,
+                    "rule": trace.rule
+                ])
+            }
         ) else { throw ErrorCode.missingDecision }
         let elapsed = Int(max(0,
             (Date.timeIntervalSinceReferenceDate - started) * 1_000))
-        try output([
+        var response: [String: Any] = [
             "move": decision.index, "status": 0,
             "elapsed_ms": elapsed,
             "nodes": decision.nodes,
             "tier": tier?.rawValue ?? "custom",
             "budget_ms": budget.timeLimitMilliseconds,
             "engine": "Original native Swift GomokuBot (empty personal learning)"
-        ])
+        ]
+        if traceRequested {
+            response["schema"] = "eclipse.zenith6x.teacher-decision.v1"
+            response["rules"] = "freestyle-15"
+            response["teacher_config"] = "zenith: HIGH profile; empty personal learning; no formation guidance"
+            response["trace"] = traceRows
+            response["trace_is_proven_win"] = false
+            response["completed_depth"] = traceRows.map { $0["completed_depth"] as? Int ?? 0 }.max() ?? 0
+            response["source"] = "compiled original Swift GomokuBot; direct decisions not fabricated"
+        }
+        try output(response)
     }
 
     private static func output(_ value: [String: Any]) throws {
