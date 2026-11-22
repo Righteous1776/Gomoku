@@ -30,7 +30,7 @@ struct InstrumentHomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 // Faithful to VeilLink/UI/GameLobbyView.swift LocalAIGameView:
                 // status → ECLIPSE identity → live runtime → controls → board.
@@ -101,7 +101,7 @@ struct InstrumentHomeView: View {
                     }
                     .accessibilityIdentifier("gomoku.eclipse.model.open")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("重开") { engine.reset() }
                         .foregroundColor(VeilTheme.goldBright)
                         .accessibilityIdentifier("gomoku.match.restart")
@@ -264,6 +264,7 @@ struct InstrumentHomeView: View {
     /// instead of clipping the 6× tier or intercepting the board below.
     private var boardQuickControls: some View {
         VStack(alignment: .leading, spacing: 11) {
+            if #available(iOS 16.0, *) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
                     modelSelector
@@ -271,6 +272,16 @@ struct InstrumentHomeView: View {
                     computeSelector
                     deepSearchToggle
                 }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        modelSelector
+                        Spacer(minLength: 4)
+                        computeSelector
+                    }
+                    deepSearchToggle
+                }
+            }
+            } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
                         modelSelector
@@ -327,7 +338,7 @@ struct InstrumentHomeView: View {
     }
 
     private var modelSelectionSheet: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 10) {
@@ -429,14 +440,13 @@ struct InstrumentHomeView: View {
             .navigationTitle("ECLIPSE 模型")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") { showsModelSelection = false }
                         .foregroundColor(VeilTheme.goldBright)
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(EclipseLegacySheetDetents())
         .confirmationDialog(
             "切换模型将结束当前对局并重开",
             isPresented: Binding(
@@ -923,6 +933,18 @@ struct InstrumentHomeView: View {
             if engine.developerTeachingMode { return "私有阵法教学进行中" }
             if engine.isThinking { return "ECLIPSE 正在思考" }
             return canPlaceStone ? "轮到你落子" : "等待 ECLIPSE 落子"
+        }
+    }
+}
+
+private struct EclipseLegacySheetDetents: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 16.0, *) {
+            content.presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        } else {
+            content
         }
     }
 }
