@@ -53,8 +53,24 @@ enum GomokuLearningRepertoire {
         humanStone: UInt8,
         includeNativeSelfPlay: Bool = true,
         importedLegacyDirectory: URL? = nil,
-        localEvidence: GomokuLocalMatchEvidence? = nil
+        localEvidence: GomokuLocalMatchEvidence? = nil,
+        focusOnCurrentPosition: Bool = false
     ) -> BuildReport {
+        // On 2GB devices only the current root matters to C++ RootPolicy.
+        // Still verify and replay EVERY original game; never truncate or
+        // alter the archive, evidence counters, outcome, or reply provenance.
+        // Other devices retain the complete historical snapshot.
+        let targetPosition: String? = {
+            guard focusOnCurrentPosition else { return nil }
+            var replay = GomokuState()
+            for move in currentMoves {
+                guard replay.apply(index: move.index,
+                                   actor: replay.currentPlayer) else {
+                    return nil
+                }
+            }
+            return AdaptiveBoardPosition.gomoku(replay)
+        }()
         var humanStats: [String: [String: Stat]] = [:]
         var nativeStats: [String: [String: Stat]] = [:]
         var humanGames = 0
@@ -86,11 +102,13 @@ enum GomokuLearningRepertoire {
                     let position = AdaptiveBoardPosition.gomoku(state)
                     let action = String(ply.index)
                     let byAI = ply.stone != match.humanStone
-                    var options = humanStats[position] ?? [:]
-                    var stat = options[action] ?? Stat()
-                    stat.add(result, byAI: byAI)
-                    options[action] = stat
-                    humanStats[position] = options
+                    if targetPosition == nil || position == targetPosition {
+                        var options = humanStats[position] ?? [:]
+                        var stat = options[action] ?? Stat()
+                        stat.add(result, byAI: byAI)
+                        options[action] = stat
+                        humanStats[position] = options
+                    }
                     // Archive's read() and validate() already confirmed legality.
                     _ = state.apply(index: ply.index, actor: state.currentPlayer)
                 }
@@ -136,11 +154,13 @@ enum GomokuLearningRepertoire {
                 let position = AdaptiveBoardPosition.gomoku(game)
                 let stone: UInt8 = game.currentPlayer == .host ? 1 : 2
                 let byAI = stone != ownerStone
-                var options = humanStats[position] ?? [:]
-                var stat = options[String(index)] ?? Stat()
-                stat.add(ownerOutcome, byAI: byAI)
-                options[String(index)] = stat
-                humanStats[position] = options
+                if targetPosition == nil || position == targetPosition {
+                    var options = humanStats[position] ?? [:]
+                    var stat = options[String(index)] ?? Stat()
+                    stat.add(ownerOutcome, byAI: byAI)
+                    options[String(index)] = stat
+                    humanStats[position] = options
+                }
                 _ = game.apply(index: index, actor: game.currentPlayer)
             }
             let nextStone: UInt8 = currentMoves.count.isMultiple(of: 2) ? 1 : 2
@@ -165,11 +185,13 @@ enum GomokuLearningRepertoire {
             for actionIndex in record.moves {
                 let position = AdaptiveBoardPosition.gomoku(state)
                 let action = String(actionIndex)
-                var options = nativeStats[position] ?? [:]
-                var stat = options[action] ?? Stat()
-                stat.add(record.outcome, byAI: state.currentPlayer == .guest)
-                options[action] = stat
-                nativeStats[position] = options
+                if targetPosition == nil || position == targetPosition {
+                    var options = nativeStats[position] ?? [:]
+                    var stat = options[action] ?? Stat()
+                    stat.add(record.outcome, byAI: state.currentPlayer == .guest)
+                    options[action] = stat
+                    nativeStats[position] = options
+                }
                 _ = state.apply(index: actionIndex, actor: state.currentPlayer)
             }
         }
