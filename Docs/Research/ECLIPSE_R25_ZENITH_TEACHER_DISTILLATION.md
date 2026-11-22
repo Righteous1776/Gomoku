@@ -57,6 +57,23 @@ The initial small 48-position probe compiled the authentic Swift teacher, genera
 
 **Interpretation:** the teacher was genuinely executed and a new forest was genuinely trained, but there was **no measured independent holdout improvement**. Training-set gain is not proof of stronger Gomoku play, and the student may merely fit the synthetic positions. This candidate is research-only and not a replacement for R07-249 or Tianyuan 6×.
 
+## 2b. Extended 384-position research run — **holdout regression**
+
+A second actual original-teacher run used **384** legal, public-synthetic positions, with **379 distinct D4 opening families**. Of these, **149** depth-zero tactical/early responses were excluded from search-imitation training, leaving **189 train** and **46 heldout** groups.
+
+| Teacher Top-1 agreement | R07-249 before | R25-273 after |
+|---|---:|---:|
+| Training (189) | 105/189 = 55.56% | 127/189 = 67.20% |
+| Heldout (46) | **24/46 = 52.17%** | **23/46 = 50.00%** |
+| Heldout Top-3 (46) | 38/46 | 38/46 |
+
+- Independently reloaded candidate: **273 trees, 34 features, 617,393 bytes**.
+- Exact student SHA-256: `a0c1108abb05e632fc3fc43e60d7a196d32346648552f39d8d4903dda9a3c884`.
+- [Exact 384-position GitHub Actions artifact](https://github.com/Righteous1776/Gomoku/actions/runs/44979976040/artifacts/14737840313), includes the synthetic teacher records, manifest, checkpoint and report.
+- **FAIL**: heldout Top-1 regresses by **one position**; **PASS**: source compiler, feature/legality tests, sampling, actual LightGBM training and checkpoint SHA verification. The student is **not eligible for promotion**.
+
+These are exploratory teacher-imitation results, **not** full game skill, Elo, verified VCF solution rate or a learned think-time controller. Fixed synthetic sampling reused source families across the 192/384 explorations, so future promotion needs a genuinely untouched blind evaluation and paired games.
+
 ## 3. Four explicit quality boundaries
 
 - **Source parity vs chess strength:** source hash parity proves the teacher actually executes the original code. It does not prove that its search is objectively optimal or that an R07 student can imitate it perfectly.
