@@ -17,7 +17,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "source"))
 from zenith_features import features34
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "Arena"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "Arena"))
 from zenith_teacher_dataset import replay
 
 BASE_SHA = "d4cea7f62e9e8ffc119d60861ce05df43aafdbdc280b51707dc1b7e40e5fc234"
@@ -99,12 +99,12 @@ def pack(groups):
 
 
 def agreement(model, groups, *, num_threads: int = 2):
-    x, _, lengths = pack(groups)
+    x, _, _ = pack(groups)
     pred = model.predict(x, num_threads=num_threads)
     pos = 0
     correct = top3 = 0
     for row, _, _ in groups:
-        length = lengths[correct + 0] if False else len(row["candidate_roots"])
+        length = len(row["candidate_roots"])
         scores = pred[pos:pos + length]
         moves = row["candidate_roots"]
         ranked = sorted(range(length), key=lambda j: (-float(scores[j]), moves[j]))
