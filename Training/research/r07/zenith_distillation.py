@@ -55,6 +55,14 @@ def check_records(path: Path):
             raise ValueError("missing D4 opening-family group")
         if row["teacher_depth"] < 0 or row["teacher_nodes"] < 0:
             raise ValueError("invalid teacher work telemetry")
+        proof = row.get("teacher_proof_plies")
+        expected_kind = ("verified_forcing_four" if proof
+                         else "iterative_search" if row["teacher_depth"]
+                         else "mandatory_rule_or_unsearched")
+        if (type(proof) is not int or proof < 0 or
+                (proof > 0 and row["teacher_depth"] > 0) or
+                row.get("teacher_decision_kind") != expected_kind):
+            raise ValueError("VCF proof and PVS search-depth labels must be separated")
         records.append((row, board))
     if not records:
         raise ValueError("empty teacher dataset")
@@ -103,7 +111,8 @@ def make_groups(records, *, min_depth: int = 1):
         family_split[family] = split
         # Mandatory-rule answers (depth 0) remain audited, but are never
         # treated as equivalent to deeper teacher search labels.
-        if row["teacher_depth"] < min_depth or len(row["candidate_roots"]) < 2:
+        if (row["teacher_depth"] < min_depth or row.get("teacher_proof_plies", 0) > 0
+                or len(row["candidate_roots"]) < 2):
             excluded += 1
             continue
         moves = row["candidate_roots"]
@@ -199,6 +208,10 @@ def train(dataset: Path, output_dir: Path, *, rounds: int = 24,
         "feature_dims": student.num_feature(),
         "input_positions": len(records),
         "excluded_mandatory_rule_or_zero_depth": excluded,
+        "verified_forcing_four_teacher_records": sum(
+            1 for row, _ in records if row["teacher_proof_plies"] > 0),
+        "actual_iterative_search_teacher_records": sum(
+            1 for row, _ in records if row["teacher_depth"] > 0),
         "train_groups": len(samples["train"]),
         "validation_groups": len(samples["validation"]),
         "independent_d4_families": len(family_splits),
