@@ -10,7 +10,8 @@ sys.path.insert(0, str(ROOT / "Arena"))
 sys.path.insert(0, str(ROOT / "Training/research/r07"))
 sys.path.insert(0, str(ROOT / "Training/research/r07/source"))
 
-from zenith_teacher_dataset import d4_family, five, nearby, replay, seeded_history, validate_pv
+from zenith_teacher_dataset import (classify_teacher_trace, d4_family, five,
+                                    nearby, replay, seeded_history, validate_pv)
 from zenith_distillation import features34, split_family, make_groups
 
 
@@ -54,6 +55,18 @@ class TianyuanSourceContractTests(unittest.TestCase):
             b = seeded_history(20261122 + 7919 * seed)
             self.assertEqual(a, b)
             replay(a)
+
+    def test_forcing_proof_depth_is_not_iterative_search_depth(self):
+        forced = [{"phase": "complete", "completed_depth": 10,
+                   "rule": "verified-forcing-four"}]
+        self.assertEqual(classify_teacher_trace(forced), (0, 10))
+        ordinary = [
+            {"phase": "deepening", "completed_depth": 5, "rule": "completed-depth"},
+            {"phase": "complete", "completed_depth": 5, "rule": "iterative-pvs"},
+        ]
+        self.assertEqual(classify_teacher_trace(ordinary), (5, 0))
+        with self.assertRaises(ValueError):
+            classify_teacher_trace(forced + ordinary)
 
     def test_no_training_on_zero_depth_teacher(self):
         records = []
