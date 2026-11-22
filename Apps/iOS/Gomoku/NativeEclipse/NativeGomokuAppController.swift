@@ -974,6 +974,7 @@ final class NativeGomokuAppController: ObservableObject {
             let budget = GomokuBotBudget.forDifficulty(
                     selectedTier, profileLabel: selectedMode.budgetProfileLabel
                 ).reinforced(by: learning.trainingLevel)
+                 .boundedForLowMemory(constrained)
             let decision = GomokuBot.chooseMove(
                 in: boardAtStart,
                 for: boardAtStart.currentPlayer,
