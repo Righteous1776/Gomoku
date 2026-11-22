@@ -841,7 +841,10 @@ final class NativeGomokuAppController: ObservableObject {
             _ = metricSink.record(trace, token: metricToken)
         }
         let observer: (@Sendable ([Int], Int) -> Void)?
-        if eclipseVisualizationEnabled && developerTeachingMode,
+        // VeilLink's original live examined-branch visualization is a
+        // user-facing choice in ordinary games too, not developer-only.
+        // record() still validates actual replayable paths per exact turn.
+        if eclipseVisualizationEnabled,
            let traceToken = traceStore.begin(sessionID: sessionID, board: boardAtStart) {
             observer = { indices, nodes in
                 _ = traceStore.record(indices, nodes: nodes, token: traceToken)
