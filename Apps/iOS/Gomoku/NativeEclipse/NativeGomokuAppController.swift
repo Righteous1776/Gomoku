@@ -749,7 +749,8 @@ final class NativeGomokuAppController: ObservableObject {
                 archiveDirectory: archiveDirectory,
                 currentMoves: moves,
                 humanStone: otherStone,
-                includeNativeSelfPlay: useNativeTraining
+                includeNativeSelfPlay: useNativeTraining,
+                focusOnCurrentPosition: constrained
             ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
             let rooted = EclipseCppRootLearningPolicy.build(
@@ -930,7 +931,8 @@ final class NativeGomokuAppController: ObservableObject {
                 archiveDirectory: archiveDirectory,
                 currentMoves: existingMoves,
                 humanStone: humanStone,
-                includeNativeSelfPlay: useNativeTraining
+                includeNativeSelfPlay: useNativeTraining,
+                focusOnCurrentPosition: constrained
             ).snapshot.applying(lessonInfluence)
             guard !Task.isCancelled else { return }
             // The official architecture first dispatches a verified trained
