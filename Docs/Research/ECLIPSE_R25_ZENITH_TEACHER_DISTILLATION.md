@@ -29,7 +29,7 @@ The 6× tier means **compute-budget multiplier**, not a 6× strength multiplier.
 
 ### Reproduction via GitHub Actions
 
-The PR runs a 48-public-position research smoke plus residual training. A deliberate manual `workflow_dispatch` allows 96/192/384 independent synthetic positions. For a local Ubuntu environment with Swift, Python 3 and pip installed, use the same build/source commands from the workflow, then:
+The PR now runs 384 publicly synthetic positions with residual training. A deliberate manual `workflow_dispatch` allows 48/96/192/384 samples; model and audit evidence are committed only on the isolated research PR branch when permitted and are always retained as workflow artifacts. No production promotion follows automatically. For a local Ubuntu environment with Swift, Python 3 and pip installed, use the same build/source commands from the workflow, then:
 
 ```bash
 python3 Arena/zenith_teacher_dataset.py \
@@ -45,6 +45,17 @@ python3 Training/research/r07/zenith_distillation.py \
 ```
 
 Do not run teacher data generation on user privacy archives. The training code **does not** upload private records.
+
+## 2a. The first true 192-position run (archived baseline)
+
+The initial small 48-position probe compiled the authentic Swift teacher, generated 48 records, but correctly rejected training because it had only **23 training / 4 validation** groups with completed-depth search labels. After expanding the run to 192 public-synthetic positions, the actual original teacher and trainer both ran successfully:
+
+- 192 teacher decisions; 81 depth-zero rule/early decisions excluded; 94 search-labeled training groups, 17 heldout search-labeled groups, 191 distinct D4 opening families.
+- Before distillation: training 51/94 Top-1 (54.26%); heldout 9/17 (52.94%).
+- After adding 24 trees: training 66/94 Top-1 (70.21%); heldout still **9/17 (52.94%)**.
+- 273-tree student SHA256: `6e2e859c3bf9a1eed1b5e4018787e88a4044672c5d944e3ff366e217780d5ed9`. [Actual CI artifact](https://github.com/Righteous1776/Gomoku/actions/runs/44979668342/artifacts/14737346646).
+
+**Interpretation:** the teacher was genuinely executed and a new forest was genuinely trained, but there was **no measured independent holdout improvement**. Training-set gain is not proof of stronger Gomoku play, and the student may merely fit the synthetic positions. This candidate is research-only and not a replacement for R07-249 or Tianyuan 6×.
 
 ## 3. Four explicit quality boundaries
 
