@@ -61,6 +61,34 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         })
     }
 
+    func testTwoGiBRAMOnlyCapsMemoryNotCheckpointTacticsOrFourTierIdentity() {
+        XCTAssertTrue(EclipseMemoryGovernor.isConstrained(physicalMemory: 2_000_000_000))
+        XCTAssertFalse(EclipseMemoryGovernor.isConstrained(physicalMemory: 3_000_000_000))
+        XCTAssertFalse(EclipseMemoryGovernor.isConstrained(physicalMemory: 0))
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        )
+        let maxed = base.withManualTier(.extreme).withThinkingIntensity(10)
+        XCTAssertEqual(maxed.boundedForLowMemory(false), maxed)
+        let constrained = maxed.boundedForLowMemory(true)
+        XCTAssertEqual(constrained.maxWallTimeMilliseconds, 12_000)
+        XCTAssertEqual(constrained.maxNodes, 100_000)
+        XCTAssertEqual(constrained.maxDepth, 10)
+        XCTAssertEqual(constrained.rootWidth, 20)
+        XCTAssertEqual(constrained.replyWidth, 12)
+        XCTAssertEqual(constrained.forcedLineDepth, maxed.forcedLineDepth)
+        XCTAssertEqual(constrained.candidateRadius, maxed.candidateRadius)
+        XCTAssertTrue(constrained.isValid)
+        XCTAssertNotEqual(constrained.sha256, maxed.sha256)
+        let noTimeBudget = base.withThinkingIntensity(10)
+            .boundedForLowMemory(true)
+        XCTAssertEqual(noTimeBudget.maxNodes, 100_000)
+        XCTAssertTrue(noTimeBudget.isValid)
+    }
+
     func testTrainerAdaptiveHasNoArtificialTimeOrNodeCeiling() throws {
         let policy = adaptive()
         XCTAssertTrue(policy.isValid)
