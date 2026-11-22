@@ -234,20 +234,40 @@ struct InstrumentHomeView: View {
     /// content sizes and narrow split-screen layouts fall back to two rows
     /// instead of clipping the 6× tier or intercepting the board below.
     private var boardQuickControls: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 12) {
-                modelSelector
-                Spacer(minLength: 3)
-                computeSelector
-                deepSearchToggle
-            }
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 11) {
+            ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
                     modelSelector
-                    Spacer(minLength: 4)
+                    Spacer(minLength: 3)
                     computeSelector
+                    deepSearchToggle
                 }
-                deepSearchToggle
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        modelSelector
+                        Spacer(minLength: 4)
+                        computeSelector
+                    }
+                    deepSearchToggle
+                }
+            }
+            HStack(spacing: 10) {
+                Toggle(isOn: $engine.eclipseVisualizationEnabled) {
+                    Label("AI 思考可视化", systemImage: "waveform.path.ecg")
+                        .font(.caption.weight(.semibold))
+                }
+                .tint(VeilTheme.gold)
+                .accessibilityIdentifier("gomoku.eclipse.visualization.quick-toggle")
+                Spacer(minLength: 0)
+                Button {
+                    showsEclipseTrace = true
+                } label: {
+                    Label("完整分析", systemImage: "arrow.up.right.square")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(VeilTheme.goldBright)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("gomoku.eclipse.visualization.open-analysis")
             }
         }
         .padding(.horizontal, 12)
@@ -313,7 +333,7 @@ struct InstrumentHomeView: View {
                             Text("SHA-256: \(String(candidate.sha256.prefix(16)))…")
                                 .font(.caption.monospaced())
                                 .foregroundColor(VeilTheme.goldBright)
-                            Text("新一代 Astra 候选权重已登记，但只通过 8/9 研究门禁。34D 原生推理尚未完成，当前不能选择；实际对局继续使用已验证的 Astra/Sol 2.0。")
+                            Text("R07-249 研究检查点未完成原生加载核验；需要核验成功后才能选择，不能冒充 Astra/Sol 2.0。")
                                 .font(.caption)
                                 .foregroundColor(VeilTheme.secondaryText)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -368,7 +388,7 @@ struct InstrumentHomeView: View {
                         .accessibilityIdentifier("gomoku.eclipse.model.\(model.rawValue)")
                     }
 
-                    Text("模型代际与应用版本、思考预算彼此独立。当前原生 Astra/Sol 维持真实已加载的 2.0 身份；搜索器在训练 Agent 核准的预算内根据局面复杂度自适应收敛。")
+                    Text("模型代际与应用版本、四档算力彼此独立。每个档位以原模型核准预算为上限，实际原生搜索深度、节点、宽度与时间均随档位变化。3.0 Astra 为 R07-249 实验可玩版，前 26D 特征仍待独立研究一致性验证。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                         .padding(.top, 6)
@@ -444,17 +464,14 @@ struct InstrumentHomeView: View {
         } label: {
             HStack(spacing: 5) {
                 Text("算力")
-                Text(engine.trainerControlsCompute ? "训练 Agent" : engine.computeTier.title)
+                Text(engine.computeTier.title)
                     .foregroundColor(VeilTheme.goldBright)
                 Image(systemName: "chevron.up.chevron.down")
             }
             .font(.caption.weight(.medium))
             .foregroundColor(VeilTheme.text)
         }
-        .disabled(engine.trainerControlsCompute)
-        .accessibilityHint(engine.trainerControlsCompute
-            ? "该训练检查点的搜索策略由训练 Agent 裁决，用户算力偏好不施加固定时限"
-            : "当前为原版 Swift 历史兼容策略；新的训练检查点不会被旧档位时间限制")
+        .accessibilityHint("四档算力真实调整当前模型的搜索深度、分支宽度、时间与节点预算；切换将重新开始对局")
         .accessibilityIdentifier("gomoku.eclipse.compute.selector")
     }
 
@@ -477,9 +494,7 @@ struct InstrumentHomeView: View {
             enabled: canPlaceStone,
             eclipseThinking: showingSearch,
             actualSearchStartedAt: engine.searchStartedAt,
-            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled
-                && engine.developerTeachingMode
-                && engine.developerAuthorization.isAuthorized,
+            eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
             eclipseTraceStore: engine.eclipseTraceStore,
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
@@ -493,10 +508,13 @@ struct InstrumentHomeView: View {
                 return engine.thinkingHUDSnapshot().visibleTeachingCandidate
             },
             eclipseTeachingRootRanks: {
-                guard engine.developerTeachingMode,
-                      engine.developerAuthorization.isAuthorized,
-                      engine.eclipseVisualizationEnabled else { return [] }
-                return engine.thinkingHUDSnapshot().visibleTeachingRanks
+                guard engine.eclipseVisualizationEnabled else { return [] }
+                if engine.developerTeachingMode
+                    && engine.developerAuthorization.isAuthorized {
+                    return engine.thinkingHUDSnapshot().visibleTeachingRanks
+                }
+                // Real C++ ranked roots: no fabricated heatmap or probability.
+                return engine.liveVisualizationRootRanks()
             },
             eclipseTeachingPVPrefix: {
                 guard engine.developerTeachingMode,
@@ -590,13 +608,12 @@ struct InstrumentHomeView: View {
             Toggle(isOn: $engine.eclipseVisualizationEnabled) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("棋盘思考可视化").font(.caption.weight(.semibold))
-                    Text("仅授权教学可展示真实分支；正式对局不会公开候选。")
+                    Text("沿用 VeilLink 原版搜索轨迹；原生树仅显示真实候选排序。")
                         .font(.caption2)
                         .foregroundColor(VeilTheme.secondaryText)
                 }
             }
             .tint(VeilTheme.gold)
-            .disabled(!engine.developerTeachingMode)
             .accessibilityIdentifier("gomoku.eclipse.live-trace.toggle")
 
             HStack(spacing: 8) {

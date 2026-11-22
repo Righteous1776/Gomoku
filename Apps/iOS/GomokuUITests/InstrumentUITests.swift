@@ -16,6 +16,24 @@ final class InstrumentUITests: XCTestCase {
         XCTAssertTrue(console.waitForExistence(timeout: 6))
     }
 
+    func testAlwaysAvailableVeilLinkThinkingVisualizationAndFoldableInstruments() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["game.eclipse.identity"].waitForExistence(timeout: 15))
+        let visualization = app.switches["gomoku.eclipse.visualization.quick-toggle"]
+        XCTAssertTrue(visualization.exists)
+        let instruments = app.buttons["gomoku.eclipse.measured-instruments.toggle"]
+        scrollUntilHittable(instruments, in: app)
+        instruments.tap()
+        XCTAssertEqual(instruments.value as? String, "已折叠")
+        instruments.tap()
+        XCTAssertEqual(instruments.value as? String, "已展开")
+        // Analysis remains accessible even when the measured instruments fold.
+        let analysis = app.buttons["gomoku.eclipse.visualization.open-analysis"]
+        scrollUntilHittable(analysis, in: app, swipeUp: false)
+        XCTAssertTrue(analysis.exists)
+    }
+
     func testVeilLinkInstrumentHierarchyAndNativeTrainingFoldout() {
         let app = XCUIApplication()
         app.launch()

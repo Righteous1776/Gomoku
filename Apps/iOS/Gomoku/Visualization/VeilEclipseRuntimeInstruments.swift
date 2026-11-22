@@ -9,20 +9,33 @@ struct VeilEclipseRuntimeInstruments: View {
     let lastNodes: Int?
     let lastMilliseconds: Int?
     let trainedGames: Int
+    @AppStorage("gomoku.eclipse.measured-instruments.expanded.v1") private var expanded = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Label("ECLIPSE / 实测仪表", systemImage: "cpu.fill")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .foregroundColor(VeilTheme.goldBright)
-                Spacer()
-                Text(running && start != nil ? "SEARCH" : "IDLE")
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundColor(VeilTheme.secondaryText)
+            Button {
+                expanded.toggle()
+            } label: {
+                HStack(spacing: 8) {
+                    Label("ECLIPSE / 实测仪表", systemImage: "cpu.fill")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(VeilTheme.goldBright)
+                    Spacer(minLength: 4)
+                    Text(running && start != nil ? "SEARCH" : "IDLE")
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundColor(VeilTheme.secondaryText)
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(VeilTheme.goldBright)
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("gomoku.eclipse.measured-instruments.toggle")
+            .accessibilityValue(expanded ? "已展开" : "已折叠")
+            if expanded {
             TimelineView(.periodic(from: .now,
                 by: scenePhase != .active ? 5.0 : (reduceMotion ? 0.5 :
                     (ProcessInfo.processInfo.isLowPowerModeEnabled ? 0.25 : 0.1)))) { timeline in
@@ -68,6 +81,7 @@ struct VeilEclipseRuntimeInstruments: View {
                 cell("LAST NODES", lastNodes.map(String.init) ?? "—")
                 cell("LAST MS", lastMilliseconds.map(String.init) ?? "—")
                 cell("TRAINED", String(max(0, trainedGames)))
+            }
             }
         }
         .padding(.vertical, 2)
