@@ -4,7 +4,7 @@ struct GomokuCoachView: View {
     @ObservedObject var engine: NativeGomokuAppController
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("ECLIPSE · PERSONAL COACH")
