@@ -11,6 +11,7 @@ struct InstrumentHomeView: View {
     @State private var showingDeveloperLab = false
     @State private var showingCoach = false
     @State private var showsAdvanced = false
+    @AppStorage("gomoku.eclipse.measured-instruments.expanded.v1") private var showsMeasuredInstruments = true
     @State private var showsEclipseTrace = false
     @State private var showsModelSelection = false
     @State private var pendingModel: EclipseModelID?
@@ -42,13 +43,39 @@ struct InstrumentHomeView: View {
                     // inside the existing original material and layout,
                     // not as a second invented instrument or board overlay.
                     VStack(alignment: .leading, spacing: 8) {
-                        VeilEclipseRuntimeInstruments(
-                            running: showingSearch,
-                            start: showingSearch ? engine.searchStartedAt : nil,
-                            lastNodes: engine.lastDecisionNodes,
-                            lastMilliseconds: engine.lastDecisionMilliseconds,
-                            trainedGames: engine.trainedGames
-                        )
+                        // Preserve VeilLink's ORIGINAL widget byte-for-byte;
+                        // only its host instrument disclosure is new.
+                        Button {
+                            showsMeasuredInstruments.toggle()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Label("实测仪表", systemImage: "cpu.fill")
+                                    .font(.caption.monospaced().weight(.semibold))
+                                    .foregroundColor(VeilTheme.goldBright)
+                                Spacer(minLength: 3)
+                                Text(showsMeasuredInstruments ? "收起" : "展开")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.secondaryText)
+                                Image(systemName: showsMeasuredInstruments
+                                      ? "chevron.up" : "chevron.down")
+                                    .font(.caption2)
+                                    .foregroundColor(VeilTheme.goldBright)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("gomoku.eclipse.measured-instruments.toggle")
+                        .accessibilityValue(showsMeasuredInstruments ? "已展开" : "已折叠")
+                        if showsMeasuredInstruments {
+                            VeilEclipseRuntimeInstruments(
+                                running: showingSearch,
+                                start: showingSearch ? engine.searchStartedAt : nil,
+                                lastNodes: engine.lastDecisionNodes,
+                                lastMilliseconds: engine.lastDecisionMilliseconds,
+                                trainedGames: engine.trainedGames
+                            )
+                        }
+                        // THINKING HUD remains visible even with the instruments folded.
                         EclipseThinkingHUDView(engine: engine)
                     }
                     .veilCard()
