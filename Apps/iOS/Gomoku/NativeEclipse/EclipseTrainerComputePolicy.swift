@@ -71,8 +71,37 @@ struct EclipseTrainerComputePolicy: Codable, Sendable, Equatable {
         }
     }
 
-    /// Use the agent's concrete search geometry exactly, not an old
-    /// difficulty-based multiplier, 5.7-second ceiling or reinforcement clip.
+    /// Four explicit, user-selected compute tiers for each independently
+    /// attested checkpoint. The TRAINER policy remains the immutable maximum
+    /// and model provenance anchor, but the ACTUAL native search geometry is
+    /// recalculated per game and separately identified by its own SHA256.
+    /// Mandatory native win/only-block proof and candidate radius stay intact.
+    func withManualTier(_ tier: EclipseComputeTier) -> Self {
+        let numerator: Int
+        switch tier {
+        case .light: numerator = 1
+        case .standard: numerator = 2
+        case .high: numerator = 3
+        case .extreme: numerator = 4
+        }
+        func scaled(_ value: Int, atLeast lower: Int = 1) -> Int {
+            max(lower, (value / 4) * numerator
+                + ((value % 4) * numerator) / 4)
+        }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { scaled($0) },
+            maxNodes: maxNodes.map { scaled($0) },
+            maxDepth: scaled(maxDepth),
+            rootWidth: scaled(rootWidth),
+            replyWidth: scaled(replyWidth),
+            continuationWidth: scaled(continuationWidth, atLeast: 0),
+            forcedLineDepth: forcedLineDepth,
+            candidateRadius: candidateRadius
+        )
+    }
+
+    /// The original seven-tier Swift budget remains separately supported.
     func budget() -> GomokuBotBudget {
         GomokuBotBudget(
             candidateRadius: candidateRadius,

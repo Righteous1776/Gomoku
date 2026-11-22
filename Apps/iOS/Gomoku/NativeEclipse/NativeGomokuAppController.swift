@@ -71,7 +71,7 @@ final class NativeGomokuAppController: ObservableObject {
         didSet { UserDefaults.standard.set(selfPlayLearningEnabled, forKey: "gomoku.eclipse.selfplay-feedback") }
     }
 
-    @Published var eclipseVisualizationEnabled = UserDefaults.standard.bool(forKey: "gomoku.eclipse.live-trace") {
+    @Published var eclipseVisualizationEnabled = UserDefaults.standard.object(forKey: "gomoku.eclipse.live-trace") as? Bool ?? true {
         didSet {
             UserDefaults.standard.set(eclipseVisualizationEnabled, forKey: "gomoku.eclipse.live-trace")
             if !eclipseVisualizationEnabled { eclipseTraceStore.clear() }
@@ -259,6 +259,23 @@ final class NativeGomokuAppController: ObservableObject {
             )
         }
         return nil
+    }
+
+    /// Public visualization of native SEARCHED root locations. These are
+    /// ordinal candidates actually published by this engine's live ABI,
+    /// never invented probabilities or proven win hints.
+    func liveVisualizationRootRanks() -> [Int] {
+        guard eclipseVisualizationEnabled, isThinking, status == 0,
+              activeThinkingRun?.backend.hasPrefix("C++20 V") == true,
+              let runtime = activeCppSearch,
+              let live = runtime.liveSearchSnapshot(),
+              live.running,
+              let ranks = runtime.liveRankedRootMoves(),
+              ranks.serial == live.searchSerial
+        else { return [] }
+        return Array(ranks.moves.filter {
+            (0..<225).contains($0) && state.value(at: $0) == 0
+        }.prefix(16))
     }
 
     /// No invented positions, likelihoods, PV, or progress percentage.
@@ -644,6 +661,7 @@ final class NativeGomokuAppController: ObservableObject {
         let boardAtStart = state
         let token = generation
         let model = selectedModel
+        let manualTier = computeTier
         // Release previously reviewed engine before beginning a fresh run.
         activeCppSearch = runtime
         lastThinkingRun = nil
@@ -659,11 +677,11 @@ final class NativeGomokuAppController: ObservableObject {
         searchStartedUptime = ProcessInfo.processInfo.systemUptime
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
-            backend: trainer.computePolicy.maxDepth >= 5
+            backend: trainer.computePolicy.withManualTier(manualTier).maxDepth >= 5
                 ? "C++20 V3 adaptive" : "C++20 V2",
             modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
-            computePolicySHA256: trainer.computePolicy.sha256
+            computePolicySHA256: trainer.computePolicy.withManualTier(manualTier).sha256
         )
         developerMessage = nil
 
@@ -701,7 +719,8 @@ final class NativeGomokuAppController: ObservableObject {
                 formation: formation
             )
             let result = runtime.decide(
-                policy: trainer.computePolicy, rootPolicy: rooted
+                policy: trainer.computePolicy, rootPolicy: rooted,
+                userTier: manualTier
             )
             guard !Task.isCancelled else { return }
             await self?.finishTeachingAnalysis(
@@ -769,6 +788,7 @@ final class NativeGomokuAppController: ObservableObject {
         let boardAtStart = state
         let model = selectedModel
         let selectedTier = currentModelSelection.legacyDifficulty
+        let manualTier = computeTier
         let selectedMode = searchMode
         let verifiedTrainer = verifiedTrainerExecution?.model == model
             ? verifiedTrainerExecution : nil
@@ -795,18 +815,19 @@ final class NativeGomokuAppController: ObservableObject {
         // The native runtime has been freshly created and attested at this
         // exact position. If that failed, do NOT claim selected Astra/Sol.
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
+        let effectivePolicy = verifiedTrainer?.computePolicy.withManualTier(manualTier)
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
             backend: usingCpp
-                ? ((verifiedTrainer?.computePolicy.maxDepth ?? 0) >= 5
+                ? ((effectivePolicy?.maxDepth ?? 0) >= 5
                     ? "C++20 V3 adaptive" : "C++20 V2") :
                 (model.requiresVerifiedCheckpoint ? "Swift fallback" : "Swift"),
             modelName: usingCpp || !model.requiresVerifiedCheckpoint
                 ? model.name : nil,
             checkpointSHA256: usingCpp ? verifiedTrainer?.checkpointSHA256 : nil,
             computePolicySHA256: usingCpp
-                ? verifiedTrainer?.computePolicy.sha256 : nil
+                ? effectivePolicy?.sha256 : nil
         )
         if verifiedTrainer == nil || cppRuntime != nil {
             fallbackWarning = nil
@@ -870,7 +891,8 @@ final class NativeGomokuAppController: ObservableObject {
                 )
                 let cppDecision = cppRuntime.decide(
                     policy: verifiedTrainer.computePolicy,
-                    rootPolicy: rooted
+                    rootPolicy: rooted,
+                    userTier: manualTier
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {

@@ -254,32 +254,34 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
                 moves: moves)
     }
 
-    /// Runs the native C++ evaluator once. No app-specific 5.7s/20s limit,
-    /// no separate model budget overriding the Training Agent's policy.
-    /// The search always executes off the MainActor.
+    /// Runs the exact independently attested forest, with the user-visible
+    /// one-of-four compute budget bounded by the trainer's approved maximum.
+    /// This changes real native depth, width, nodes and wall time, not a UI tag.
     func decide(
         policy: EclipseTrainerComputePolicy,
-        rootPolicy: EclipseCppRootLearningPolicy? = nil
+        rootPolicy: EclipseCppRootLearningPolicy? = nil,
+        userTier: EclipseComputeTier = .extreme
     ) -> GomokuBotMove? {
+        let effectivePolicy = policy.withManualTier(userTier)
         guard rootPolicy?.isValid != false,
-              policy.isValid,
+              policy.isValid, effectivePolicy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine, model: model) == checkpointSHA256
         else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
-        config.mode = policy.mode == .adaptive
+        config.mode = effectivePolicy.mode == .adaptive
             ? UInt32(EG_COMPUTE_MODE_ADAPTIVE)
             : UInt32(EG_COMPUTE_MODE_BUDGETED)
-        config.max_wall_time_ms = Int64(policy.maxWallTimeMilliseconds ?? 0)
-        config.max_nodes = UInt64(policy.maxNodes ?? 0)
-        config.max_depth = Int32(policy.maxDepth)
-        config.root_width = Int32(policy.rootWidth)
-        config.reply_width = Int32(policy.replyWidth)
-        config.continuation_width = Int32(policy.continuationWidth)
-        config.forced_line_depth = Int32(policy.forcedLineDepth)
-        config.candidate_radius = Int32(policy.candidateRadius)
+        config.max_wall_time_ms = Int64(effectivePolicy.maxWallTimeMilliseconds ?? 0)
+        config.max_nodes = UInt64(effectivePolicy.maxNodes ?? 0)
+        config.max_depth = Int32(effectivePolicy.maxDepth)
+        config.root_width = Int32(effectivePolicy.rootWidth)
+        config.reply_width = Int32(effectivePolicy.replyWidth)
+        config.continuation_width = Int32(effectivePolicy.continuationWidth)
+        config.forced_line_depth = Int32(effectivePolicy.forcedLineDepth)
+        config.candidate_radius = Int32(effectivePolicy.candidateRadius)
 
         // Owner-authorized V3 stopping governs ONLY adaptive timing.
         // Trainer-selected depth, candidate widths and verified model SHA
@@ -287,18 +289,18 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         // Both verified trainer modes can use the owner-approved adaptive
         // stopping algorithm. Budgeted mode RETAINS its approved hard cap.
         // Depth below 5 keeps its historical short-depth V2 behavior.
-        let useAdaptiveV3 = policy.maxDepth >= 5
+        let useAdaptiveV3 = effectivePolicy.maxDepth >= 5
         guard !useAdaptiveV3 || eg_adaptive_stop_abi_version() == 3 else {
             return nil // Never silently fall back to unbounded thinking.
         }
         var stopping = EGAdaptiveStopConfigV3()
         stopping.size_bytes = UInt32(MemoryLayout<EGAdaptiveStopConfigV3>.size)
-        stopping.minimum_depth = Int32(min(5, policy.maxDepth))
-        stopping.stable_rounds = Int32(min(4, policy.maxDepth))
+        stopping.minimum_depth = Int32(min(5, effectivePolicy.maxDepth))
+        stopping.stable_rounds = Int32(min(4, effectivePolicy.maxDepth))
         stopping.minimum_score_gap = 1800
         // Owner policy defines the absolute ceiling. No hidden extra 45s.
         // Calm boards may still finish well before even the clear ceiling.
-        let trainerHardCap = Int64(policy.maxWallTimeMilliseconds ?? 45000)
+        let trainerHardCap = Int64(effectivePolicy.maxWallTimeMilliseconds ?? 45000)
         stopping.clear_budget_ms = min(1200, trainerHardCap)
         stopping.uncertain_budget_ms = min(6000, trainerHardCap)
         stopping.complex_budget_ms = min(45000, trainerHardCap)
