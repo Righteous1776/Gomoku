@@ -566,10 +566,10 @@ struct InstrumentHomeView: View {
             actualSearchStartedAt: engine.searchStartedAt,
             eclipseVisualizationEnabled: engine.eclipseVisualizationEnabled,
             eclipseTraceStore: engine.eclipseTraceStore,
-            eclipseNativeTracePump: { engine.ingestNativeVeilLinkBranches() },
             eclipseSessionID: engine.sessionID,
             eclipseBoardTurn: engine.state.moveCount,
             eclipseMatchPlaying: engine.status == 0,
+            eclipseNativeTracePump: { engine.ingestNativeVeilLinkBranches() },
             eclipseTeachingReviewAvailable:
                 engine.thinkingHUDSnapshot().hasTeachingReview,
             eclipseTeachingCandidate: {
