@@ -1,0 +1,127 @@
+name: ECLIPSE R26 · Real R25 PVS integration and Zenith 6x headless arena
+
+on:
+  pull_request:
+    paths:
+      - "Engine/**"
+      - "Arena/zenith_r25_vs_original.py"
+      - ".github/workflows/eclipse-r26-zenith-live-arena.yml"
+  workflow_dispatch:
+    inputs:
+      same_engine_openings:
+        description: "Distinct color-swapped openings for same-engine R25 vs R07 (1-6)"
+        required: true
+        default: "4"
+        type: choice
+        options: ["1","2","4","6"]
+      zenith_opening_pairs:
+        description: "True full original Swift Zenith 5700ms paired openings (1-4)"
+        required: true
+        default: "1"
+        type: choice
+        options: ["1","2","4"]
+
+permissions:
+  contents: read
+
+jobs:
+  native-r25-r07-paired-arena:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Compile actual native 34D R25-273 PVS/VCF engine
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2 --target \
+            eclipse_r25_zenith_search_tests eclipse_r25_vs_r07_arena
+      - name: Exact original R07 and R25 SHA, 34D and forced-win/block native tactical acceptance
+        run: |
+          ctest --test-dir build --output-on-failure -R '^eclipse_r25_zenith_search$'
+      - name: Full games at 150ms - SAME search engine; only model weights differ
+        run: |
+          mkdir -p Arena/evidence
+          build/Engine/eclipse_r25_vs_r07_arena \
+            --r07 Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt \
+            --r25 Training/research/r07/candidates/zenith_r25/eclipse_r07_zenith_teacher_273_trees.txt \
+            --ms 150 --depth 3 --nodes 30000 \
+            --openings ${{ github.event_name == 'workflow_dispatch' && inputs.same_engine_openings || '2' }} \
+            | tee Arena/evidence/r26-r25-r07-150ms-games.jsonl
+          python3 Engine/tests/validate_r25_paired_arena.py Arena/evidence/r26-r25-r07-150ms-games.jsonl
+      - name: Full games at 300ms, deeper PVS - SAME engine budget
+        run: |
+          build/Engine/eclipse_r25_vs_r07_arena \
+            --r07 Training/research/r07/checkpoints/eclipse_r07_34d_249_trees.txt \
+            --r25 Training/research/r07/candidates/zenith_r25/eclipse_r07_zenith_teacher_273_trees.txt \
+            --ms 300 --depth 5 --nodes 30000 \
+            --openings ${{ github.event_name == 'workflow_dispatch' && inputs.same_engine_openings || '2' }} \
+            | tee Arena/evidence/r26-r25-r07-300ms-games.jsonl
+          python3 Engine/tests/validate_r25_paired_arena.py Arena/evidence/r26-r25-r07-300ms-games.jsonl
+      - name: Preserve exact game-level evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R26-Actual-R25-vs-R07-Equal-Cpp-Search
+          retention-days: 30
+          if-no-files-found: warn
+          path: Arena/evidence/r26-r25-r07-*.jsonl
+
+  original-zenith-6x-paired-arena:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Swift/C++ versions and source SHA inventory
+        run: |
+          swiftc --version
+          c++ --version
+          sha256sum \
+            Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift
+      - name: Compile ORIGINAL VeilLink Swift Zenith 6x, not a reimplementation
+        run: |
+          mkdir -p build
+          swiftc -O -swift-version 5 -o build/swift_original_zenith6x \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuFormationLearning.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift
+      - name: Compile genuine C++20 R25-273 native PVS with SHA-256 model loader
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel 2 --target gomoku_cli
+      - name: Real 5700ms Zenith vs R25 complete color-swapped games
+        run: |
+          set -o pipefail
+          mkdir -p Arena/evidence
+          python3 Arena/zenith_r25_vs_original.py \
+            --swift build/swift_original_zenith6x \
+            --cpp build/Engine/gomoku_cli \
+            --weights Training/research/r07/candidates/zenith_r25/eclipse_r07_zenith_teacher_273_trees.txt \
+            --source-root . \
+            --pairs ${{ github.event_name == 'workflow_dispatch' && inputs.zenith_opening_pairs || '1' }} \
+            | tee Arena/evidence/r26-r25-vs-original-zenith6x-5700ms.jsonl
+          python3 Engine/tests/validate_r25_vs_original.py \
+            Arena/evidence/r26-r25-vs-original-zenith6x-5700ms.jsonl
+      - name: Preserve full original Zenith games with exact model SHA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R26-Original-Swift-Zenith6x-vs-R25-5700ms
+          retention-days: 30
+          if-no-files-found: warn
+          path: Arena/evidence/r26-r25-vs-original-zenith6x-5700ms.jsonl
