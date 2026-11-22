@@ -1,0 +1,17 @@
+{
+  "schema": "eclipse.zenith6x.teacher-dataset-manifest.v1",
+  "samples": 384,
+  "sources_sha256": {
+    "Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift": "3ae1eecd1bf321c79365e868be5b45f1ea08c06e3657746127a173d1e72c6cb2",
+    "Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift": "e3cc8228c55ef2001ba26e625a68b276f696ab90cb79f9587b42329373577880",
+    "Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift": "5801123974ff3938e1e5a104fa8558e5f0e31d1c9fe958f19e5ff976d30243b1",
+    "Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift": "f89f234fcf2db59c52db70f1d2352576e727fd3c070fbb055ae59e10c391abfe",
+    "Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift": "2decd204532a671b19013a00e35848cb15a09410d63222b147ba5dd7a1d76991"
+  },
+  "dataset_sha256": "51e842c69f624e1ad9b2f7dcdd5f6af790e613905d8964574c0496a37a9d6f56",
+  "public_synthetic_only": true,
+  "no_private_learning": true,
+  "teacher_zenith_budget_ms": 5700,
+  "not_independently_proven_best_moves": true,
+  "output": "zenith6x-teacher-public-synthetic.jsonl"
+}

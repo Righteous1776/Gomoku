@@ -1,0 +1,137 @@
+name: ECLIPSE R25 · Tianyuan 6x teacher and R07 research distillation
+
+on:
+  pull_request:
+    paths:
+      - "Arena/SwiftGomokuBotReference.swift"
+      - "Arena/zenith_teacher_dataset.py"
+      - "Arena/tests/test_zenith_teacher_distillation.py"
+      - "Training/research/r07/source/zenith_features.py"
+      - "Training/research/r07/zenith_distillation.py"
+      - ".github/workflows/eclipse-zenith-teacher-distillation.yml"
+  workflow_dispatch:
+    inputs:
+      samples:
+        description: "Number of public synthetic teacher positions, 1..4096 (full run)"
+        required: true
+        default: "384"
+        type: choice
+        options: ["48", "96", "192", "384"]
+
+permissions:
+  contents: write
+
+jobs:
+  zenith-teacher-distillation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A pull_request checkout defaults to a synthetic merge commit.
+          # Publish only the branch HEAD's descendant, never the merge ref.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Toolchain and original-source hashes
+        run: |
+          swiftc --version
+          python3 --version
+          sha256sum \
+            Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift
+
+      - name: Compile actual VeilLink-original GomokuBot, not a fake teacher
+        run: |
+          mkdir -p build
+          swiftc -O -swift-version 5 -o build/swift_zenith6x_teacher \
+            Arena/SwiftGomokuBotReference.swift \
+            Apps/iOS/Gomoku/NativeEclipse/GomokuDomain.swift \
+            Apps/iOS/Gomoku/NativeEclipse/BoardBotDifficulty.swift \
+            Apps/iOS/Gomoku/NativeEclipse/AdaptiveLearningGomokuSurface.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuFormationLearning.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuCounterForkR4.swift \
+            Legacy/Original/VeilLink/Agent/Games/GomokuBot.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedBridge.swift \
+            Legacy/Original/VeilLink/Agent/Games/VeilGomokuUnifiedSearch.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseTrainedOrdering.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseDifficultyPolicy.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseHorizonQuiescenceR12.swift \
+            Legacy/Original/VeilLink/Agent/Games/EclipseIncrementalThreatIndexR13.swift
+
+      - name: Install isolated research dependencies
+        run: |
+          python3 -m pip install --user "numpy>=1.26,<3" "lightgbm>=4.3,<5"
+
+      - name: Original R04 and R07 feature parity, legal PV, D4 and leakage unit tests
+        run: |
+          python3 -m unittest discover -s Arena/tests -p 'test_zenith_teacher_distillation.py' -v
+
+      - name: Actual original Zenith 6x controlled teacher decisions and depth trace
+        run: |
+          python3 Arena/zenith_teacher_dataset.py \
+            --swift build/swift_zenith6x_teacher \
+            --samples ${{ github.event_name == 'workflow_dispatch' && inputs.samples || '384' }} \
+            --source-root . \
+            --seed 20261122 \
+            --budget-ms 5700 \
+            --out Arena/evidence/zenith6x-teacher-public-synthetic.jsonl
+
+      - name: R07 residual student training (research only, no automatic promotion)
+        run: |
+          python3 Training/research/r07/zenith_distillation.py \
+            --dataset Arena/evidence/zenith6x-teacher-public-synthetic.jsonl \
+            --out-dir Training/research/r07/outputs/zenith_candidate \
+            --rounds 24 \
+            --min-train 120 --min-val 20
+
+      - name: Audit candidate metadata before artifact upload
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          r = json.loads(Path('Training/research/r07/outputs/zenith_candidate/zenith_distillation_report.json').read_text())
+          assert r['promotion_authorized'] is False
+          assert r['certified_zenith_6x_strength_parity'] is False
+          assert r['source'] == 'public_synthetic_only'
+          assert r['feature_dims'] == 34 and r['new_trees'] == 24
+          with open(__import__('os').environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('### R07 ← actual Zenith 6x teacher (research only)\n\n')
+              f.write(f"- Dataset positions: {r['input_positions']}\n")
+              f.write(f"- D4 independent families: {r['independent_d4_families']}\n")
+              f.write(f"- Teacher-search-labeled train/holdout: {r['train_groups']}/{r['validation_groups']}\n")
+              f.write(f"- Baseline holdout teacher Top-1: {r['prior_teacher_agreement_validation']['top1_rate']:.2%}\n")
+              f.write(f"- Student holdout teacher Top-1: {r['student_teacher_agreement_validation']['top1_rate']:.2%}\n")
+              f.write('- **This is teacher imitation, not Tianyuan strength equivalence or deployment certification.**\n')
+          PY
+
+      - name: Preserve research-only candidate and synthetic audit evidence on feature branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          DEST=Training/research/r07/candidates/zenith_r25
+          mkdir -p "$DEST"
+          cp Training/research/r07/outputs/zenith_candidate/*.txt "$DEST"/
+          cp Training/research/r07/outputs/zenith_candidate/*.json "$DEST"/
+          cp Arena/evidence/zenith6x-teacher-public-synthetic.jsonl "$DEST"/
+          cp Arena/evidence/zenith6x-teacher-public-synthetic.manifest.json "$DEST"/
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEST"
+          if ! git diff --cached --quiet; then
+            git commit -m "data(research): archive exact original Zenith 6x distillation evidence + R07 student, not promoted"
+            git push origin "HEAD:refs/heads/${GITHUB_HEAD_REF}" || echo "::warning::GitHub branch update denied; Actions artifact remains available"
+          fi
+
+      - name: Archive real research dataset, exact checkpoint and evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ECLIPSE-R25-Zenith6x-Teacher-R07-Research
+          if-no-files-found: warn
+          retention-days: 30
+          path: |
+            Arena/evidence/zenith6x-teacher-public-synthetic.jsonl
+            Arena/evidence/zenith6x-teacher-public-synthetic.manifest.json
+            Training/research/r07/outputs/zenith_candidate/*.txt
+            Training/research/r07/outputs/zenith_candidate/*.json
