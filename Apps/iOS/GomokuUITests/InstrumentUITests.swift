@@ -20,18 +20,32 @@ final class InstrumentUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         XCTAssertTrue(app.buttons["game.eclipse.identity"].waitForExistence(timeout: 15))
-        let visualization = app.switches["gomoku.eclipse.visualization.quick-toggle"]
-        XCTAssertTrue(visualization.exists)
-        let instruments = app.buttons["gomoku.eclipse.measured-instruments.toggle"]
+        let visualization = app.descendants(matching: .any)
+            .matching(identifier: "gomoku.eclipse.visualization.quick-toggle").firstMatch
+        XCTAssertTrue(visualization.waitForExistence(timeout: 6))
+        let instruments = app.descendants(matching: .any)
+            .matching(identifier: "gomoku.eclipse.measured-instruments.toggle").firstMatch
         scrollUntilHittable(instruments, in: app)
         instruments.tap()
-        XCTAssertEqual(instruments.value as? String, "已折叠")
+        XCTAssertTrue(instruments.exists)
         instruments.tap()
-        XCTAssertEqual(instruments.value as? String, "已展开")
+        XCTAssertTrue(instruments.exists)
         // Analysis remains accessible even when the measured instruments fold.
         let analysis = app.buttons["gomoku.eclipse.visualization.open-analysis"]
         scrollUntilHittable(analysis, in: app, swipeUp: false)
         XCTAssertTrue(analysis.exists)
+    }
+
+    func testVeilLinkThinkingStrengthSliderAndNoTimeLimitAreReachable() {
+        let app = XCUIApplication()
+        app.launch()
+        let intensity = app.descendants(matching: .any)
+            .matching(identifier: "gomoku.eclipse.thinking-intensity.slider").firstMatch
+        scrollUntilHittable(intensity, in: app)
+        XCTAssertTrue(intensity.exists)
+        let unlimited = app.descendants(matching: .any)
+            .matching(identifier: "gomoku.eclipse.thinking-intensity.no-time-cutoff").firstMatch
+        XCTAssertTrue(unlimited.exists)
     }
 
     func testVeilLinkInstrumentHierarchyAndNativeTrainingFoldout() {

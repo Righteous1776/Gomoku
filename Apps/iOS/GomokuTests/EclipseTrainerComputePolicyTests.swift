@@ -39,6 +39,28 @@ final class EclipseTrainerComputePolicyTests: XCTestCase {
         XCTAssertNil(adaptive().withManualTier(.standard).maxNodes)
     }
 
+    func testTenThinkingStrengthPositionsBoundedByManualTier() throws {
+        let base = EclipseTrainerComputePolicy(
+            mode: .budgeted, maxWallTimeMilliseconds: 30_000,
+            maxNodes: 1_200_000, maxDepth: 12,
+            rootWidth: 24, replyWidth: 16, continuationWidth: 8,
+            forcedLineDepth: 8, candidateRadius: 3
+        ).withManualTier(.extreme)
+        let low = base.withThinkingIntensity(1)
+        let high = base.withThinkingIntensity(10)
+        XCTAssertEqual(high, base)
+        XCTAssertEqual(low.maxWallTimeMilliseconds, 3000)
+        XCTAssertEqual(low.maxNodes, 120_000)
+        XCTAssertTrue(low.maxDepth < high.maxDepth)
+        XCTAssertEqual(low.forcedLineDepth, 8)
+        XCTAssertEqual(low.candidateRadius, 3)
+        XCTAssertNotEqual(low.runtimeSignature(noWallTimeCutoff: true),
+                          low.runtimeSignature(noWallTimeCutoff: false))
+        XCTAssertTrue((1...10).allSatisfy {
+            base.withThinkingIntensity($0).isValid
+        })
+    }
+
     func testTrainerAdaptiveHasNoArtificialTimeOrNodeCeiling() throws {
         let policy = adaptive()
         XCTAssertTrue(policy.isValid)
