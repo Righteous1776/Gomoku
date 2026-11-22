@@ -294,6 +294,22 @@ int eg_active_astra_r07_sha256_v5(const EGEngine *engine,
                                   char *out65,int32_t capacity);
 int eg_astra_r07_score_v5(const EGEngine *engine,int32_t move);
 
+/* R26: RESEARCH-ONLY Zenith teacher-distilled R25-273 LightGBM forest.
+ * New v6 API is separate from production Astra 3.0 / original R07 v5.
+ * Caller passes exact original candidate bytes. The native loader verifies
+ * the checkpoint's independently published SHA256 and 273-tree structure,
+ * and the selected scorer is applied INSIDE the real C++ V2 PVS/VCF search.
+ * The 6x original Swift system remains the unmodified competitive reference;
+ * no claim of 6x strength parity or deployment is implied.
+ */
+#define EG_ZENITH_R25_STUDENT_ABI_VERSION 6
+#define EG_RESEARCH_RANKER_R25_ZENITH_STUDENT 4
+int eg_load_zenith_r25_student_v6(EGEngine *engine, const char *text_bytes,
+                                   int32_t byte_count, const char *expected_sha256);
+int eg_active_zenith_r25_sha256_v6(const EGEngine *engine,
+                                   char *out65, int32_t capacity);
+int eg_zenith_r25_score_v6(const EGEngine *engine, int32_t move);
+
 int eg_copy_board(const EGEngine *engine, uint8_t *out225, int capacity); /* 225 on success */
 int eg_to_move(const EGEngine *engine); /* 1 or 2 */
 int eg_status(const EGEngine *engine); /* 0 ongoing, 1 black win, 2 white win, 3 draw */
