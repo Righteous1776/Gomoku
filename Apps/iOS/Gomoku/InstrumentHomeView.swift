@@ -983,7 +983,7 @@ private struct EclipseAnalysisPresentation: View {
     }
 }
 
-private struct EclipseLegacyShareButton: View {
+struct EclipseLegacyShareButton: View {
     let url: URL
     let title: String
     @State private var sharing = false
