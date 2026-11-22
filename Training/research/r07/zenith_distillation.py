@@ -39,7 +39,7 @@ def check_records(path: Path):
         board = replay(history)
         move = row["teacher_move"]
         roots = row["candidate_roots"]
-        if (not isinstance(roots, list) or len(roots) < 2
+        if (not isinstance(roots, list) or len(roots) < 1
                 or len(roots) != len(set(roots))
                 or type(move) is not int or move not in roots):
             raise ValueError(f"illegal teacher candidate at line {lineno}")
@@ -78,7 +78,7 @@ def make_groups(records, *, min_depth: int = 1):
         family_split[family] = split
         # Mandatory-rule answers (depth 0) remain audited, but are never
         # treated as equivalent to deeper teacher search labels.
-        if row["teacher_depth"] < min_depth:
+        if row["teacher_depth"] < min_depth or len(row["candidate_roots"]) < 2:
             excluded += 1
             continue
         moves = row["candidate_roots"]
