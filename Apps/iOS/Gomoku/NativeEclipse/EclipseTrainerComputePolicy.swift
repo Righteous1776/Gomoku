@@ -133,6 +133,23 @@ struct EclipseTrainerComputePolicy: Codable, Sendable, Equatable {
             .map { String(format: "%02x", $0) }.joined()
     }
 
+    /// 2 GB RAM safety: actual native search memory bounded without changing
+    /// checkpoint identity, forced tactical safety or candidate radius.
+    /// Unlimited wall time still has explicit node/depth/cancel ceilings.
+    func boundedForLowMemory(_ enabled: Bool) -> Self {
+        guard enabled else { return self }
+        return Self(
+            mode: mode,
+            maxWallTimeMilliseconds: maxWallTimeMilliseconds.map { min($0, 12_000) },
+            maxNodes: min(maxNodes ?? 100_000, 100_000),
+            maxDepth: min(maxDepth, 10),
+            rootWidth: min(rootWidth, 20),
+            replyWidth: min(replyWidth, 12),
+            continuationWidth: min(continuationWidth, 8),
+            forcedLineDepth: forcedLineDepth, candidateRadius: candidateRadius
+        )
+    }
+
     /// The original seven-tier Swift budget remains separately supported.
     func budget() -> GomokuBotBudget {
         GomokuBotBudget(

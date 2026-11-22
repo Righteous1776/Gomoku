@@ -166,11 +166,9 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         history: [Int],
         trainer: EclipseVerifiedTrainerExecution
     ) -> EclipseCppProductionAdapter? {
+        // The initializer loads and attests ACTUAL bytes; no second R07 parse.
         guard eg_compute_policy_abi_version() == 2,
-              let policyDigest = trainer.computePolicy.sha256,
-              loadedCheckpointSHA256(
-                for: trainer.model, expectedSHA256: trainer.checkpointSHA256
-              ) == trainer.checkpointSHA256
+              let policyDigest = trainer.computePolicy.sha256
         else { return nil }
         return EclipseCppProductionAdapter(
             history: history, model: trainer.model,
@@ -291,19 +289,23 @@ final class EclipseCppProductionAdapter: @unchecked Sendable {
         rootPolicy: EclipseCppRootLearningPolicy? = nil,
         userTier: EclipseComputeTier = .extreme,
         thinkingIntensity: Int = 10,
-        noWallTimeCutoff: Bool = false
+        noWallTimeCutoff: Bool = false,
+        lowMemoryMode: Bool = false
     ) -> GomokuBotMove? {
         let effectivePolicy = policy.withManualTier(userTier)
             .withThinkingIntensity(thinkingIntensity)
+            .boundedForLowMemory(lowMemoryMode)
         guard rootPolicy?.isValid != false,
               policy.isValid, effectivePolicy.isValid,
               policy.sha256 == approvedComputePolicySHA256,
               Self.nativeRanker(model) == eg_research_ranker_v3(engine),
               Self.activeCheckpointSHA256(of: engine, model: model) == checkpointSHA256
         else { return nil }
+        guard !lowMemoryMode || eg_set_search_tt_cap_v1(engine, 8192) == 1
+        else { return nil }
         var config = EGComputePolicyV2()
         config.size_bytes = UInt32(MemoryLayout<EGComputePolicyV2>.size)
-        config.mode = effectivePolicy.mode == .adaptive
+        config.mode = noWallTimeCutoff || effectivePolicy.mode == .adaptive
             ? UInt32(EG_COMPUTE_MODE_ADAPTIVE)
             : UInt32(EG_COMPUTE_MODE_BUDGETED)
         // No time cutoff still obeys depth, node ceiling, cancel and rules.

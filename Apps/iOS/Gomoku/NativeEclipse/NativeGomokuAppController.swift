@@ -696,6 +696,7 @@ final class NativeGomokuAppController: ObservableObject {
         let manualTier = computeTier
         let intensity = thinkingIntensity
         let unlimitedTime = noSingleMoveTimeCutoff
+        let constrained = EclipseMemoryGovernor.lowMemoryDevice
         // Release previously reviewed engine before beginning a fresh run.
         activeCppSearch = runtime
         lastThinkingRun = nil
@@ -712,12 +713,14 @@ final class NativeGomokuAppController: ObservableObject {
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(), positionRevision: boardAtStart.moveCount,
             backend: trainer.computePolicy.withManualTier(manualTier)
-                .withThinkingIntensity(intensity).maxDepth >= 5
+                .withThinkingIntensity(intensity)
+                .boundedForLowMemory(constrained).maxDepth >= 5
                 ? "C++20 V3 adaptive" : "C++20 V2",
             modelName: model.name,
             checkpointSHA256: trainer.checkpointSHA256,
             computePolicySHA256: trainer.computePolicy.withManualTier(manualTier)
                 .withThinkingIntensity(intensity)
+                .boundedForLowMemory(constrained)
                 .runtimeSignature(noWallTimeCutoff: unlimitedTime)
         )
         developerMessage = nil
@@ -759,7 +762,8 @@ final class NativeGomokuAppController: ObservableObject {
                 policy: trainer.computePolicy, rootPolicy: rooted,
                 userTier: manualTier,
                 thinkingIntensity: intensity,
-                noWallTimeCutoff: unlimitedTime
+                noWallTimeCutoff: unlimitedTime,
+                lowMemoryMode: constrained
             )
             guard !Task.isCancelled else { return }
             await self?.finishTeachingAnalysis(
@@ -830,6 +834,7 @@ final class NativeGomokuAppController: ObservableObject {
         let manualTier = computeTier
         let intensity = thinkingIntensity
         let unlimitedTime = noSingleMoveTimeCutoff
+        let constrained = EclipseMemoryGovernor.lowMemoryDevice
         let selectedMode = searchMode
         let verifiedTrainer = verifiedTrainerExecution?.model == model
             ? verifiedTrainerExecution : nil
@@ -858,6 +863,7 @@ final class NativeGomokuAppController: ObservableObject {
         let usingCpp = cppRuntime != nil && verifiedTrainer != nil
         let effectivePolicy = verifiedTrainer?.computePolicy.withManualTier(manualTier)
             .withThinkingIntensity(intensity)
+            .boundedForLowMemory(constrained)
         activeThinkingRun = EclipseThinkingRunIdentity(
             id: UUID(),
             positionRevision: boardAtStart.moveCount,
@@ -942,7 +948,8 @@ final class NativeGomokuAppController: ObservableObject {
                     rootPolicy: rooted,
                     userTier: manualTier,
                     thinkingIntensity: intensity,
-                    noWallTimeCutoff: unlimitedTime
+                    noWallTimeCutoff: unlimitedTime,
+                    lowMemoryMode: constrained
                 )
                 guard !Task.isCancelled else { return }
                 if let cppDecision {

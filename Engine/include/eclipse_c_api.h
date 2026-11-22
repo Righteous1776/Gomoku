@@ -178,6 +178,8 @@ int eg_analyze_compute_policy_v3(
 /* The only concurrent-safe other operation during eg_analyze... is cancel.
  * The caller must NOT mutate/play/reset/destroy engine until search returns.
  */
+/* Optional per-engine bounded TT. Default unchanged (50000). */
+int eg_set_search_tt_cap_v1(EGEngine *engine, uint32_t max_entries);
 void eg_cancel_search_v2(EGEngine *engine);
 
 /* Issue #50 / Stage B: additive C ABI for true read-only live telemetry.

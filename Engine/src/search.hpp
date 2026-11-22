@@ -1,6 +1,7 @@
 #pragma once
 #include "board.hpp"
 #include <array>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -82,8 +83,10 @@ enum class ResearchRanker : int { legacy = 0, v9_astra = 1, v9_sol = 2, r07_astr
 class Search {
 public:
     explicit Search(ResearchRanker ranker = ResearchRanker::legacy,
-                    const research_r07::Forest *r07 = nullptr)
-        : ranker_(ranker), r07_(r07) {}
+                    const research_r07::Forest *r07 = nullptr,
+                    std::size_t ttCap = 50000)
+        : ranker_(ranker), r07_(r07),
+          tt_cap_(std::clamp<std::size_t>(ttCap, 1024, 50000)) {}
     // Optional per-search, read-only diagnostics sink. It must never choose a
     // move or change any search limit. Values describe completed iterations.
     using ProgressSink = std::function<void(std::uint64_t, int, int)>;
@@ -104,6 +107,7 @@ public:
 
 private:
     ResearchRanker ranker_ = ResearchRanker::legacy;
+    std::size_t tt_cap_ = 50000;
     const research_r07::Forest *r07_ = nullptr;
     int move_rank(int index, int side) const;
     using Clock = std::chrono::steady_clock;
