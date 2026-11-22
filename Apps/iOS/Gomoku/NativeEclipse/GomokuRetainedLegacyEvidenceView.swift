@@ -30,9 +30,17 @@ struct GomokuRetainedLegacyEvidenceView: View {
                             Text("原始记录 \(source.originalGameRecords) 条 · 哈希局面 \(source.hashedPositionEntries) 项 · \(source.byteCount) B")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
-                            ShareLink(item: source.url) {
-                                Label("主动导出此份私人原始档案", systemImage: "square.and.arrow.up")
-                                    .font(.caption)
+                            Group {
+                                if #available(iOS 16.0, *) {
+                                    ShareLink(item: source.url) {
+                                        Label("主动导出此份私人原始档案", systemImage: "square.and.arrow.up")
+                                            .font(.caption)
+                                    }
+                                } else {
+                                    EclipseLegacyShareButton(
+                                        url: source.url, title: "主动导出此份私人原始档案"
+                                    )
+                                }
                             }
                             .disabled(!authorization.isAuthorized || engine.isImportingLegacyLearning)
                             .accessibilityIdentifier("gomoku.owner.raw-export." + source.id)
