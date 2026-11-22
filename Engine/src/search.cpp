@@ -368,7 +368,7 @@ int Search::negamax(int side, int depth, int alpha, int beta,
         first = false;
     }
     if (best_move >= 0 && std::abs(best) < kMate / 2) {
-        if (table_.size() > 50'000) table_.clear();
+        if (table_.size() >= tt_cap_) table_.clear();
         const int flag = best <= old_alpha ? 2 : best >= beta ? 1 : 0;
         table_[key] = Entry{depth, best, best_move, flag};
     }

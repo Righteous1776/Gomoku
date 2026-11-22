@@ -81,7 +81,8 @@ final class VeilEclipseSearchTraceStore: @unchecked Sendable {
         }
         serial &+= 1
         stored.append(Branch(indices: indices, exploredNodes: nodes, serial: serial, emittedAtUptime: now))
-        if stored.count > 14 { stored.removeFirst(stored.count - 14) }
+        let limit = EclipseMemoryGovernor.lowMemoryDevice ? 8 : 14
+        if stored.count > limit { stored.removeFirst(stored.count - limit) }
         lastTime = now
         return true
     }

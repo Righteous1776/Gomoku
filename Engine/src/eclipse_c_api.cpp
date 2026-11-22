@@ -38,6 +38,7 @@ struct EGEngine {
     int research_ranker = EG_RESEARCH_RANKER_LEGACY;
     int verified_v9_model = 0;
     std::shared_ptr<const eclipse::research_r07::Forest> r07_forest;
+    std::uint32_t search_tt_cap = 50000;
 };
 
 namespace {
@@ -261,6 +262,12 @@ int eg_astra_r07_score_v5(const EGEngine *e,int32_t move) {
         e->board.cells,move,e->board.turn);
 }
 int eg_compute_policy_abi_version(void) { return EG_COMPUTE_POLICY_ABI_VERSION; }
+int eg_set_search_tt_cap_v1(EGEngine *e, uint32_t max_entries) {
+    if (!e || max_entries < 1024 || max_entries > 50000 ||
+        e->live_state.load() == EG_LIVE_SEARCH_RUNNING) return 0;
+    e->search_tt_cap = max_entries;
+    return 1;
+}
 void eg_cancel_search_v2(EGEngine *e) {
     if (e) e->cancelled.store(true, std::memory_order_release);
 }
@@ -485,7 +492,7 @@ static int analyze_compute_impl(
         // No game history or training source escapes through this telemetry.
         const auto found = eclipse::Search{
             static_cast<eclipse::ResearchRanker>(e->research_ranker),
-            e->r07_forest.get()}.analyze(
+            e->r07_forest.get(), e->search_tt_cap}.analyze(
             e->board, 0, root_pointer, &chosen, &e->cancelled,
             observer, root_observer, pv_observer,
             stop ? &adaptive : nullptr, explored_observer);

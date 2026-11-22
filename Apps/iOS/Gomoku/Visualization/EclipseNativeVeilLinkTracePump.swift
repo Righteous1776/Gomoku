@@ -12,7 +12,8 @@ struct EclipseNativeVeilLinkTracePump: View {
 
     var body: some View {
         TimelineView(.animation(
-            minimumInterval: ProcessInfo.processInfo.isLowPowerModeEnabled
+            minimumInterval: EclipseMemoryGovernor.lowMemoryDevice
+                || ProcessInfo.processInfo.isLowPowerModeEnabled
                 || reduceMotion ? 0.2 : 0.06,
             paused: scenePhase != .active
         )) { timeline in

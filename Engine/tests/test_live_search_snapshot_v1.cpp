@@ -37,6 +37,11 @@ static EGComputePolicyV2 policy() {
 int main() {
     EngineOwner e(eg_create(), eg_destroy);
     CHECK(e != nullptr);
+    // 2GB memory governor: this per-engine limit cannot corrupt the ABI.
+    CHECK(eg_set_search_tt_cap_v1(e.get(), 8192) == 1);
+    CHECK(eg_set_search_tt_cap_v1(e.get(), 0) == 0);
+    CHECK(eg_set_search_tt_cap_v1(e.get(), 50100) == 0);
+
     auto idle = read(e.get());
     CHECK(idle.state == EG_LIVE_SEARCH_IDLE);
     CHECK(idle.search_serial == 0);
