@@ -84,6 +84,20 @@ struct GomokuBotBudget: Equatable, Sendable {
         )
     }
 
+    /// Low-memory Swift fallback keeps forced wins/blocks but bounds the
+    /// voluntary root/reply expansion and wall-clock deadline on 2GB devices.
+    func boundedForLowMemory(_ enabled: Bool) -> GomokuBotBudget {
+        guard enabled else { return self }
+        return GomokuBotBudget(
+            candidateRadius: min(candidateRadius, 2),
+            rootCandidateLimit: min(rootCandidateLimit, 24),
+            replyCandidateLimit: min(replyCandidateLimit, 14),
+            continuationCandidateLimit: min(continuationCandidateLimit, 8),
+            timeLimitMilliseconds: timeLimitMilliseconds == 0
+                ? 3_000 : min(timeLimitMilliseconds, 3_000)
+        )
+    }
+
     static let deterministicTest = GomokuBotBudget(
         candidateRadius: 2,
         rootCandidateLimit: 18,
