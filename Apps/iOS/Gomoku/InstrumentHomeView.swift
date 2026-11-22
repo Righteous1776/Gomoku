@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import UIKit
 
 /// Standalone adaptation of VeilLink/UI/GameLobbyView.swift's LocalAIGameView.
 /// Keep the original instrument hierarchy: status, ECLIPSE identity, quick controls,
@@ -825,11 +826,17 @@ struct InstrumentHomeView: View {
                       || engine.isInitialTrainingAuditRunning || engine.trainedGames == 0)
             .accessibilityIdentifier("gomoku.training.export.verified")
             if let exported = engine.nativeTrainingExportURL {
-                ShareLink(item: exported) {
-                    Label("分享已验证的自对弈 JSON", systemImage: "square.and.arrow.up")
-                        .font(.caption.weight(.semibold))
+                if #available(iOS 16.0, *) {
+                    ShareLink(item: exported) {
+                        Label("分享已验证的自对弈 JSON", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityIdentifier("gomoku.training.share.verified")
+                } else {
+                    EclipseLegacyShareButton(url: exported,
+                        title: "分享已验证的自对弈 JSON")
+                        .accessibilityIdentifier("gomoku.training.share.verified")
                 }
-                .accessibilityIdentifier("gomoku.training.share.verified")
             }
             if let warning = engine.trainingWarning {
                 Text(warning)
@@ -892,11 +899,16 @@ struct InstrumentHomeView: View {
             .font(.caption.weight(.semibold))
             .buttonStyle(VeilPhysicalButtonStyle())
             if let matchExportURL {
-                ShareLink(item: matchExportURL) {
-                    Label("分享最新棋谱", systemImage: "square.and.arrow.up")
-                        .font(.caption.weight(.semibold))
+                if #available(iOS 16.0, *) {
+                    ShareLink(item: matchExportURL) {
+                        Label("分享最新棋谱", systemImage: "square.and.arrow.up")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .accessibilityIdentifier("gomoku.match.share")
+                } else {
+                    EclipseLegacyShareButton(url: matchExportURL, title: "分享最新棋谱")
+                        .accessibilityIdentifier("gomoku.match.share")
                 }
-                .accessibilityIdentifier("gomoku.match.share")
             }
         }
         .veilCard()
@@ -969,4 +981,30 @@ private struct EclipseAnalysisPresentation: View {
             )
         }
     }
+}
+
+private struct EclipseLegacyShareButton: View {
+    let url: URL
+    let title: String
+    @State private var sharing = false
+
+    var body: some View {
+        Button {
+            sharing = true
+        } label: {
+            Label(title, systemImage: "square.and.arrow.up")
+                .font(.caption.weight(.semibold))
+        }
+        .sheet(isPresented: $sharing) {
+            EclipseLegacyActivityShare(url: url)
+        }
+    }
+}
+
+private struct EclipseLegacyActivityShare: UIViewControllerRepresentable {
+    let url: URL
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [url], applicationActivities: nil)
+    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
