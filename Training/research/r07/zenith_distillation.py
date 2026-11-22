@@ -61,6 +61,31 @@ def check_records(path: Path):
     return records
 
 
+def verified_manifest(dataset: Path) -> dict:
+    manifest_path = dataset.parent / (dataset.stem + ".manifest.json")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if (manifest.get("schema") != "eclipse.zenith6x.teacher-dataset-manifest.v1"
+            or manifest.get("public_synthetic_only") is not True
+            or manifest.get("no_private_learning") is not True
+            or manifest.get("teacher_zenith_budget_ms") != 5700
+            or manifest.get("samples", 0) < 1):
+        raise ValueError("missing valid nonprivate Zenith 6x teacher manifest")
+    if hashlib.sha256(dataset.read_bytes()).hexdigest() != manifest.get("dataset_sha256"):
+        raise ValueError("teacher dataset SHA-256 mismatch")
+    source_files = manifest.get("sources_sha256", {})
+    required = (
+        "GomokuBot.swift", "EclipseDifficultyPolicy.swift",
+        "VeilGomokuUnifiedSearch.swift", "EclipseTrainedOrdering.swift",
+        "GomokuCounterForkR4.swift",
+    )
+    for name in required:
+        key = f"Legacy/Original/VeilLink/Agent/Games/{name}"
+        digest = source_files.get(key, "")
+        if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+            raise ValueError(f"missing teacher source identity for {name}")
+    return manifest
+
+
 def split_family(family: str) -> str:
     # Group-level, deterministic separation; opening families never span splits.
     return "validation" if int(hashlib.sha256(family.encode()).hexdigest()[:8], 16) % 5 == 0 else "train"
@@ -126,7 +151,10 @@ def train(dataset: Path, output_dir: Path, *, rounds: int = 24,
     baseline = lgb.Booster(model_file=str(BASE_MODEL))
     if baseline.num_trees() != 249 or baseline.num_feature() != 34:
         raise RuntimeError("incorrect R07 base model structure")
+    provenance = verified_manifest(dataset)
     records = check_records(dataset)
+    if len(records) != provenance["samples"]:
+        raise RuntimeError("teacher record count and manifest disagree")
     samples, excluded, family_splits = make_groups(records)
     if len(samples["train"]) < min_train or len(samples["validation"]) < min_val:
         raise RuntimeError(f"insufficient independent search labels: "
